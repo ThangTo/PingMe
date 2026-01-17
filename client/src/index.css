@@ -1,0 +1,68 @@
+/* Tailwind CSS v4 core */
+@import 'tailwindcss';
+
+/* Theme tokens (Tailwind v4) */
+@theme {
+  --color-primary: #0084ff;
+  --color-primary-dark: #0068cc;
+  --color-primary-light: #4da3ff;
+
+  --color-dark-default: #1c1e21;
+  --color-dark-secondary: #242526;
+  --color-dark-tertiary: #3a3b3c;
+
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Custom color utilities cho Tailwind v4 */
+@layer utilities {
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+
+  .bg-primary-dark {
+    background-color: var(--color-primary-dark);
+  }
+
+  .bg-primary-light {
+    background-color: var(--color-primary-light);
+  }
+
+  .text-primary {
+    color: var(--color-primary);
+  }
+
+  .text-primary-light {
+    color: var(--color-primary-light);
+  }
+
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+
+  .ring-primary {
+    --tw-ring-color: var(--color-primary);
+  }
+}
+
+/* Base styles (apply cho toàn app) */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-family-sans);
+    @apply bg-slate-900 text-white;
+  }
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

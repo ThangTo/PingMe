@@ -1,0 +1,122 @@
+import mongoose from 'mongoose';
+
+/**
+ * Message Schema - Định nghĩa cấu trúc tin nhắn
+ */
+const messageSchema = new mongoose.Schema(
+  {
+    // Người gửi
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Sender is required'],
+    },
+
+    // Người nhận (null nếu là tin nhắn nhóm)
+    recipient: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+
+    // Nội dung tin nhắn
+    content: {
+      type: String,
+      required: [true, 'Message content is required'],
+      trim: true,
+      maxlength: [5000, 'Message cannot exceed 5000 characters'],
+    },
+
+    // Loại tin nhắn: text, image, file, audio, video
+    messageType: {
+      type: String,
+      enum: ['text', 'image', 'file', 'audio', 'video'],
+      default: 'text',
+    },
+
+    // File đính kèm (nếu có)
+    attachment: {
+      url: String,
+      filename: String,
+      fileSize: Number,
+      mimeType: String,
+    },
+
+    // Room ID (nếu là chat nhóm)
+    roomId: {
+      type: String,
+      default: null,
+    },
+
+    // Trạng thái: sent, delivered, read
+    status: {
+      type: String,
+      enum: ['sent', 'delivered', 'read'],
+      default: 'sent',
+    },
+
+    // Đã xóa (soft delete)
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Thời gian đọc
+    readAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Reply to message (trả lời tin nhắn cụ thể)
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: null,
+    },
+  },
+  {
+    timestamps: true, // createdAt, updatedAt
+  },
+);
+
+// Index để query nhanh
+messageSchema.index({ sender: 1, recipient: 1 });
+messageSchema.index({ roomId: 1 });
+messageSchema.index({ createdAt: -1 }); // Sắp xếp theo thời gian mới nhất
+
+// Static method: Lấy tin nhắn giữa 2 users
+messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) {
+  return this.find({
+    isDeleted: false,
+    $or: [
+      { sender: user1Id, recipient: user2Id },
+      { sender: user2Id, recipient: user1Id },
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('sender', 'username avatar')
+    .populate('recipient', 'username avatar');
+};
+
+// Static method: Lấy tin nhắn trong room
+messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
+  return this.find({
+    roomId: roomId,
+    isDeleted: false,
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('sender', 'username avatar');
+};
+
+// Method: Đánh dấu tin nhắn đã đọc
+messageSchema.methods.markAsRead = async function () {
+  this.status = 'read';
+  this.readAt = new Date();
+  return await this.save();
+};
+
+const Message = mongoose.model('Message', messageSchema);
+
+export default Message;
