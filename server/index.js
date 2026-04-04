@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import cookieParser from 'cookie-parser';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -7,6 +8,9 @@ import dotenv from 'dotenv';
 // Import các module tự tạo
 import connectDB from './config/db.js';
 import socketHandler from './socket/socketHandler.js';
+import authRoutes from './routers/auth.routes.js';
+import messageRoutes from './routers/message.routes.js';
+import userRoutes from './routers/user.routes.js';
 
 // Load biến môi trường từ file .env
 dotenv.config();
@@ -16,6 +20,7 @@ const app = express();
 
 // Middleware: Parse JSON
 app.use(express.json());
+app.use(cookieParser());
 
 // Middleware: CORS - Cho phép frontend gọi API
 app.use(
@@ -25,15 +30,11 @@ app.use(
   }),
 );
 
-// ==================== KẾT NỐI DATABASE ====================
-// Gọi hàm connectDB (async function)
 connectDB();
 
-// ==================== HTTP SERVER ====================
 // Tạo HTTP server từ Express app
 const server = http.createServer(app);
 
-// ==================== SOCKET.IO SERVER ====================
 // Khởi tạo Socket.io với HTTP server
 const io = new Server(server, {
   cors: {
@@ -41,7 +42,6 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  // Các config tùy chọn
   pingTimeout: 60000, // 60s timeout
   pingInterval: 25000, // Ping mỗi 25s để giữ connection
 });
@@ -49,7 +49,10 @@ const io = new Server(server, {
 // Gọi socket handler (tách logic socket ra file riêng)
 socketHandler(io);
 
-// ==================== REST API ROUTES (Basic) ====================
+// routes
+app.use('/api/auth', authRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -57,14 +60,6 @@ app.get('/health', (req, res) => {
     status: 'OK',
     message: 'PingMe Server is running!',
     timestamp: new Date().toISOString(),
-  });
-});
-
-// API endpoint mẫu
-app.get('/api/hello', (req, res) => {
-  res.json({
-    message: 'Hello from PingMe API!',
-    version: '1.0.0',
   });
 });
 
@@ -85,15 +80,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ==================== START SERVER ====================
 const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
-  console.log('\n=================================');
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io ready for connections`);
   console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-  console.log('=================================\n');
 });
 
 // Xử lý graceful shutdown
@@ -105,5 +97,4 @@ process.on('SIGTERM', () => {
   });
 });
 
-// Export io để có thể sử dụng ở module khác (nếu cần)
 export { io };

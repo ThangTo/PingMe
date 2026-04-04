@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-
+import api from '../config/api';
 /**
  * Auth Context - Quản lý authentication state
  * Sử dụng Context API để share user data và auth functions
@@ -25,7 +25,7 @@ export const useAuth = () => {
 /**
  * Auth Provider Component
  */
-export const AuthProvider = ({ children }) => {
+const AuthProvider = ({ children }) => {
   // State quản lý user hiện tại
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -33,17 +33,31 @@ export const AuthProvider = ({ children }) => {
 
   // Load user từ localStorage khi app khởi động
   useEffect(() => {
-    const loadUser = () => {
+    const loadUser = async () => {
       try {
         const storedUser = localStorage.getItem('pingme_user');
-        const storedToken = localStorage.getItem('pingme_token');
 
-        if (storedUser && storedToken) {
-          setUser(JSON.parse(storedUser));
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          setUser(user);
           setIsAuthenticated(true);
+
+          // Optional: Verify token với server
+          // try {
+          //   const response = await apiGet('/api/auth/verify');
+          //   if (response.success) {
+          //     setUser(response.user);
+          //   }
+          // } catch (error) {
+          //   // Token invalid, clear storage
+          //   localStorage.removeItem('pingme_user');
+          //   setUser(null);
+          //   setIsAuthenticated(false);
+          // }
         }
       } catch (error) {
         console.error('Error loading user from localStorage:', error);
+        localStorage.removeItem('pingme_user');
       } finally {
         setIsLoading(false);
       }
@@ -53,82 +67,105 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
-   * Login function (placeholder - sẽ integrate với API sau)
+   * Login function - Gọi API đăng nhập
    * @param {Object} credentials - {email, password}
    * @returns {Promise}
    */
   const login = async (credentials) => {
     try {
-      setIsLoading(true);
+      // KHÔNG set isLoading ở đây để tránh trigger re-render
+      // setIsLoading(true);
 
-      // TODO: Call API login endpoint
-      // const response = await fetch('/api/auth/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(credentials)
-      // });
+      // Gọi API login endpoint
+      const response = await api.post('/auth/login', {
+        email: credentials.email,
+        password: credentials.password,
+      });
 
-      // Mock data cho demo
-      const mockUser = {
-        id: '123',
-        username: credentials.username || 'demo_user',
-        email: credentials.email || 'demo@example.com',
-        avatar: 'https://via.placeholder.com/150',
-      };
+      // Kiểm tra response structure
+      if (response.data?.success && response.data?.user) {
+        // Lưu user vào localStorage
+        localStorage.setItem('pingme_user', JSON.stringify(response.data.user));
 
-      const mockToken = 'mock_jwt_token_123';
+        // Update state
+        setUser(response.data.user);
+        setIsAuthenticated(true);
 
-      // Lưu vào localStorage
-      localStorage.setItem('pingme_user', JSON.stringify(mockUser));
-      localStorage.setItem('pingme_token', mockToken);
-
-      // Update state
-      setUser(mockUser);
-      setIsAuthenticated(true);
-
-      return { success: true, user: mockUser };
+        return { success: true, user: response.data.user };
+      } else {
+        // Nếu không có success hoặc user, có thể là lỗi từ server
+        const errorMsg = response.data?.error || 'Đăng nhập thất bại';
+        return { success: false, error: errorMsg };
+      }
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
+      // Xử lý error từ axios interceptor
+      // Interceptor đã format error.message với message từ backend
+      const errorMessage = error.message || 'Đăng nhập thất bại';
+
+      return { success: false, error: errorMessage };
     }
+    // KHÔNG set isLoading(false) ở đây
   };
 
   /**
-   * Register function (placeholder)
+   * Register function - Gọi API đăng ký
    * @param {Object} userData - {username, email, password}
    * @returns {Promise}
    */
   const register = async (userData) => {
     try {
-      setIsLoading(true);
+      // KHÔNG set isLoading ở đây để tránh trigger re-render
+      // setIsLoading(true);
 
-      // TODO: Call API register endpoint
-      // const response = await fetch('/api/auth/register', {...});
+      // Gọi API register endpoint
+      const response = await api.post('/auth/register', {
+        username: userData.username,
+        email: userData.email,
+        password: userData.password,
+      });
 
-      console.log('Register with:', userData);
-
-      return { success: true };
+      if (response.data?.success) {
+        return { success: true };
+      } else {
+        // Nếu không có success, có thể là lỗi từ server
+        const errorMsg = response.data?.error || 'Đăng ký thất bại';
+        return { success: false, error: errorMsg };
+      }
     } catch (error) {
-      console.error('Register error:', error);
-      return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
+      // Xử lý error từ axios interceptor
+      // Interceptor đã format error.message với message từ backend
+      const errorMessage = error.message || 'Đăng ký thất bại';
+
+      return { success: false, error: errorMessage };
     }
+    // KHÔNG set isLoading(false) ở đây
   };
 
   /**
-   * Logout function
+   * Logout function - Gọi API logout và clear local state
    */
-  const logout = () => {
-    // Xóa khỏi localStorage
-    localStorage.removeItem('pingme_user');
-    localStorage.removeItem('pingme_token');
+  const logout = async () => {
+    try {
+      setIsLoading(true);
 
-    // Reset state
-    setUser(null);
-    setIsAuthenticated(false);
+      // Gọi API logout để clear cookies trên server
+      try {
+        await api.post('/auth/logout');
+      } catch (error) {
+        // Nếu API call fail, vẫn tiếp tục clear local state
+        console.warn('Logout API call failed, clearing local state anyway:', error);
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Luôn luôn clear local state
+      localStorage.removeItem('pingme_user');
+
+      // Reset state
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsLoading(false);
+    }
   };
 
   /**
@@ -155,4 +192,4 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export default AuthContext;
+export default AuthProvider;

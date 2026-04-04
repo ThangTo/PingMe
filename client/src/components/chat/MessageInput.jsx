@@ -1,30 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
-import Button from '../ui/Button';
 
-/**
- * MessageInput Component - Input để gửi tin nhắn với emoji và file attachment
- */
-const MessageInput = ({ onSendMessage, disabled = false }) => {
+const MessageInput = ({
+  onSendMessage,
+  disabled = false,
+  onTypingStart,
+  onTypingStop,
+  onFocus,
+}) => {
   const [message, setMessage] = useState('');
-  const textareaRef = useRef(null);
+  const inputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
-  // Auto resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [message]);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (message.trim() && !disabled) {
-      onSendMessage(message.trim());
-      setMessage('');
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
-    }
+  const handleTextChange = (e) => {
+    setMessage(e.target.value);
+    if (onTypingStart) onTypingStart();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onTypingStop) onTypingStop();
+    }, 1500);
   };
 
   const handleKeyPress = (e) => {
@@ -34,86 +27,77 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (message.trim() && !disabled) {
+      onSendMessage(message.trim());
+      setMessage('');
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (onTypingStop) onTypingStop();
+    }
+  };
+
+  const canSend = message.trim() && !disabled;
+
   return (
-    <div className="p-4 border-t border-slate-700 bg-slate-800">
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        {/* Emoji button (placeholder) */}
-        <Button
+    <footer className="px-5 py-4 border-t border-white/6 shrink-0">
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-3 bg-surface-container-low rounded-2xl px-4 py-2.5 border border-white/6 focus-within:border-primary/40 transition-colors"
+      >
+        {/* Attachment */}
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          className="flex-shrink-0"
-          title="Emoji"
+          className="text-on-surface-variant/50 hover:text-primary transition-colors shrink-0"
+          title="Đính kèm"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a1 1 0 10-1.415-1.414 3 3 0 01-4.242 0 1 1 0 00-1.415 1.414 5 5 0 007.072 0z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </Button>
+          <span className="material-symbols-outlined text-xl">attach_file</span>
+        </button>
 
-        {/* Attachment button */}
-        <Button
+        {/* Emoji */}
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          className="flex-shrink-0"
-          title="Đính kèm file"
+          className="text-on-surface-variant/50 hover:text-secondary transition-colors shrink-0"
+          title="Biểu cảm"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </Button>
+          <span className="material-symbols-outlined text-xl">sentiment_satisfied</span>
+        </button>
 
-        {/* Text input */}
-        <textarea
-          ref={textareaRef}
+        {/* Input */}
+        <input
+          ref={inputRef}
+          type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleTextChange}
           onKeyPress={handleKeyPress}
-          placeholder="Nhập tin nhắn..."
+          onFocus={onFocus}
           disabled={disabled}
-          rows={1}
-          className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none max-h-32 overflow-y-auto"
+          autoComplete="off"
+          className="flex-1 bg-transparent border-none outline-none text-sm text-on-surface placeholder:text-on-surface-variant/40 py-0.5"
+          placeholder="Nhập tin nhắn..."
         />
 
-        {/* Send button */}
-        <Button
+        {/* Send */}
+        <button
           type="submit"
-          variant="primary"
-          size="md"
-          disabled={!message.trim() || disabled}
-          className="flex-shrink-0"
+          disabled={!canSend}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+            canSend
+              ? 'bg-primary text-white hover:bg-primary/90 active:scale-95'
+              : 'bg-white/4 text-on-surface-variant/30 cursor-not-allowed'
+          }`}
+          title="Gửi tin nhắn"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
+          <span
+            className="material-symbols-outlined text-xl"
+            style={{ fontVariationSettings: "'FILL' 1" }}
           >
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-          </svg>
-        </Button>
+            send
+          </span>
+        </button>
       </form>
-    </div>
+    </footer>
   );
 };
 
 export default MessageInput;
-

@@ -2,9 +2,6 @@ import Header from './Header';
 import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
 
-/**
- * ChatArea Component - Khu vực chat chính với header, messages và input
- */
 const ChatArea = ({
   currentUser,
   messages = [],
@@ -13,10 +10,13 @@ const ChatArea = ({
   onVideoCall,
   onVoiceCall,
   onMenuClick,
+  isTyping,
+  onTypingStart,
+  onTypingStop,
+  onFocusInput,
 }) => {
   return (
-    <div className="flex-1 flex flex-col bg-slate-900 h-full">
-      {/* Header */}
+    <>
       {currentUser && (
         <Header
           user={currentUser}
@@ -26,14 +26,24 @@ const ChatArea = ({
         />
       )}
 
-      {/* Messages list */}
-      <MessageList messages={messages} currentUserId={currentUserId} />
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <MessageList
+          messages={messages}
+          currentUserId={currentUserId}
+          isTyping={isTyping}
+        />
+      </div>
 
-      {/* Message input */}
-      <MessageInput onSendMessage={onSendMessage} />
-    </div>
+      {/* Input */}
+      <MessageInput
+        onSendMessage={onSendMessage}
+        onTypingStart={onTypingStart}
+        onTypingStop={onTypingStop}
+        onFocus={onFocusInput}
+      />
+    </>
   );
 };
 
 export default ChatArea;
-

@@ -5,7 +5,7 @@ import App from './App.jsx';
 
 // Import Providers
 import { SocketProvider } from './context/SocketContext.jsx';
-import { AuthProvider } from './context/AuthContext.jsx';
+import AuthProvider from './context/AuthContext.jsx';
 
 /**
  * Entry Point của React App

@@ -1,203 +1,341 @@
-import { useState, useEffect } from 'react';
+/**
+ * Chat Page - Layout tổng (Thiết kế lại UI: Midnight Command Center)
+ * Logic giữ nguyên 100%
+ */
+import { useState, useEffect, useCallback, useRef } from 'react';
+import TopNavBar from '../components/layout/TopNavBar';
+import MiniSidebar from '../components/layout/MiniSidebar';
 import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
+import api from '../config/api';
 
-/**
- * Chat Page - Trang chat chính (giống Messenger)
- */
 const Chat = () => {
   const { user } = useAuth();
   const { isConnected } = useSocket();
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesRef = useRef(messages);
 
-  // Mock data cho conversations (sẽ thay bằng API call sau)
   useEffect(() => {
-    const mockConversations = [
-      {
-        id: '1',
-        name: 'John Doe',
-        avatar: 'https://via.placeholder.com/150',
-        lastMessage: 'Xin chào! Bạn khỏe không?',
-        lastMessageTime: '10:30',
-        isOnline: true,
-        unreadCount: 2,
-      },
-      {
-        id: '2',
-        name: 'Jane Smith',
-        avatar: 'https://via.placeholder.com/150',
-        lastMessage: 'Cảm ơn bạn đã giúp đỡ!',
-        lastMessageTime: 'Hôm qua',
-        isOnline: false,
-        unreadCount: 0,
-      },
-      {
-        id: '3',
-        name: 'Alice Johnson',
-        avatar: 'https://via.placeholder.com/150',
-        lastMessage: 'Cuộc họp lúc 3 giờ chiều nhé',
-        lastMessageTime: '2 giờ trước',
-        isOnline: true,
-        unreadCount: 1,
-      },
-    ];
-    setConversations(mockConversations);
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (user && user.id) {
+      socket.emit('register_user', user.id);
+      console.log('📤 Đã đăng ký User ID với Socket:', user.id);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const handleGetOnlineFriends = (friendsList) => {
+      console.log('👥 Bạn bè đang online:', friendsList);
+      setOnlineUsers(friendsList);
+    };
+
+    const handleStatusChanged = (data) => {
+      const { userId, status } = data;
+      console.log(`🚦 User ${userId} thay đổi trạng thái thành ${status}`);
+      setOnlineUsers((prev) => {
+        if (status === 'online') {
+          if (!prev.includes(userId)) return [...prev, userId];
+          return prev;
+        } else {
+          return prev.filter((id) => id !== userId);
+        }
+      });
+    };
+
+    socket.on('get_online_friends', handleGetOnlineFriends);
+    socket.on('user_status_changed', handleStatusChanged);
+
+    return () => {
+      socket.off('get_online_friends', handleGetOnlineFriends);
+      socket.off('user_status_changed', handleStatusChanged);
+    };
   }, []);
 
-  // Mock messages cho conversation được chọn
-  useEffect(() => {
-    if (selectedConversationId) {
-      const mockMessages = [
-        {
-          id: '1',
-          senderId: selectedConversationId,
-          senderName: conversations.find((c) => c.id === selectedConversationId)?.name,
-          senderAvatar: conversations.find((c) => c.id === selectedConversationId)?.avatar,
-          content: 'Xin chào! Bạn khỏe không?',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          status: 'read',
-        },
-        {
-          id: '2',
-          senderId: user?.id || 'current',
-          senderName: user?.username,
-          senderAvatar: user?.avatar,
-          content: 'Chào bạn! Mình khỏe, cảm ơn bạn đã hỏi thăm.',
-          timestamp: new Date(Date.now() - 3300000).toISOString(),
-          status: 'read',
-        },
-        {
-          id: '3',
-          senderId: selectedConversationId,
-          senderName: conversations.find((c) => c.id === selectedConversationId)?.name,
-          senderAvatar: conversations.find((c) => c.id === selectedConversationId)?.avatar,
-          content: 'Tuyệt vời! Bạn có rảnh để chat không?',
-          timestamp: new Date(Date.now() - 3000000).toISOString(),
-          status: 'read',
-        },
-      ];
-      setMessages(mockMessages);
-    } else {
-      setMessages([]);
+  const fetchFriends = useCallback(async () => {
+    try {
+      const response = await api.get('/users/friends');
+      if (response.data.success) {
+        const formattedFriends = response.data.friends.map((u) => ({
+          id: u._id,
+          name: u.username,
+          avatar: u.avatar,
+          isOnline: onlineUsers.includes(u._id),
+          lastMessage: 'Bắt đầu trò chuyện',
+        }));
+        setConversations(formattedFriends);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy danh sách bạn bè:', error);
     }
-  }, [selectedConversationId, conversations, user]);
+  }, [onlineUsers]);
 
-  // Lắng nghe tin nhắn mới từ socket
+  const markChatAsRead = useCallback(() => {
+    if (selectedConversationId && user && document.hasFocus()) {
+      const unreadMessages = messagesRef.current.filter(
+        (m) => m.senderId === selectedConversationId && m.status !== 'read',
+      );
+
+      if (unreadMessages.length > 0) {
+        socket.emit('mark_messages_read', {
+          readerId: user.id,
+          senderId: selectedConversationId,
+        });
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.senderId === selectedConversationId && msg.status !== 'read'
+              ? { ...msg, status: 'read' }
+              : msg,
+          ),
+        );
+      }
+    }
+  }, [selectedConversationId, user]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      markChatAsRead();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [markChatAsRead]);
+
+  useEffect(() => {
+    if (user) fetchFriends();
+  }, [user, fetchFriends]);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!selectedConversationId) {
+        setMessages([]);
+        return;
+      }
+      try {
+        const response = await api.get(`/messages/${selectedConversationId}`);
+        if (response.data.success) {
+          const normalizedMessages = response.data.messages.map((msg) => ({
+            id: msg._id,
+            senderId: msg.sender._id || msg.sender,
+            content: msg.content,
+            timestamp: msg.createdAt,
+            status: msg.status,
+          }));
+          setMessages(normalizedMessages);
+
+          if (user && user.id) {
+            socket.emit('mark_messages_read', {
+              readerId: user.id,
+              senderId: selectedConversationId,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Lỗi khi lấy tin nhắn:', error);
+      }
+    };
+    fetchMessages();
+  }, [selectedConversationId, user]);
+
+  useEffect(() => {
+    const handleTyping = (data) => {
+      if (data.senderId === selectedConversationId) setIsTyping(true);
+    };
+    const handleStopTyping = (data) => {
+      if (data.senderId === selectedConversationId) setIsTyping(false);
+    };
+
+    socket.on('user_typing', handleTyping);
+    socket.on('user_stopped_typing', handleStopTyping);
+
+    return () => {
+      socket.off('user_typing', handleTyping);
+      socket.off('user_stopped_typing', handleStopTyping);
+    };
+  }, [selectedConversationId]);
+
   useEffect(() => {
     const handleReceiveMessage = (data) => {
       console.log('📨 Received message:', data);
-      setMessages((prev) => [...prev, data]);
+      if (data.senderId === selectedConversationId) {
+        setMessages((prev) => [...prev, data]);
+      }
+      setConversations((prev) => {
+        const targetConv = prev.find((c) => c.id === data.senderId);
+        if (!targetConv) return prev;
+        const updatedTarget = { ...targetConv, lastMessage: data.content };
+        const otherConvs = prev.filter((c) => c.id !== data.senderId);
+        return [updatedTarget, ...otherConvs];
+      });
+      markChatAsRead();
     };
 
     socket.on('receive_message', handleReceiveMessage);
 
+    const handleFriendAccepted = (data) => {
+      console.log('✅ Đã được đồng ý kết bạn:', data);
+      fetchFriends();
+    };
+
+    socket.on('friend_request_accepted', handleFriendAccepted);
+
+    const handleMessagesRead = (data) => {
+      console.log('👀 Người kia đã đọc tin nhắn:', data);
+      if (data.readerId === selectedConversationId) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.status !== 'read' && msg.senderId === user.id ? { ...msg, status: 'read' } : msg,
+          ),
+        );
+      }
+    };
+
+    socket.on('messages_were_read', handleMessagesRead);
+
     return () => {
       socket.off('receive_message', handleReceiveMessage);
+      socket.off('friend_request_accepted', handleFriendAccepted);
+      socket.off('messages_were_read', handleMessagesRead);
     };
-  }, []);
+  }, [selectedConversationId, user]);
 
-  // Handler gửi tin nhắn
+  const handleTypingStart = () => {
+    if (selectedConversationId && user) {
+      socket.emit('typing', { senderId: user.id, receiverId: selectedConversationId });
+    }
+  };
+
+  const handleTypingStop = () => {
+    if (selectedConversationId && user) {
+      socket.emit('stop_typing', { senderId: user.id, receiverId: selectedConversationId });
+    }
+  };
+
   const handleSendMessage = (content) => {
-    if (!selectedConversationId) return;
+    if (!selectedConversationId || !user) return;
+    const messageData = {
+      senderId: user.id,
+      recipientId: selectedConversationId,
+      content: content,
+    };
+    socket.emit('send_message', messageData);
 
     const newMessage = {
       id: Date.now().toString(),
-      senderId: user?.id || 'current',
-      senderName: user?.username,
-      senderAvatar: user?.avatar,
+      senderId: user.id,
       content,
       timestamp: new Date().toISOString(),
       status: 'sent',
     };
-
-    // Thêm vào UI ngay lập tức (optimistic update)
     setMessages((prev) => [...prev, newMessage]);
 
-    // Gửi qua socket
-    socket.emit('send_message', {
-      recipientId: selectedConversationId,
-      content,
-      ...newMessage,
+    setConversations((prev) => {
+      const targetConv = prev.find((c) => c.id === selectedConversationId);
+      if (!targetConv) return prev;
+      const updatedTarget = { ...targetConv, lastMessage: content };
+      const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
+      return [updatedTarget, ...otherConvs];
     });
   };
 
-  // Handler chọn conversation
   const handleSelectConversation = (conversationId) => {
     setSelectedConversationId(conversationId);
   };
-
-  // Handler video/voice call (placeholder)
   const handleVideoCall = () => {
     console.log('Video call clicked');
-    // TODO: Implement video call
   };
-
   const handleVoiceCall = () => {
     console.log('Voice call clicked');
-    // TODO: Implement voice call
   };
-
   const handleMenuClick = () => {
     console.log('Menu clicked');
-    // TODO: Show menu (settings, info, etc.)
   };
 
-  // Lấy thông tin user hiện tại đang chat
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
+  // --- KẾT THÚC LOGIC ---
 
   return (
-    <div className="h-screen flex bg-slate-900 text-white overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        conversations={conversations}
-        onSelectConversation={handleSelectConversation}
-        selectedConversationId={selectedConversationId}
-      />
+    <div className="h-screen w-full font-body overflow-hidden bg-surface">
+      <TopNavBar />
 
-      {/* Chat Area */}
-      {selectedConversationId ? (
-        <ChatArea
-          currentUser={currentChatUser}
-          messages={messages}
-          currentUserId={user?.id || 'current'}
-          onSendMessage={handleSendMessage}
-          onVideoCall={handleVideoCall}
-          onVoiceCall={handleVoiceCall}
-          onMenuClick={handleMenuClick}
-        />
-      ) : (
-        <div className="flex-1 flex items-center justify-center bg-slate-900">
-          <div className="text-center text-slate-400">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-24 w-24 mx-auto mb-4 opacity-50"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+      <div className="flex h-screen pt-16">
+        <MiniSidebar />
+
+        <main className="flex-1 ml-20 flex overflow-hidden relative">
+          {/* Sidebar - Conversation List */}
+          <Sidebar
+            conversations={conversations}
+            onSelectConversation={handleSelectConversation}
+            selectedConversationId={selectedConversationId}
+            onFriendAdded={fetchFriends}
+          />
+
+          {/* Chat Window */}
+          {selectedConversationId ? (
+            <section className="flex-1 flex flex-col overflow-hidden">
+              <ChatArea
+                currentUser={currentChatUser}
+                messages={messages}
+                currentUserId={user?.id || 'current'}
+                onSendMessage={handleSendMessage}
+                onVideoCall={handleVideoCall}
+                onVoiceCall={handleVoiceCall}
+                onMenuClick={handleMenuClick}
+                isTyping={isTyping}
+                onTypingStart={handleTypingStart}
+                onTypingStop={handleTypingStop}
+                onFocusInput={markChatAsRead}
               />
-            </svg>
-            <h2 className="text-xl font-semibold mb-2">Chọn cuộc trò chuyện</h2>
-            <p className="text-sm">Chọn một cuộc trò chuyện từ danh sách để bắt đầu chat</p>
-            {!isConnected && (
-              <p className="text-xs text-red-400 mt-2">⚠️ Chưa kết nối tới server</p>
-            )}
-          </div>
-        </div>
-      )}
+            </section>
+          ) : (
+            /* Empty State */
+            <section className="flex-1 flex flex-col items-center justify-center relative">
+              {/* Ambient glow */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/[0.03] blur-[100px]" />
+              </div>
+
+              <div className="relative flex flex-col items-center gap-5 animate-fade-in">
+                {/* Animated icon */}
+                <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 rotate-6 opacity-60" />
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/20 -rotate-3 opacity-40" />
+                  <div className="relative w-full h-full rounded-2xl bg-surface-container-low border border-white/5 flex items-center justify-center shadow-2xl">
+                    <span className="material-symbols-outlined text-4xl text-primary-light/80" style={{ fontVariationSettings: "'FILL' 0" }}>forum</span>
+                  </div>
+                </div>
+
+                <div className="text-center space-y-1.5">
+                  <h2 className="text-2xl font-headline font-bold text-on-surface tracking-tight">
+                    Chọn cuộc trò chuyện
+                  </h2>
+                  <p className="text-sm text-on-surface-variant max-w-xs">
+                    Chọn một người bạn từ danh sách bên trái để bắt đầu nhắn tin.
+                  </p>
+                </div>
+
+                {!isConnected && (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-error/10 border border-error/20">
+                    <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
+                    <p className="text-xs text-error font-label font-medium">Đang kết nối lại...</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </main>
+      </div>
     </div>
   );
 };
 
 export default Chat;
-
