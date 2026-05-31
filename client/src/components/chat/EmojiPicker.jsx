@@ -1,11 +1,11 @@
 const EmojiPicker = ({ emojis = [], onSelect }) => {
   return (
-    <div className="flex items-center gap-1 p-2 bg-surface-container-low border border-white/10 rounded-2xl shadow-xl z-10">
+    <div className="z-10 flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest p-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
       {emojis.map((emoji) => (
         <button
           key={emoji}
           onClick={() => onSelect(emoji)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/8 text-lg transition-transform active:scale-110 hover:scale-110"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-surface-container-low active:scale-[0.98]"
         >
           {emoji}
         </button>

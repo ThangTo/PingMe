@@ -1,4 +1,11 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
+import Message from '../models/Message.js';
+
+const getMessagePreview = (message) => {
+  if (!message) return 'Bắt đầu trò chuyện';
+  return message.content || message.attachment?.filename || 'Tệp đính kèm';
+};
 
 const userController = {
   //Lấy toàn bộ user
@@ -22,12 +29,80 @@ const userController = {
   //Lấy danh sách bạn bè
   getFriends: async (req, res) => {
     try {
-      const user = await User.findById(req.user.id).populate(
-        'friends',
-        'username email avatar isOnline',
+      const currentUserId = req.user.id;
+      const user = await User.findById(currentUserId)
+        .populate('friends', 'username email avatar isOnline')
+        .lean();
+
+      if (!user) {
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      const friendObjectIds = user.friends.map((friend) => friend._id);
+      const currentUserObjectId = new mongoose.Types.ObjectId(currentUserId);
+
+      const lastMessages = await Message.aggregate([
+        {
+          $match: {
+            isDeleted: false,
+            $or: [
+              { sender: currentUserObjectId, recipient: { $in: friendObjectIds } },
+              { sender: { $in: friendObjectIds }, recipient: currentUserObjectId },
+            ],
+          },
+        },
+        {
+          $addFields: {
+            friendId: {
+              $cond: [{ $eq: ['$sender', currentUserObjectId] }, '$recipient', '$sender'],
+            },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $group: { _id: '$friendId', message: { $first: '$$ROOT' } } },
+      ]);
+
+      const lastMessageByFriend = new Map(
+        lastMessages.map((item) => [item._id.toString(), item.message]),
       );
-      res.status(200).json({ success: true, friends: user.friends });
+
+      const unreadCounts = await Message.aggregate([
+        {
+          $match: {
+            isDeleted: false,
+            recipient: user._id,
+            sender: { $in: friendObjectIds },
+            status: { $ne: 'read' },
+          },
+        },
+        { $group: { _id: '$sender', count: { $sum: 1 } } },
+      ]);
+
+      const unreadCountByFriend = new Map(
+        unreadCounts.map((item) => [item._id.toString(), item.count]),
+      );
+
+      const friends = user.friends
+        .map((friend) => {
+          const friendId = friend._id.toString();
+          const lastMessage = lastMessageByFriend.get(friendId);
+
+          return {
+            _id: friend._id,
+            username: friend.username,
+            email: friend.email,
+            avatar: friend.avatar,
+            isOnline: friend.isOnline,
+            lastMessage: getMessagePreview(lastMessage),
+            lastMessageAt: lastMessage?.createdAt || null,
+            unreadCount: unreadCountByFriend.get(friendId) || 0,
+          };
+        })
+        .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
+
+      res.status(200).json({ success: true, friends });
     } catch (error) {
+      console.error('Lỗi lấy danh sách bạn bè:', error);
       res.status(500).json({ error: 'Không thể lấy danh sách bạn bè' });
     }
   },

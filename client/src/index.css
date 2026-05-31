@@ -3,73 +3,69 @@
 
 /* Theme tokens (Tailwind v4) */
 @theme {
-  /* Chuyển từ Meta Blue sang Indigo sang trọng */
-  --color-primary: #4f46e5; /* indigo-600 */
-  --color-primary-dark: #3730a3; /* indigo-800 (Dùng cho hover/active) */
-  --color-primary-light: #818cf8; /* indigo-400 (Dùng cho text/highlight) */
+  --color-primary: #111111;
+  --color-primary-dark: #333333;
+  --color-primary-light: #4d4a45;
 
-  /* Thay đổi: Nền mặc định sử dụng màu deep slate và text xám sáng */
-  --color-dark-default: #0a0e16; /* surface-dim */
-  --color-dark-secondary: #0f131d; /* surface-container-low */
-  --color-dark-tertiary: #1b202b; /* surface-container-high */
+  --color-dark-default: #f7f6f3;
+  --color-dark-secondary: #fbfbfa;
+  --color-dark-tertiary: #efede8;
 
-  /* Thêm font Inter và Space Grotesk */
-  --font-family-body: 'Inter', -apple-system, sans-serif;
-  --font-family-headline: 'Space Grotesk', sans-serif;
-  --font-family-label: 'Space Grotesk', sans-serif;
+  --font-family-body: 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-headline: 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-label: 'Geist Mono', 'SF Mono', 'JetBrains Mono', Consolas, monospace;
 
-  /* Custom UI Colors from HTML */
-  --color-on-secondary-container: #e3fdff;
-  --color-secondary-dim: #00deec;
-  --color-on-tertiary-fixed: #380017;
-  --color-secondary-container: #006970;
-  --color-secondary-fixed: #00eefc;
-  --color-on-background: #e8eaf7;
-  --color-surface-container-lowest: #000000;
-  --color-primary-fixed-dim: #df53ff;
-  --color-on-tertiary: #47001f;
-  --color-error: #ff6e84;
-  --color-surface-container-highest: #202632;
-  --color-tertiary: #ff6b9b;
-  --color-on-secondary-fixed: #003f43;
-  --color-on-primary-fixed: #000000;
-  --color-on-tertiary-fixed-variant: #760037;
-  --color-tertiary-fixed-dim: #ff75a0;
-  --color-surface: #0a0e16;
-  --color-on-primary-container: #40004f;
-  --color-on-error-container: #ffb2b9;
-  --color-surface-container-high: #1b202b;
-  --color-error-container: #a70138;
-  --color-surface-dim: #0a0e16;
-  --color-surface-container-low: #0f131d;
-  --color-inverse-primary: #a100c2;
-  --color-on-primary: #530065;
-  --color-on-secondary-fixed-variant: #005e64;
-  --color-primary-dim: #c300eb;
-  --color-tertiary-container: #ff067f;
-  --color-primary-fixed: #e66fff;
-  --color-surface-bright: #262c39;
-  --color-tertiary-dim: #e30071;
-  --color-tertiary-fixed: #ff8eae;
-  --color-on-secondary: #005359;
-  --color-surface-variant: #202632;
-  --color-on-error: #490013;
-  --color-on-surface-variant: #a8abb6;
-  --color-background: #0a0e16;
-  --color-secondary: #00eefc;
-  --color-inverse-on-surface: #51555f;
-  --color-primary-container: #e66fff;
-  --color-inverse-surface: #f9f9ff;
-  --color-on-tertiary-container: #000000;
-  --color-surface-container: #151a24;
-  --color-on-surface: #e8eaf7;
-  --color-on-primary-fixed-variant: #4f0061;
-  --color-error-dim: #d73357;
-  --color-secondary-fixed-dim: #00deec;
-  --color-surface-tint: #ec86ff;
-  --color-outline: #727580;
-  --color-primary-original: #ec86ff;
-  --color-outline-variant: #444852;
+  --color-on-secondary-container: #2f3437;
+  --color-secondary-dim: #edf3ec;
+  --color-on-tertiary-fixed: #2f3437;
+  --color-secondary-container: #edf3ec;
+  --color-secondary-fixed: #edf3ec;
+  --color-on-background: #2f3437;
+  --color-surface-container-lowest: #ffffff;
+  --color-primary-fixed-dim: #4d4a45;
+  --color-on-tertiary: #2f3437;
+  --color-error: #9f2f2d;
+  --color-surface-container-highest: #ebe8e1;
+  --color-tertiary: #956400;
+  --color-on-secondary-fixed: #346538;
+  --color-on-primary-fixed: #ffffff;
+  --color-on-tertiary-fixed-variant: #787774;
+  --color-tertiary-fixed-dim: #fbf3db;
+  --color-surface: #fbfbfa;
+  --color-on-primary-container: #2f3437;
+  --color-on-error-container: #9f2f2d;
+  --color-surface-container-high: #efede8;
+  --color-error-container: #fdebec;
+  --color-surface-dim: #f7f6f3;
+  --color-surface-container-low: #f4f2ee;
+  --color-inverse-primary: #ffffff;
+  --color-on-primary: #ffffff;
+  --color-on-secondary-fixed-variant: #346538;
+  --color-primary-dim: #333333;
+  --color-tertiary-container: #fbf3db;
+  --color-primary-fixed: #111111;
+  --color-surface-bright: #ffffff;
+  --color-tertiary-dim: #fbf3db;
+  --color-tertiary-fixed: #fbf3db;
+  --color-on-secondary: #346538;
+  --color-surface-variant: #f7f6f3;
+  --color-on-error: #ffffff;
+  --color-on-surface-variant: #787774;
+  --color-background: #f7f6f3;
+  --color-secondary: #346538;
+  --color-inverse-on-surface: #f7f6f3;
+  --color-primary-container: #111111;
+  --color-inverse-surface: #2f3437;
+  --color-on-tertiary-container: #956400;
+  --color-surface-container: #ffffff;
+  --color-on-surface: #2f3437;
+  --color-on-primary-fixed-variant: #f7f6f3;
+  --color-error-dim: #fdebec;
+  --color-secondary-fixed-dim: #edf3ec;
+  --color-surface-tint: #eaeaea;
+  --color-outline: #c9c7c0;
+  --color-primary-original: #111111;
+  --color-outline-variant: #e4e1da;
 }
 
 /* Custom color utilities cho Tailwind v4 */
@@ -111,14 +107,16 @@
 
   body {
     margin: 0;
-    min-height: 100vh;
+    min-height: 100dvh;
     font-family: var(--font-family-body);
-    /* Thay đổi: Nền mặc định sử dụng màu deep slate và text xám sáng */
     background-color: var(--color-background);
     color: var(--color-on-background);
-    /* Antialiasing giúp font chữ mượt mà hơn trên màn hình độ phân giải cao */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 }
 
@@ -151,7 +149,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, var(--color-primary-original), var(--color-secondary), var(--color-tertiary-fixed));
+    background: var(--color-outline-variant);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -160,9 +158,11 @@
   }
 
   .nebula-bg {
-    background: radial-gradient(circle at 20% 30%, rgba(236, 134, 255, 0.05) 0%, transparent 50%),
-                radial-gradient(circle at 80% 70%, rgba(0, 238, 252, 0.05) 0%, transparent 50%),
-                var(--color-background);
+    background:
+      linear-gradient(rgba(17, 17, 17, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(17, 17, 17, 0.025) 1px, transparent 1px),
+      var(--color-background);
+    background-size: 32px 32px;
   }
 
   /* Giữ nguyên Animation của bạn vì nó xử lý UX rất tốt */
@@ -187,7 +187,7 @@
   }
 
   .animate-message-pop {
-    animation: messagePop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
+    animation: messagePop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     transform-origin: bottom center;
   }
 

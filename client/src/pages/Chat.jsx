@@ -1,19 +1,19 @@
 /**
- * Chat Page - Layout tổng (Thiết kế lại UI: Midnight Command Center)
- * Logic giữ nguyên 100%
+ * Chat Page - Layout tổng theo hướng tối giản, giữ nguyên realtime flow.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TopNavBar from '../components/layout/TopNavBar';
-import MiniSidebar from '../components/layout/MiniSidebar';
 import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
 import IncomingCallModal from '../components/call/IncomingCallModal';
 import CallOverlay from '../components/call/CallOverlay';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { useCall } from '../context/CallContext';
 import socket from '../socket';
 import api from '../config/api';
+
+const getMessagePreview = (content, attachment) =>
+  content || attachment?.filename || (attachment ? 'Tệp đính kèm' : 'Tin nhắn mới');
 
 const Chat = () => {
   const { user } = useAuth();
@@ -24,6 +24,7 @@ const Chat = () => {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const messagesRef = useRef(messages);
 
   useEffect(() => {
@@ -74,7 +75,9 @@ const Chat = () => {
           name: u.username,
           avatar: u.avatar,
           isOnline: onlineUsers.includes(u._id),
-          lastMessage: 'Bắt đầu trò chuyện',
+          lastMessage: u.lastMessage || 'Bắt đầu trò chuyện',
+          lastMessageAt: u.lastMessageAt || null,
+          unreadCount: u.unreadCount || 0,
         }));
         setConversations(formattedFriends);
       }
@@ -86,20 +89,24 @@ const Chat = () => {
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
       const unreadMessages = messagesRef.current.filter(
-        (m) => m.senderId === selectedConversationId && m.status !== 'read',
+        (m) => m.senderId === selectedConversationId && m.status !== 'read' && m.id,
       );
 
-      if (unreadMessages.length > 0) {
+      const messageIds = unreadMessages.map((m) => m.id);
+
+      if (messageIds.length > 0) {
         socket.emit('mark_messages_read', {
           readerId: user.id,
           senderId: selectedConversationId,
+          messageIds,
         });
 
         setMessages((prev) =>
-          prev.map((msg) =>
-            msg.senderId === selectedConversationId && msg.status !== 'read'
-              ? { ...msg, status: 'read' }
-              : msg,
+          prev.map((msg) => (messageIds.includes(msg.id) ? { ...msg, status: 'read' } : msg)),
+        );
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === selectedConversationId ? { ...conv, unreadCount: 0 } : conv,
           ),
         );
       }
@@ -139,11 +146,26 @@ const Chat = () => {
           }));
           setMessages(normalizedMessages);
 
-          if (user && user.id) {
+          const unreadMessageIds = normalizedMessages
+            .filter((msg) => msg.senderId === selectedConversationId && msg.status !== 'read')
+            .map((msg) => msg.id);
+
+          if (user && user.id && unreadMessageIds.length > 0 && document.hasFocus()) {
             socket.emit('mark_messages_read', {
               readerId: user.id,
               senderId: selectedConversationId,
+              messageIds: unreadMessageIds,
             });
+            setMessages((prev) =>
+              prev.map((msg) =>
+                unreadMessageIds.includes(msg.id) ? { ...msg, status: 'read' } : msg,
+              ),
+            );
+            setConversations((prev) =>
+              prev.map((conv) =>
+                conv.id === selectedConversationId ? { ...conv, unreadCount: 0 } : conv,
+              ),
+            );
           }
         }
       } catch (error) {
@@ -172,18 +194,42 @@ const Chat = () => {
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
+      const isCurrentConversation = data.senderId === selectedConversationId;
+      const shouldMarkRead = isCurrentConversation && document.hasFocus();
+
       console.log('📨 Received message:', data);
-      if (data.senderId === selectedConversationId) {
-        setMessages((prev) => [...prev, data]);
+      if (user?.id && data.id && data.senderId) {
+        socket.emit('mark_message_delivered', {
+          messageId: data.id,
+          senderId: data.senderId,
+          receiverId: user.id,
+        });
       }
+
+      if (shouldMarkRead && user?.id) {
+        socket.emit('mark_messages_read', {
+          readerId: user.id,
+          senderId: data.senderId,
+          messageIds: [data.id],
+        });
+      }
+
+      if (isCurrentConversation) {
+        setMessages((prev) => [...prev, shouldMarkRead ? { ...data, status: 'read' } : data]);
+      }
+
       setConversations((prev) => {
         const targetConv = prev.find((c) => c.id === data.senderId);
         if (!targetConv) return prev;
-        const updatedTarget = { ...targetConv, lastMessage: data.content };
+        const updatedTarget = {
+          ...targetConv,
+          lastMessage: getMessagePreview(data.content, data.attachment),
+          lastMessageAt: data.timestamp,
+          unreadCount: shouldMarkRead ? 0 : (targetConv.unreadCount || 0) + 1,
+        };
         const otherConvs = prev.filter((c) => c.id !== data.senderId);
         return [updatedTarget, ...otherConvs];
       });
-      markChatAsRead();
     };
 
     socket.on('receive_message', handleReceiveMessage);
@@ -196,16 +242,18 @@ const Chat = () => {
     socket.on('friend_request_accepted', handleFriendAccepted);
 
     const handleMessagesRead = (data) => {
-      console.log('👀 Người kia đã đọc tin nhắn:', data);
+      console.log('Người kia đã đọc tin nhắn:', data);
+
       if (data.readerId === selectedConversationId) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.status !== 'read' && msg.senderId === user.id ? { ...msg, status: 'read' } : msg,
+            data.messageIds?.includes(msg.id) && msg.senderId === user.id
+              ? { ...msg, status: 'read' }
+              : msg,
           ),
         );
       }
     };
-
     socket.on('messages_were_read', handleMessagesRead);
 
     const handleAddReaction = (data) => {
@@ -228,14 +276,46 @@ const Chat = () => {
 
     socket.on('reaction_removed', handleRemoveReaction);
 
+    const handleMessageSent = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.tempId
+            ? {
+                ...msg,
+                id: data.id,
+                timestamp: data.timestamp,
+                status: data.status,
+                attachment: data.attachment || msg.attachment,
+              }
+            : msg,
+        ),
+      );
+    };
+
+    socket.on('message_sent', handleMessageSent);
+
+    const handleMessageWasDelivered = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId && msg.status !== 'read'
+            ? { ...msg, status: data.status }
+            : msg,
+        ),
+      );
+    };
+
+    socket.on('message_was_delivered', handleMessageWasDelivered);
+
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('friend_request_accepted', handleFriendAccepted);
       socket.off('messages_were_read', handleMessagesRead);
       socket.off('reaction_added', handleAddReaction);
       socket.off('reaction_removed', handleRemoveReaction);
+      socket.off('message_sent', handleMessageSent);
+      socket.off('message_was_delivered', handleMessageWasDelivered);
     };
-  }, [selectedConversationId, user, fetchFriends, markChatAsRead]);
+  }, [selectedConversationId, user, fetchFriends]);
 
   const handleTypingStart = () => {
     if (selectedConversationId && user) {
@@ -251,19 +331,23 @@ const Chat = () => {
 
   const handleSendMessage = (content, attachment) => {
     if (!selectedConversationId || !user) return;
+    const tempId = crypto.randomUUID();
+
     const messageData = {
+      tempId,
       senderId: user.id,
       recipientId: selectedConversationId,
       content: content || (attachment ? attachment.filename : ''),
+      attachment: attachment || null,
     };
     socket.emit('send_message', messageData);
 
     const newMessage = {
-      id: Date.now().toString(),
+      id: tempId,
       senderId: user.id,
       content,
       timestamp: new Date().toISOString(),
-      status: 'sent',
+      status: 'sending',
       attachment: attachment || null,
     };
     setMessages((prev) => [...prev, newMessage]);
@@ -271,7 +355,11 @@ const Chat = () => {
     setConversations((prev) => {
       const targetConv = prev.find((c) => c.id === selectedConversationId);
       if (!targetConv) return prev;
-      const updatedTarget = { ...targetConv, lastMessage: content || attachment?.filename };
+      const updatedTarget = {
+        ...targetConv,
+        lastMessage: getMessagePreview(content, attachment),
+        lastMessageAt: newMessage.timestamp,
+      };
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
       return [updatedTarget, ...otherConvs];
     });
@@ -288,56 +376,40 @@ const Chat = () => {
 
   const handleSelectConversation = (conversationId) => {
     setSelectedConversationId(conversationId);
-  };
-  const { initiateCall } = useCall();
-
-  const handleVideoCall = () => {
-    if (selectedConversationId && currentChatUser) {
-      initiateCall(selectedConversationId, 'video', currentChatUser);
-    }
-  };
-  const handleVoiceCall = () => {
-    if (selectedConversationId && currentChatUser) {
-      initiateCall(selectedConversationId, 'voice', currentChatUser);
-    }
-  };
-  const handleMenuClick = () => {
-    console.log('Menu clicked');
+    setConversations((prev) =>
+      prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
+    );
   };
 
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
-  // --- KẾT THÚC LOGIC ---
 
   return (
-    <div className="h-screen w-full font-body overflow-hidden bg-surface">
+    <div className="min-h-[100dvh] w-full overflow-hidden bg-background font-body text-on-surface">
       <IncomingCallModal />
       <CallOverlay />
 
       <TopNavBar />
 
-      <div className="flex h-screen pt-16">
-        <MiniSidebar />
-
-        <main className="flex-1 ml-20 flex overflow-hidden relative">
+      <div className="mx-auto flex h-[100dvh] max-w-[1440px] pt-16">
+        <main className="relative flex min-w-0 flex-1 overflow-hidden border-x border-outline-variant bg-surface">
           {/* Sidebar - Conversation List */}
           <Sidebar
             conversations={conversations}
             onSelectConversation={handleSelectConversation}
             selectedConversationId={selectedConversationId}
             onFriendAdded={fetchFriends}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
           />
 
           {/* Chat Window */}
           {selectedConversationId ? (
-            <section className="flex-1 flex flex-col overflow-hidden">
+            <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-container-lowest">
               <ChatArea
                 currentUser={currentChatUser}
                 messages={messages}
                 currentUserId={user?.id || 'current'}
                 onSendMessage={handleSendMessage}
-                onVideoCall={handleVideoCall}
-                onVoiceCall={handleVoiceCall}
-                onMenuClick={handleMenuClick}
                 isTyping={isTyping}
                 onTypingStart={handleTypingStart}
                 onTypingStop={handleTypingStop}
@@ -350,40 +422,27 @@ const Chat = () => {
             </section>
           ) : (
             /* Empty State */
-            <section className="flex-1 flex flex-col items-center justify-center relative">
-              {/* Ambient glow */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/[0.03] blur-[100px]" />
-              </div>
-
-              <div className="relative flex flex-col items-center gap-5 animate-fade-in">
-                {/* Animated icon */}
-                <div className="relative w-20 h-20">
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 rotate-6 opacity-60" />
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/20 -rotate-3 opacity-40" />
-                  <div className="relative w-full h-full rounded-2xl bg-surface-container-low border border-white/5 flex items-center justify-center shadow-2xl">
-                    <span
-                      className="material-symbols-outlined text-4xl text-primary-light/80"
-                      style={{ fontVariationSettings: "'FILL' 0" }}
-                    >
-                      forum
-                    </span>
-                  </div>
+            <section className="relative flex flex-1 flex-col items-center justify-center bg-surface-container-lowest px-8">
+              <div className="max-w-sm animate-fade-in text-center">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl border border-outline-variant bg-surface-container">
+                  <span className="material-symbols-outlined text-3xl text-on-surface-variant">
+                    forum
+                  </span>
                 </div>
 
-                <div className="text-center space-y-1.5">
-                  <h2 className="text-2xl font-headline font-bold text-on-surface tracking-tight">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-headline font-semibold tracking-[-0.03em] text-on-surface">
                     Chọn cuộc trò chuyện
                   </h2>
-                  <p className="text-sm text-on-surface-variant max-w-xs">
-                    Chọn một người bạn từ danh sách bên trái để bắt đầu nhắn tin.
+                  <p className="text-sm leading-6 text-on-surface-variant">
+                    Tin nhắn, media và trạng thái realtime sẽ hiện ở đây khi bạn chọn một người bạn.
                   </p>
                 </div>
 
                 {!isConnected && (
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-error/10 border border-error/20">
-                    <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
-                    <p className="text-xs text-error font-label font-medium">Đang kết nối lại...</p>
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-md border border-error/20 bg-error-container px-3 py-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-error" />
+                    <p className="text-xs font-medium text-error">Đang kết nối lại</p>
                   </div>
                 )}
               </div>

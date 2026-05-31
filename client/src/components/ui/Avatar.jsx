@@ -28,13 +28,13 @@ const Avatar = ({
       <img
         src={src || 'https://via.placeholder.com/150'}
         alt={alt}
-        className={`${sizes[size]} rounded-full object-cover border-2 border-slate-600 ${
-          onClick ? 'cursor-pointer hover:border-primary transition-colors' : ''
+        className={`${sizes[size]} rounded-lg border border-outline-variant object-cover ${
+          onClick ? 'cursor-pointer transition-colors hover:border-primary' : ''
         }`}
       />
       {online && (
         <span
-          className={`absolute bottom-0 right-0 ${badgeSizes[size]} bg-green-500 border-2 border-slate-800 rounded-full`}
+          className={`absolute bottom-0 right-0 ${badgeSizes[size]} rounded-full border-2 border-surface bg-secondary`}
         />
       )}
     </div>

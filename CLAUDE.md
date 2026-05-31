@@ -11,7 +11,7 @@ Tôi là người hướng dẫn realtime/socket cho bạn. Nguyên tắc:
 
 ## Project Overview
 
-**PingMe** is a full-stack real-time messaging app with a sci-fi neural network UI (dark backgrounds, neon gradient accents, cyberpunk theme). Monorepo with two independent Node.js packages.
+**PingMe** is a full-stack real-time messaging app with a minimalist warm monochrome UI. Monorepo with two independent Node.js packages.
 
 Working directory: `D:/Project/PingMe`
 
@@ -58,7 +58,7 @@ Always read the relevant spec before implementing features. Current active specs
 - `context/AuthContext.jsx` — User state, login/logout/register
 - `context/SocketContext.jsx` — Socket connection state
 - `pages/Login.jsx`, `Register.jsx`, `Chat.jsx` — Main page components
-- `components/layout/` — `AuthLayout` (Framer Motion 3D flip), `ChatArea`, `Header`, `Sidebar`, `MiniSidebar`, `TopNavBar`
+- `components/layout/` — `AuthLayout` (Framer Motion transition), `ChatArea`, `Header`, `Sidebar`, `TopNavBar`, `MediaGallery`
 - `components/chat/` — `MessageBubble`, `MessageInput`, `MessageList`
 - `components/ui/` — `Avatar`, `Button`, `Input`, `SearchBar`, `ValidationMessage`
 
@@ -81,7 +81,7 @@ Always read the relevant spec before implementing features. Current active specs
 
 **Tailwind v4 CSS-first:** Theme tokens (`@theme {}`), custom utilities (`prism-border`, `nebula-bg`, `.animate-message-pop`, `.animate-fade-in`), and font families are defined in `index.css` — **not** in `tailwind.config.js` (does not exist). **Never create `tailwind.config.js`** — extend the theme in `index.css`.
 
-**UI Aesthetic:** Space Grotesk (headlines), Inter (body), Material Symbols Outlined (icons). `AuthLayout.jsx` uses Framer Motion `AnimatePresence` with 3D `rotateY` flip transitions between Login/Register.
+**UI Aesthetic:** Minimalist warm monochrome, flat surfaces, 8-12px radius, low/no shadow, Material Symbols Outlined (icons). `AuthLayout.jsx` uses a restrained Framer Motion fade/translate transition between Login/Register.
 
 **Code Language:** All source comments are in Vietnamese — team convention. Do not translate them.
 

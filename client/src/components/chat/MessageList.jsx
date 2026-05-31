@@ -10,20 +10,20 @@ const MessageList = ({ messages = [], currentUserId, isTyping, onReaction }) => 
 
   if (messages.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-3">
-        <div className="w-16 h-16 rounded-2xl bg-surface-container-low border border-white/6 flex items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-outline-variant bg-surface-container">
           <span className="material-symbols-outlined text-3xl text-on-surface-variant/50">chat_bubble</span>
         </div>
         <div className="text-center">
-          <p className="text-sm text-on-surface-variant/60 font-label">Chưa có tin nhắn nào</p>
-          <p className="text-xs text-on-surface-variant/40 mt-0.5">Gửi tin nhắn đầu tiên</p>
+          <p className="text-sm font-medium text-on-surface">Chưa có tin nhắn nào</p>
+          <p className="mt-1 text-xs text-on-surface-variant">Gửi tin nhắn đầu tiên</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="px-5 py-4 space-y-2">
+    <div className="space-y-2 px-6 py-6">
       {messages.map((message, index) => {
         const isOwn = message.senderId === currentUserId;
         const prevMessage = messages[index - 1];
@@ -41,14 +41,16 @@ const MessageList = ({ messages = [], currentUserId, isTyping, onReaction }) => 
       })}
 
       {isTyping && (
-        <div className="flex items-end gap-2 max-w-[60%]">
-          <div className="w-7 h-7 rounded-full bg-surface-container-low border border-white/10 shrink-0 overflow-hidden">
-            <img src="avatar" alt="" className="w-full h-full object-cover opacity-50" />
+        <div className="flex max-w-[60%] items-end gap-2">
+          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-md border border-outline-variant bg-surface-container-low">
+            <span className="material-symbols-outlined flex h-full w-full items-center justify-center text-sm text-on-surface-variant">
+              person
+            </span>
           </div>
-          <div className="flex items-center gap-1 px-4 py-3 rounded-2xl rounded-tl-md bg-surface-container-low border border-white/6">
-            <span className="w-1.5 h-1.5 bg-on-surface-variant/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-1.5 h-1.5 bg-on-surface-variant/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-1.5 h-1.5 bg-on-surface-variant/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          <div className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50" style={{ animationDelay: '0ms' }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50" style={{ animationDelay: '150ms' }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50" style={{ animationDelay: '300ms' }} />
           </div>
         </div>
       )}

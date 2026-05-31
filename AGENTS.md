@@ -27,6 +27,7 @@ Moi lan lam phan realtime, uu tien giai thich theo thu tu:
 Tinh den 2026-05-31:
 
 - PingMe la app chat realtime full-stack: React 19 + Vite o `client/`, Express 5 + MongoDB/Mongoose + Socket.IO o `server/`.
+- UI hien theo huong minimalist warm monochrome: nen giay am, chu charcoal, it shadow, radius 8-12px, tranh neon/gradient va nut gia chuc nang.
 - Roadmap nam trong `.claude/specs/ROADMAP.md`.
 - Phase 1 da hoan thanh: authentication, core messaging, friend management, UI chat chinh.
 - Phase 2 dang lam: media/file sharing. Da co upload route, multer middleware, preview UI, message attachment UI, reactions va media gallery, nhung can kiem tra lai viec luu/relay attachment qua Socket.IO.
@@ -42,6 +43,7 @@ Tinh den 2026-05-31:
 - `client/src/socket.js` - Socket.IO singleton client.
 - `client/src/context/SocketContext.jsx` - connection state.
 - `client/src/pages/Chat.jsx` - noi dang ky user va xu ly event chat.
+- `client/src/index.css` - theme token UI toi gian hien tai.
 - `server/socket/socketHandler.js` - event handlers server.
 
 ## Nguyen tac codebase

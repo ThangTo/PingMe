@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 /**
  * Login Page - Trang đăng nhập (Đơn giản hóa + Debug)
@@ -139,27 +137,27 @@ const Login = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 bg-surface-container-low/40 backdrop-blur-2xl rounded-[2rem] overflow-hidden prism-border shadow-2xl shadow-secondary/5 w-full">
+    <div className="grid w-full overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest md:grid-cols-[1.05fr_0.95fr]">
           {/* Left Side: Login */}
-          <section className="p-8 md:p-12 lg:p-16 flex flex-col justify-center border-b md:border-b-0 md:border-r border-outline-variant/20 relative z-10">
+          <section className="relative z-10 flex flex-col justify-center border-b border-outline-variant p-8 md:border-b-0 md:border-r md:p-12 lg:p-16">
             <div className="mb-10">
-              <h1 className="font-headline text-4xl font-bold tracking-tighter bg-gradient-to-br from-primary via-secondary to-tertiary bg-clip-text text-transparent uppercase mb-2">
+              <h1 className="mb-2 font-headline text-4xl font-semibold tracking-[-0.04em] text-on-surface">
                 PingMe
               </h1>
-              <p className="text-on-surface-variant font-label text-sm tracking-widest uppercase">
-                Truy cập Neural Hub
+              <p className="max-w-sm text-sm leading-6 text-on-surface-variant">
+                Đăng nhập để quay lại danh sách bạn bè và các cuộc trò chuyện realtime.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6" noValidate>
               {/* Messages from Server */}
               {successMessage && (
-                <div className="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 px-4 py-3 rounded-xl text-sm mb-4 font-medium backdrop-blur-md">
+                <div className="mb-4 rounded-lg border border-secondary/20 bg-secondary-container px-4 py-3 text-sm font-medium text-secondary">
                   {successMessage}
                 </div>
               )}
               {errors.form && (
-                <div className="bg-error/10 border border-error/50 text-error px-4 py-3 rounded-xl text-sm mb-4 font-medium backdrop-blur-md">
+                <div className="mb-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-medium text-error">
                   {errors.form}
                 </div>
               )}
@@ -167,11 +165,11 @@ const Login = () => {
               <div className="space-y-5">
                 {/* Email Input */}
                 <div className="group">
-                  <label className="block font-label text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2 px-1">
-                    ID Thần kinh <span className="text-error/80">*</span>
+                  <label className="mb-2 block px-1 text-xs font-medium text-on-surface-variant">
+                    Email <span className="text-error">*</span>
                   </label>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-lg group-focus-within:text-secondary transition-colors">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
                       fingerprint
                     </span>
                     <input
@@ -182,20 +180,20 @@ const Login = () => {
                       onBlur={handleEmailBlur}
                       autoComplete="email"
                       disabled={isSubmitting}
-                      className={`w-full bg-surface-container-lowest border-none ring-1 ${errors.email ? 'ring-error/50 focus:ring-error/50' : 'ring-outline-variant/30 focus:ring-secondary/50'} rounded-xl py-4 pl-12 pr-4 text-on-surface placeholder:text-outline/50 focus:ring-2 transition-all outline-none`}
-                      placeholder="Neural ID (Email)"
+                      className={`w-full rounded-lg border bg-surface-container-lowest py-4 pl-12 pr-4 text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.email ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                      placeholder="you@example.com"
                     />
                   </div>
-                  {errors.email && <p className="mt-1.5 ml-1 text-xs text-error font-medium">{errors.email}</p>}
+                  {errors.email && <p className="ml-1 mt-1.5 text-xs font-medium text-error">{errors.email}</p>}
                 </div>
 
                 {/* Password Input */}
                 <div className="group">
-                  <label className="block font-label text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-2 px-1">
-                    Mã Truy cập <span className="text-error/80">*</span>
+                  <label className="mb-2 block px-1 text-xs font-medium text-on-surface-variant">
+                    Mật khẩu <span className="text-error">*</span>
                   </label>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-lg group-focus-within:text-secondary transition-colors">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
                       key
                     </span>
                     <input
@@ -206,75 +204,76 @@ const Login = () => {
                       onBlur={handlePasswordBlur}
                       autoComplete="current-password"
                       disabled={isSubmitting}
-                      className={`w-full bg-surface-container-lowest border-none ring-1 ${errors.password ? 'ring-error/50 focus:ring-error/50' : 'ring-outline-variant/30 focus:ring-secondary/50'} rounded-xl py-4 pl-12 pr-4 text-on-surface placeholder:text-outline/50 focus:ring-2 transition-all outline-none`}
-                      placeholder="Access Code (Mật khẩu)"
+                      className={`w-full rounded-lg border bg-surface-container-lowest py-4 pl-12 pr-4 text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.password ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                      placeholder="Nhập mật khẩu"
                     />
                   </div>
-                  {errors.password && <p className="mt-1.5 ml-1 text-xs text-error font-medium">{errors.password}</p>}
+                  {errors.password && <p className="ml-1 mt-1.5 text-xs font-medium text-error">{errors.password}</p>}
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-3 cursor-pointer group">
+                <label className="group flex cursor-pointer items-center gap-3">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 rounded border-outline-variant bg-surface-container text-primary focus:ring-primary/20 bg-transparent"
+                    className="h-4 w-4 rounded border-outline-variant bg-surface-container text-primary focus:ring-primary/20"
                   />
-                  <span className="text-xs text-on-surface-variant group-hover:text-on-surface transition-colors">
+                  <span className="text-xs text-on-surface-variant transition-colors group-hover:text-on-surface">
                     Ghi nhớ tôi
                   </span>
                 </label>
-                <a className="text-xs text-secondary hover:text-primary transition-colors font-medium" href="#">
-                  Quên mã?
-                </a>
+                <span className="text-xs text-on-surface-variant">Quên mật khẩu chưa hỗ trợ</span>
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full mt-4 py-4 rounded-xl font-headline font-bold text-on-primary-fixed bg-gradient-to-r from-primary-dim via-secondary to-tertiary-fixed shadow-lg shadow-primary/20 hover:shadow-secondary/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-primary py-4 font-headline font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
               >
-                {isSubmitting ? 'ĐANG KẾT NỐI...' : 'ĐĂNG NHẬP'}
+                {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
                 {!isSubmitting && <span className="material-symbols-outlined">login</span>}
               </button>
             </form>
           </section>
 
           {/* Right Side: Register/Uplink */}
-          <section className="relative p-8 md:p-12 lg:p-16 bg-surface-container-highest/30 flex flex-col justify-center overflow-hidden z-10">
-            {/* Abstract Decorative Element */}
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-secondary/10 blur-[80px] rounded-full"></div>
-
+          <section className="relative z-10 flex flex-col justify-center overflow-hidden bg-surface-container-low p-8 md:p-12 lg:p-16">
             <div className="relative z-10 space-y-10">
               <div>
-                <h2 className="font-headline text-3xl font-bold text-on-surface mb-4">New Uplink</h2>
-                <p className="text-on-surface-variant leading-relaxed max-w-xs text-sm">
-                  Khởi tạo kết nối thần kinh của bạn và tham gia vào mạng lưới truyền tin phi tập trung thế hệ mới.
+                <h2 className="mb-4 font-headline text-3xl font-semibold tracking-[-0.03em] text-on-surface">
+                  Chưa có tài khoản?
+                </h2>
+                <p className="max-w-xs text-sm leading-6 text-on-surface-variant">
+                  Tạo tài khoản mới để nhắn tin, chia sẻ file và theo dõi trạng thái bạn bè theo thời gian thực.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-start gap-4 p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-                  <div className="bg-secondary/10 p-2 rounded-lg">
-                    <span className="material-symbols-outlined text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                <div className="flex items-start gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+                  <div className="rounded-md bg-secondary-container p-2">
+                    <span className="material-symbols-outlined text-secondary">
                       security
                     </span>
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-on-surface">Mã hóa Quantum</h4>
-                    <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">Bảo vệ dữ liệu đầu cuối bằng công nghệ tối tân.</p>
+                    <h4 className="text-sm font-semibold text-on-surface">Cookie httpOnly</h4>
+                    <p className="mt-1.5 text-xs leading-relaxed text-on-surface-variant">
+                      Phiên đăng nhập được lưu qua cookie bảo mật ở server.
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4 p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-                  <div className="bg-primary/10 p-2 rounded-lg">
-                    <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                <div className="flex items-start gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+                  <div className="rounded-md bg-tertiary-container p-2">
+                    <span className="material-symbols-outlined text-tertiary">
                       speed
                     </span>
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-on-surface">Độ trễ bằng 0</h4>
-                    <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">Giao tiếp thời gian thực không giới hạn khoảng cách.</p>
+                    <h4 className="text-sm font-semibold text-on-surface">Socket.IO realtime</h4>
+                    <p className="mt-1.5 text-xs leading-relaxed text-on-surface-variant">
+                      Tin nhắn và trạng thái online được đẩy ngay khi có thay đổi.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -283,25 +282,12 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/register')}
-                  className="w-full py-4 rounded-xl font-headline font-bold text-secondary border border-secondary/30 hover:bg-secondary/10 hover:border-secondary/60 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-outline-variant bg-surface-container-lowest py-4 font-headline font-semibold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
                 >
-                  TẠO KẾT NỐI MỚI (ĐĂNG KÝ)
-                  <span className="material-symbols-outlined">rocket_launch</span>
+                  Tạo tài khoản
+                  <span className="material-symbols-outlined">person_add</span>
                 </button>
               </div>
-
-              <div className="flex justify-center gap-6 text-outline/40">
-                <span className="material-symbols-outlined">hub</span>
-                <span className="material-symbols-outlined">stream</span>
-                <span className="material-symbols-outlined">groups</span>
-                <span className="material-symbols-outlined">archive</span>
-              </div>
-            </div>
-
-            {/* Subtle Light Ray Effect */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-secondary/20 to-transparent"></div>
-              <div className="absolute bottom-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent"></div>
             </div>
           </section>
     </div>

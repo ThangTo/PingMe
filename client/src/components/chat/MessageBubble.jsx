@@ -45,26 +45,26 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
       {/* Lightbox */}
       {lightboxSrc && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center cursor-pointer"
+          className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#111111]/92"
           onClick={() => setLightboxSrc(null)}
         >
           <button
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
             onClick={() => setLightboxSrc(null)}
           >
             <span className="material-symbols-outlined text-2xl">close</span>
           </button>
           <img
             src={lightboxSrc}
-            alt="Preview"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl"
+            alt="Ảnh trong tin nhắn"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}
 
       <div
-        className={`flex items-end gap-2 group animate-message-pop ${isOwn ? 'flex-row-reverse' : ''}`}
+        className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
         onMouseEnter={() => setShowPicker(true)}
         onMouseLeave={() => setShowPicker(false)}
         onTouchStart={handleTouchStart}
@@ -74,17 +74,17 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
         {/* Avatar */}
         <div className={`w-7 shrink-0 ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
-            <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10">
-              <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
+            <div className="h-7 w-7 overflow-hidden rounded-md border border-outline-variant">
+              <img src={avatarSrc} alt="Người gửi" className="h-full w-full object-cover" />
             </div>
           )}
         </div>
 
         {/* Bubble column */}
-        <div className={`flex flex-col gap-0.5 max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
+        <div className={`flex max-w-[70%] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
           {/* Sender name */}
           {!isOwn && showAvatar && message.senderName && (
-            <span className="text-[10px] text-primary-light/80 font-headline font-semibold px-1 ml-0.5">
+            <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
               {message.senderName}
             </span>
           )}
@@ -93,32 +93,38 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
           {message.attachment?.type === 'image' ? (
             <img
               src={message.attachment.url}
-              alt="Ảnh"
-              className="max-w-64 rounded-2xl border border-white/10 cursor-pointer hover:opacity-90 transition-opacity"
+              alt={message.attachment.filename || 'Ảnh trong tin nhắn'}
+              className="max-w-64 cursor-pointer rounded-lg border border-outline-variant object-cover transition-opacity hover:opacity-90"
               onClick={() => setLightboxSrc(message.attachment.url)}
             />
           ) : message.attachment?.type === 'file' ? (
             <a
               href={message.attachment.url}
               download={message.attachment.filename}
-              className="flex items-center gap-3 px-4 py-3 bg-surface-container-low border border-white/6 rounded-2xl min-w-[180px] hover:bg-surface-container-high transition-colors"
+              className="flex min-w-[220px] items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 transition-colors hover:bg-surface-container-low"
               onClick={(e) => e.stopPropagation()}
             >
-              <span className="material-symbols-outlined text-2xl text-secondary shrink-0">description</span>
+              <span className="material-symbols-outlined shrink-0 text-2xl text-on-surface-variant">
+                description
+              </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-on-surface font-medium truncate">{message.attachment.filename}</p>
-                <p className="text-[11px] text-on-surface-variant/60">
+                <p className="truncate text-sm font-medium text-on-surface">
+                  {message.attachment.filename}
+                </p>
+                <p className="text-[11px] text-on-surface-variant">
                   {Math.round(message.attachment.size / 1024)} KB
                 </p>
               </div>
-              <span className="material-symbols-outlined text-xl text-on-surface-variant shrink-0">download</span>
+              <span className="material-symbols-outlined shrink-0 text-xl text-on-surface-variant">
+                download
+              </span>
             </a>
           ) : (
             <div
-              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${
+              className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed break-words ${
                 isOwn
-                  ? 'bg-primary/90 text-white rounded-tr-sm'
-                  : 'bg-surface-container-low text-on-surface rounded-tl-sm border border-white/6'
+                  ? 'bg-primary text-white'
+                  : 'border border-outline-variant bg-surface-container-lowest text-on-surface'
               }`}
             >
               <span className="whitespace-pre-wrap">{message.content}</span>
@@ -127,11 +133,11 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
 
           {/* Reactions */}
           {reactionsList.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="mt-1 flex flex-wrap gap-1">
               {reactionsList.map(({ emoji, count }) => (
                 <span
                   key={emoji}
-                  className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-surface-container-low border border-white/6 rounded-full text-xs"
+                  className="inline-flex items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container px-2 py-0.5 text-xs text-on-surface"
                 >
                   {emoji} {count}
                 </span>
@@ -147,11 +153,17 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
           )}
 
           {/* Timestamp + status */}
-          <span className={`text-[10px] text-on-surface-variant/50 px-1 ${isOwn ? 'text-right' : ''}`}>
+          <span className={`px-1 text-[10px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
             {formatTime(message.timestamp)}
             {isOwn && (
               <span className="ml-1">
-                {message.status === 'read' ? '· Đã đọc' : message.status === 'delivered' ? '· Đã nhận' : '· Đã gửi'}
+                {message.status === 'sending'
+                  ? 'Đang gửi'
+                  : message.status === 'read'
+                    ? 'Đã đọc'
+                    : message.status === 'delivered'
+                      ? 'Đã nhận'
+                      : 'Đã gửi'}
               </span>
             )}
           </span>

@@ -68,13 +68,23 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { senderId, recipientId, content } = data;
+        const { tempId, senderId, recipientId, content, attachment } = data;
 
         const newMessage = await Message.create({
           sender: senderId,
           recipient: recipientId,
           content: content,
+          attachment: attachment || null,
+          messageType: attachment?.type || 'text',
           status: 'sent',
+        });
+
+        socket.emit('message_sent', {
+          tempId,
+          id: newMessage.id,
+          timestamp: newMessage.createdAt,
+          status: newMessage.status,
+          attachment: newMessage.attachment,
         });
 
         const recipientSocketId = onlineUsers[recipientId];
@@ -84,11 +94,11 @@ const socketHandler = (io) => {
             id: newMessage.id,
             senderId,
             content,
+            attachment: newMessage.attachment,
             timestamp: newMessage.createdAt,
+            status: newMessage.status,
           });
         }
-
-        socket.emit('message_sent', { id: newMessage.id });
       } catch (error) {
         console.error('Lỗi khi gửi tin nhắn:', error);
         socket.emit('error', { message: 'Không thể gửi tin nhắn!' });
@@ -156,18 +166,28 @@ const socketHandler = (io) => {
     });
 
     socket.on('mark_messages_read', async (data) => {
-      const { senderId, readerId } = data;
+      const { senderId, readerId, messageIds } = data;
+
+      if (!Array.isArray(messageIds) || messageIds.length === 0) return;
 
       try {
         await Message.updateMany(
-          { sender: senderId, recipient: readerId, status: { $ne: 'read' } },
+          {
+            _id: { $in: messageIds },
+            sender: senderId,
+            recipient: readerId,
+            status: { $ne: 'read' },
+          },
           { $set: { status: 'read', readAt: new Date() } },
         );
 
         const senderSocketId = onlineUsers[senderId];
+
         if (senderSocketId) {
           io.to(senderSocketId).emit('messages_were_read', {
-            readerId: readerId,
+            readerId,
+            messageIds,
+            status: 'read',
           });
         }
       } catch (error) {
@@ -240,6 +260,37 @@ const socketHandler = (io) => {
         });
       } catch (error) {
         console.error('Lỗi remove_reaction:', error);
+      }
+    });
+
+    socket.on('mark_message_delivered', async (data) => {
+      try {
+        const { messageId, senderId, receiverId } = data;
+
+        const message = await Message.findOneAndUpdate(
+          {
+            _id: messageId,
+            sender: senderId,
+            recipient: receiverId,
+            status: 'sent',
+          },
+          { $set: { status: 'delivered' } },
+          { new: true },
+        );
+
+        if (!message) return;
+
+        const senderSocketId = onlineUsers[senderId];
+
+        if (senderSocketId) {
+          io.to(senderSocketId).emit('message_was_delivered', {
+            messageId: message.id,
+            receiverId,
+            status: 'delivered',
+          });
+        }
+      } catch (error) {
+        console.error('Lỗi đánh dấu đã nhận:', error);
       }
     });
 

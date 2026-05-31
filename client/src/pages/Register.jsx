@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Register Page - Trang đăng ký (Đơn giản hóa)
@@ -155,7 +153,7 @@ const Register = () => {
         // Đăng ký thành công - redirect về login với success message
         navigate('/login', {
           replace: true,
-          state: { message: 'Đăng ký thành công! Vui lòng đăng nhập.' },
+          state: { message: 'Đăng ký thành công. Vui lòng đăng nhập.' },
         });
       } else {
         // Đăng ký thất bại - hiển thị lỗi từ backend
@@ -170,57 +168,47 @@ const Register = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 bg-surface-container-low/40 backdrop-blur-2xl rounded-[2rem] overflow-hidden prism-border shadow-2xl shadow-secondary/5 w-full">
+    <div className="grid w-full overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest md:grid-cols-[0.95fr_1.05fr]">
           {/* Left Side: Notice / Return to Login */}
-          <section className="relative p-8 md:p-12 lg:p-16 bg-surface-container-highest/30 flex flex-col justify-center overflow-hidden z-10 hidden md:flex border-r border-outline-variant/20">
-            <div className="absolute -top-24 -left-24 w-64 h-64 bg-secondary/10 blur-[80px] rounded-full"></div>
+          <section className="relative z-10 hidden flex-col justify-center overflow-hidden border-r border-outline-variant bg-surface-container-low p-8 md:flex md:p-12 lg:p-16">
             <div className="relative z-10 space-y-10">
               <div>
-                <h2 className="font-headline text-3xl font-bold text-on-surface mb-4">Neural Hub</h2>
-                <p className="text-on-surface-variant leading-relaxed text-sm">
-                  Cổng kết nối vào thế giới lượng tử siêu tốc. Giao tiếp realtime, không lưu vết, bảo mật tuyệt đối.
+                <h2 className="mb-4 font-headline text-3xl font-semibold tracking-[-0.03em] text-on-surface">
+                  PingMe
+                </h2>
+                <p className="text-sm leading-6 text-on-surface-variant">
+                  Một app chat nhỏ để bạn học realtime, socket events và cách đồng bộ trạng thái giữa client với server.
                 </p>
               </div>
 
-              <div className="flex justify-start gap-6 text-outline/40">
-                <span className="material-symbols-outlined">hub</span>
-                <span className="material-symbols-outlined">stream</span>
-                <span className="material-symbols-outlined">groups</span>
-              </div>
-
               <div className="pt-10">
-                <p className="text-sm text-on-surface-variant mb-4 font-label uppercase tracking-widest">Đã có ID Thần kinh?</p>
+                <p className="mb-4 text-sm text-on-surface-variant">Đã có tài khoản?</p>
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="w-full py-4 rounded-xl font-headline font-bold text-secondary border border-secondary/30 hover:bg-secondary/10 hover:border-secondary/60 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-outline-variant bg-surface-container-lowest py-4 font-headline font-semibold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
                 >
-                  TRUY CẬP (ĐĂNG NHẬP)
+                  Đăng nhập
                   <span className="material-symbols-outlined">login</span>
                 </button>
               </div>
             </div>
-
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-l from-transparent via-secondary/20 to-transparent"></div>
-              <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-l from-transparent via-primary/20 to-transparent"></div>
-            </div>
           </section>
 
           {/* Right Side: Register Form */}
-          <section className="p-8 md:p-12 lg:p-16 flex flex-col justify-center relative z-10 bg-surface-container-lowest/20">
+          <section className="relative z-10 flex flex-col justify-center p-8 md:p-12 lg:p-16">
             <div className="mb-8">
-              <h1 className="font-headline text-3xl font-bold tracking-tighter text-on-surface uppercase mb-2">
-                Init Uplink
+              <h1 className="mb-2 font-headline text-3xl font-semibold tracking-[-0.03em] text-on-surface">
+                Tạo tài khoản
               </h1>
-              <p className="text-on-surface-variant font-label text-xs tracking-widest uppercase">
-                Tạo mã định danh mới
+              <p className="text-sm leading-6 text-on-surface-variant">
+                Nhập thông tin cơ bản để bắt đầu trò chuyện.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               {errors.form && (
-                <div className="bg-error/10 border border-error/50 text-error px-4 py-3 rounded-xl text-sm mb-4 font-medium backdrop-blur-md">
+                <div className="mb-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-medium text-error">
                   {errors.form}
                 </div>
               )}
@@ -228,9 +216,9 @@ const Register = () => {
               {/* Username Input */}
               <div className="group">
                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-lg group-focus-within:text-primary transition-colors">
-                    account_circle
-                  </span>
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
+                      account_circle
+                    </span>
                   <input
                     type="text"
                     name="username"
@@ -239,19 +227,19 @@ const Register = () => {
                     onBlur={() => handleBlur('username')}
                     autoComplete="username"
                     disabled={isSubmitting}
-                    className={`w-full bg-surface-container border-none ring-1 ${errors.username ? 'ring-error/50 focus:ring-error/50' : 'ring-outline-variant/30 focus:ring-primary/50'} rounded-xl py-3.5 pl-12 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:ring-2 transition-all outline-none`}
-                    placeholder="Bí danh (Username)"
+                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.username ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    placeholder="Tên người dùng"
                   />
                 </div>
-                {errors.username && <p className="mt-1 ml-1 text-[11px] text-error font-medium">{errors.username}</p>}
+                {errors.username && <p className="ml-1 mt-1 text-[11px] font-medium text-error">{errors.username}</p>}
               </div>
 
               {/* Email Input */}
               <div className="group">
                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-lg group-focus-within:text-primary transition-colors">
-                    alternate_email
-                  </span>
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
+                      alternate_email
+                    </span>
                   <input
                     type="email"
                     name="email"
@@ -260,19 +248,19 @@ const Register = () => {
                     onBlur={() => handleBlur('email')}
                     autoComplete="email"
                     disabled={isSubmitting}
-                    className={`w-full bg-surface-container border-none ring-1 ${errors.email ? 'ring-error/50 focus:ring-error/50' : 'ring-outline-variant/30 focus:ring-primary/50'} rounded-xl py-3.5 pl-12 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:ring-2 transition-all outline-none`}
-                    placeholder="ID Liên lạc (Email)"
+                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.email ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    placeholder="Email"
                   />
                 </div>
-                {errors.email && <p className="mt-1 ml-1 text-[11px] text-error font-medium">{errors.email}</p>}
+                {errors.email && <p className="ml-1 mt-1 text-[11px] font-medium text-error">{errors.email}</p>}
               </div>
 
               {/* Password Input */}
               <div className="group">
                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-lg group-focus-within:text-primary transition-colors">
-                    password
-                  </span>
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
+                      password
+                    </span>
                   <input
                     type="password"
                     name="password"
@@ -281,19 +269,19 @@ const Register = () => {
                     onBlur={() => handleBlur('password')}
                     autoComplete="new-password"
                     disabled={isSubmitting}
-                    className={`w-full bg-surface-container border-none ring-1 ${errors.password ? 'ring-error/50 focus:ring-error/50' : 'ring-outline-variant/30 focus:ring-primary/50'} rounded-xl py-3.5 pl-12 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:ring-2 transition-all outline-none`}
-                    placeholder="Mã truy cập (Mật khẩu)"
+                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.password ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    placeholder="Mật khẩu"
                   />
                 </div>
-                {errors.password && <p className="mt-1 ml-1 text-[11px] text-error font-medium">{errors.password}</p>}
+                {errors.password && <p className="ml-1 mt-1 text-[11px] font-medium text-error">{errors.password}</p>}
               </div>
 
               {/* Confirm Password Input */}
               <div className="group">
                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-lg group-focus-within:text-primary transition-colors">
-                    verified_user
-                  </span>
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
+                      verified_user
+                    </span>
                   <input
                     type="password"
                     name="confirmPassword"
@@ -302,14 +290,14 @@ const Register = () => {
                     onBlur={() => handleBlur('confirmPassword')}
                     autoComplete="new-password"
                     disabled={isSubmitting}
-                    className={`w-full bg-surface-container border-none ring-1 ${errors.confirmPassword ? 'ring-error/50 focus:ring-error/50' : 'ring-outline-variant/30 focus:ring-primary/50'} rounded-xl py-3.5 pl-12 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:ring-2 transition-all outline-none`}
+                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.confirmPassword ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
                     placeholder="Xác nhận mã truy cập"
                   />
                 </div>
                 {errors.confirmPassword ? (
-                  <p className="mt-1 ml-1 text-[11px] text-error font-medium">{errors.confirmPassword}</p>
+                  <p className="ml-1 mt-1 text-[11px] font-medium text-error">{errors.confirmPassword}</p>
                 ) : !errors.confirmPassword && formData.confirmPassword && formData.password === formData.confirmPassword ? (
-                  <p className="mt-1 ml-1 text-[11px] text-secondary font-medium">✓ Mã khóa hợp lệ</p>
+                  <p className="ml-1 mt-1 text-[11px] font-medium text-secondary">Mật khẩu khớp</p>
                 ) : null}
               </div>
 
@@ -317,22 +305,22 @@ const Register = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-xl font-headline font-bold text-on-primary-fixed bg-gradient-to-r from-primary-dim via-secondary to-tertiary-fixed shadow-lg shadow-primary/20 hover:shadow-secondary/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100 uppercase tracking-wider"
+                  className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-4 font-headline font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'ĐANG KHỞI TẠO...' : 'TẠO ĐỊNH DANH'}
+                  {isSubmitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
                   {!isSubmitting && <span className="material-symbols-outlined">add_moderator</span>}
                 </button>
               </div>
 
               {/* Mobile Only Login Link */}
               <div className="md:hidden mt-6 flex flex-col items-center">
-                <p className="text-xs text-on-surface-variant font-label mb-2 uppercase">Đã có tài khoản?</p>
+                <p className="mb-2 text-xs text-on-surface-variant">Đã có tài khoản?</p>
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="w-full py-3 rounded-xl font-headline font-bold text-secondary border border-outline-variant/30 hover:bg-secondary/10 transition-all text-sm"
+                  className="w-full rounded-md border border-outline-variant py-3 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
                 >
-                  ĐĂNG NHẬP
+                  Đăng nhập
                 </button>
               </div>
             </form>

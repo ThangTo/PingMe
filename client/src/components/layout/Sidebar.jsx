@@ -6,6 +6,8 @@ const Sidebar = ({
   onSelectConversation,
   selectedConversationId,
   onFriendAdded,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('chats');
@@ -67,22 +69,86 @@ const Sidebar = ({
     conv.name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  const openSearch = () => {
+    setActiveTab('search');
+    setSearchQuery('');
+    if (isCollapsed && onToggleCollapse) onToggleCollapse();
+  };
+
+  const openRequests = () => {
+    setActiveTab('requests');
+    setSearchQuery('');
+    if (isCollapsed && onToggleCollapse) onToggleCollapse();
+  };
+
   return (
-    <aside className="w-80 flex flex-col h-full bg-surface border-r border-white/[0.06] shrink-0">
+    <aside
+      className={`flex h-full shrink-0 flex-col border-r border-outline-variant bg-surface transition-[width] duration-200 ease-out ${
+        isCollapsed ? 'w-[84px]' : 'w-[360px]'
+      }`}
+    >
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-headline font-bold text-on-surface tracking-tight">Tin nhắn</h1>
+      {isCollapsed ? (
+        <div className="flex flex-col items-center gap-2 border-b border-outline-variant px-3 py-4">
           <button
-            onClick={() => {
-              setActiveTab('search');
-              setSearchQuery('');
-            }}
-            className="w-8 h-8 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary flex items-center justify-center transition-colors"
-            title="Tìm bạn mới"
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
+            title="Mo rong sidebar"
           >
-            <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+            <span className="material-symbols-outlined text-lg">chevron_right</span>
           </button>
+          <button
+            type="button"
+            onClick={openSearch}
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container text-on-surface-variant transition-colors hover:text-on-surface hover:bg-surface-container-high active:scale-[0.98]"
+            title="Tim ban moi"
+          >
+            <span className="material-symbols-outlined text-lg">add</span>
+          </button>
+          <button
+            type="button"
+            onClick={openRequests}
+            className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container text-on-surface-variant transition-colors hover:text-on-surface hover:bg-surface-container-high active:scale-[0.98]"
+            title="Loi moi ket ban"
+          >
+            <span className="material-symbols-outlined text-lg">person_add</span>
+            {friendRequests.length > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                {friendRequests.length}
+              </span>
+            )}
+          </button>
+        </div>
+      ) : (
+        <div className="border-b border-outline-variant px-5 pb-4 pt-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-headline font-semibold tracking-[-0.03em] text-on-surface">
+              Tin nhắn
+            </h1>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              {filteredConversations.length} cuộc trò chuyện
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openSearch}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-outline-variant bg-surface-container text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
+              title="Tim ban moi"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+            </button>
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-outline-variant bg-surface-container text-on-surface-variant transition-colors hover:text-on-surface hover:bg-surface-container-high active:scale-[0.98]"
+              title="Thu gon sidebar"
+            >
+              <span className="material-symbols-outlined text-lg">chevron_left</span>
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -91,7 +157,7 @@ const Sidebar = ({
             search
           </span>
           <input
-            className="w-full bg-surface-container-low rounded-xl py-2.5 pl-10 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2.5 pl-10 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none transition-colors"
             placeholder={activeTab === 'search' ? 'Tìm người dùng...' : 'Tìm cuộc trò chuyện...'}
             type="text"
             value={searchQuery}
@@ -100,7 +166,7 @@ const Sidebar = ({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mt-3">
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-outline-variant bg-surface-container-low p-1">
           {[
             { key: 'chats', label: 'Tất cả' },
             { key: 'requests', label: 'Lời mời', badge: friendRequests.length },
@@ -108,16 +174,16 @@ const Sidebar = ({
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`relative flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`relative rounded-md py-2 text-sm font-medium transition-colors ${
                 activeTab === key
-                  ? 'bg-primary/10 text-primary-light'
-                  : 'text-on-surface-variant hover:bg-white/[0.04]'
+                  ? 'bg-surface-container-lowest text-on-surface'
+                  : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
               <span className="flex items-center justify-center gap-1.5">
                 {label}
                 {badge > 0 && (
-                  <span className="min-w-[18px] h-[18px] rounded-full bg-primary text-[10px] text-white flex items-center justify-center font-bold px-1">
+                  <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
                     {badge}
                   </span>
                 )}
@@ -125,37 +191,82 @@ const Sidebar = ({
             </button>
           ))}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
-        {activeTab === 'search' ? (
-          <div className="px-3 pt-3 space-y-1">
+      <div className="no-scrollbar flex-1 overflow-y-auto">
+        {isCollapsed ? (
+          <div className="space-y-2 px-2 py-3">
+            {conversations.length === 0 ? (
+              <div
+                className="flex h-12 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface-variant"
+                title="Chua co cuoc tro chuyen"
+              >
+                <span className="material-symbols-outlined text-xl">chat_bubble</span>
+              </div>
+            ) : (
+              conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  type="button"
+                  onClick={() => onSelectConversation(conv.id)}
+                  title={conv.name || 'Conversation'}
+                  className={`group relative flex h-14 w-full items-center justify-center rounded-lg border transition-colors ${
+                    selectedConversationId === conv.id
+                      ? 'border-outline-variant bg-surface-container-lowest'
+                      : 'border-transparent hover:bg-surface-container-low'
+                  }`}
+                >
+                  <img
+                    alt={conv.name || 'Avatar'}
+                    className={`h-10 w-10 rounded-lg object-cover border ${
+                      selectedConversationId === conv.id
+                        ? 'border-primary'
+                        : 'border-outline-variant group-hover:border-outline'
+                    }`}
+                    src={conv.avatar}
+                  />
+                  {conv.isOnline ? (
+                    <span className="absolute bottom-2 right-3 h-3 w-3 rounded-full border-2 border-surface bg-secondary" />
+                  ) : null}
+                  {conv.unreadCount > 0 && (
+                    <span className="absolute right-1.5 top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                      {conv.unreadCount}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        ) : activeTab === 'search' ? (
+          <div className="space-y-1 px-3 pt-3">
             {searchQuery.length < 2 ? (
-              <p className="text-center text-on-surface-variant/60 text-xs py-10 font-label">
+              <p className="py-10 text-center text-xs text-on-surface-variant">
                 Nhập ít nhất 2 ký tự để tìm kiếm
               </p>
             ) : searchResults.length === 0 ? (
-              <p className="text-center text-on-surface-variant/60 text-xs py-10 font-label">
+              <p className="py-10 text-center text-xs text-on-surface-variant">
                 Không tìm thấy người dùng
               </p>
             ) : (
               searchResults.map((u) => (
                 <div
                   key={u._id}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors cursor-pointer group"
+                  className="group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-surface-container-low"
                 >
                   <div className="relative w-10 h-10 shrink-0">
                     <img
+                      alt={u.username}
                       src={u.avatar}
-                      className="w-full h-full rounded-full object-cover border border-white/10"
+                      className="h-full w-full rounded-lg border border-outline-variant object-cover"
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-headline font-semibold text-sm text-on-surface truncate">
+                    <p className="truncate text-sm font-semibold text-on-surface">
                       {u.username}
                     </p>
-                    <p className="text-[11px] text-on-surface-variant truncate">
+                    <p className="truncate text-xs text-on-surface-variant">
                       {u.status === 'friend'
                         ? 'Đã là bạn'
                         : u.status === 'sent'
@@ -166,7 +277,7 @@ const Sidebar = ({
                   {u.status === 'none' && (
                     <button
                       onClick={() => handleAddFriend(u._id)}
-                      className="shrink-0 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-headline font-semibold transition-colors"
+                      className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
                     >
                       Kết nối
                     </button>
@@ -176,11 +287,11 @@ const Sidebar = ({
             )}
           </div>
         ) : activeTab === 'requests' ? (
-          <div className="px-3 pt-3 space-y-1">
+          <div className="space-y-2 px-3 pt-3">
             {friendRequests.length === 0 ? (
-              <div className="flex flex-col items-center py-12 gap-3 opacity-50">
+              <div className="flex flex-col items-center gap-3 py-12">
                 <span className="material-symbols-outlined text-4xl text-on-surface-variant">person_add</span>
-                <p className="text-xs text-on-surface-variant font-label text-center px-4">
+                <p className="px-4 text-center text-xs text-on-surface-variant">
                   Không có lời mời kết bạn nào
                 </p>
               </div>
@@ -188,26 +299,24 @@ const Sidebar = ({
               friendRequests.map((req) => (
                 <div
                   key={req._id}
-                  className="p-4 rounded-xl bg-surface-container-low border border-white/[0.06] flex flex-col gap-3"
+                  className="flex flex-col gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
                 >
                   <div className="flex items-center gap-3">
                     <img
+                      alt={req.username}
                       src={req.avatar}
-                      className="w-10 h-10 rounded-full object-cover border border-white/10"
+                      className="h-10 w-10 rounded-lg border border-outline-variant object-cover"
                     />
-                    <p className="flex-1 font-headline font-semibold text-sm text-on-surface truncate">
+                    <p className="flex-1 truncate text-sm font-semibold text-on-surface">
                       {req.username}
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleAccept(req._id)}
-                      className="flex-1 py-2 rounded-lg bg-secondary/15 hover:bg-secondary/25 text-secondary text-xs font-headline font-semibold transition-colors"
+                      className="flex-1 rounded-md bg-primary py-2 text-xs font-medium text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
                     >
                       Chấp nhận
-                    </button>
-                    <button className="flex-1 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.07] text-on-surface-variant text-xs font-headline font-semibold transition-colors">
-                      Từ chối
                     </button>
                   </div>
                 </div>
@@ -215,11 +324,11 @@ const Sidebar = ({
             )}
           </div>
         ) : (
-          <div className="px-3 pt-3 space-y-1">
+          <div className="space-y-1 px-3 pt-3">
             {filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center py-12 gap-3 opacity-50">
+              <div className="flex flex-col items-center gap-3 py-12">
                 <span className="material-symbols-outlined text-4xl text-on-surface-variant">chat_bubble</span>
-                <p className="text-xs text-on-surface-variant font-label text-center px-4">
+                <p className="px-4 text-center text-xs text-on-surface-variant">
                   {searchQuery ? 'Không tìm thấy cuộc trò chuyện' : 'Chưa có cuộc trò chuyện nào'}
                 </p>
               </div>
@@ -228,28 +337,28 @@ const Sidebar = ({
                 <div
                   key={conv.id}
                   onClick={() => onSelectConversation(conv.id)}
-                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all group ${
+                  className={`group flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
                     selectedConversationId === conv.id
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'hover:bg-white/[0.04] border border-transparent'
+                      ? 'border-outline-variant bg-surface-container-lowest'
+                      : 'border-transparent hover:bg-surface-container-low'
                   }`}
                 >
                   {/* Avatar */}
-                  <div className="relative w-11 h-11 shrink-0">
+                  <div className="relative h-11 w-11 shrink-0">
                     <img
-                      alt="Avatar"
-                      className={`w-full h-full rounded-full object-cover border-2 ${
+                      alt={conv.name || 'Avatar'}
+                      className={`h-full w-full rounded-lg object-cover border ${
                         selectedConversationId === conv.id
-                          ? 'border-primary/60'
-                          : 'border-white/10 group-hover:border-white/20'
+                          ? 'border-primary'
+                          : 'border-outline-variant group-hover:border-outline'
                       }`}
                       src={conv.avatar}
                     />
                     {conv.isOnline ? (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-secondary border-2 border-surface" />
+                      <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface bg-secondary" />
                     ) : null}
                     {conv.unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-primary text-[10px] text-white flex items-center justify-center font-bold px-1 shadow-lg">
+                      <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
                         {conv.unreadCount}
                       </span>
                     )}
@@ -257,24 +366,21 @@ const Sidebar = ({
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
+                    <div className="mb-0.5 flex items-center justify-between">
                       <span
-                        className={`text-sm font-semibold truncate ${
+                        className={`truncate text-sm font-semibold ${
                           selectedConversationId === conv.id
-                            ? 'text-primary-light font-bold'
+                            ? 'text-on-surface'
                             : 'text-on-surface'
                         }`}
                       >
                         {conv.name}
                       </span>
-                      <span className="text-[10px] text-on-surface-variant/70 shrink-0 ml-2">
-                        12:45
-                      </span>
                     </div>
                     <p
                       className={`text-xs truncate ${
                         conv.unreadCount > 0
-                          ? 'text-on-surface font-medium'
+                          ? 'font-medium text-on-surface'
                           : 'text-on-surface-variant'
                       }`}
                     >

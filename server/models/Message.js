@@ -36,9 +36,13 @@ const messageSchema = new mongoose.Schema(
 
     // File đính kèm (nếu có)
     attachment: {
+      type: {
+        type: String,
+        enum: ['image', 'file'],
+      },
       url: String,
       filename: String,
-      fileSize: Number,
+      size: Number,
       mimeType: String,
     },
 
@@ -75,10 +79,12 @@ const messageSchema = new mongoose.Schema(
     },
 
     // Reactions (emoji + userId)
-    reactions: [{
-      emoji: { type: String, required: true },
-      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    }],
+    reactions: [
+      {
+        emoji: { type: String, required: true },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      },
+    ],
   },
   {
     timestamps: true, // createdAt, updatedAt
@@ -87,6 +93,8 @@ const messageSchema = new mongoose.Schema(
 
 // Index để query nhanh
 messageSchema.index({ sender: 1, recipient: 1 });
+messageSchema.index({ recipient: 1, sender: 1, status: 1 });
+messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
 messageSchema.index({ roomId: 1 });
 messageSchema.index({ createdAt: -1 }); // Sắp xếp theo thời gian mới nhất
 

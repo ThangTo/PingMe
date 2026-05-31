@@ -8,9 +8,6 @@ const ChatArea = ({
   messages = [],
   currentUserId,
   onSendMessage,
-  onVideoCall,
-  onVoiceCall,
-  onMenuClick,
   isTyping,
   onTypingStart,
   onTypingStop,
@@ -25,15 +22,12 @@ const ChatArea = ({
       {currentUser && (
         <Header
           user={currentUser}
-          onVideoCall={onVideoCall}
-          onVoiceCall={onVoiceCall}
-          onMenuClick={onMenuClick}
           onOpenGallery={onOpenGallery}
         />
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div className="no-scrollbar flex-1 overflow-y-auto bg-surface-container-lowest">
         <MessageList
           messages={messages}
           currentUserId={currentUserId}

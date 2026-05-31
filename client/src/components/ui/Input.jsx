@@ -12,9 +12,9 @@ const Input = ({
   ...props
 }) => {
   const baseStyles =
-    'w-full px-4 py-2 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary transition-all';
+    'w-full rounded-lg border bg-surface-container-lowest px-4 py-2 text-on-surface placeholder:text-on-surface-variant focus:outline-none transition-colors';
 
-  const errorStyles = error ? 'border-red-500 focus:ring-red-500' : 'border-slate-600 focus:border-primary';
+  const errorStyles = error ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary';
 
   return (
     <input
