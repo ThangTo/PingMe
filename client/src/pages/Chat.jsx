@@ -7,8 +7,11 @@ import TopNavBar from '../components/layout/TopNavBar';
 import MiniSidebar from '../components/layout/MiniSidebar';
 import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
+import IncomingCallModal from '../components/call/IncomingCallModal';
+import CallOverlay from '../components/call/CallOverlay';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useCall } from '../context/CallContext';
 import socket from '../socket';
 import api from '../config/api';
 
@@ -20,6 +23,7 @@ const Chat = () => {
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
   const messagesRef = useRef(messages);
 
   useEffect(() => {
@@ -111,6 +115,7 @@ const Chat = () => {
   }, [markChatAsRead]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) fetchFriends();
   }, [user, fetchFriends]);
 
@@ -129,6 +134,8 @@ const Chat = () => {
             content: msg.content,
             timestamp: msg.createdAt,
             status: msg.status,
+            reactions: msg.reactions || [],
+            attachment: msg.attachment || null,
           }));
           setMessages(normalizedMessages);
 
@@ -201,12 +208,34 @@ const Chat = () => {
 
     socket.on('messages_were_read', handleMessagesRead);
 
+    const handleAddReaction = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId ? { ...msg, reactions: data.reactions } : msg,
+        ),
+      );
+    };
+
+    socket.on('reaction_added', handleAddReaction);
+
+    const handleRemoveReaction = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId ? { ...msg, reactions: data.reactions } : msg,
+        ),
+      );
+    };
+
+    socket.on('reaction_removed', handleRemoveReaction);
+
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('friend_request_accepted', handleFriendAccepted);
       socket.off('messages_were_read', handleMessagesRead);
+      socket.off('reaction_added', handleAddReaction);
+      socket.off('reaction_removed', handleRemoveReaction);
     };
-  }, [selectedConversationId, user]);
+  }, [selectedConversationId, user, fetchFriends, markChatAsRead]);
 
   const handleTypingStart = () => {
     if (selectedConversationId && user) {
@@ -220,12 +249,12 @@ const Chat = () => {
     }
   };
 
-  const handleSendMessage = (content) => {
+  const handleSendMessage = (content, attachment) => {
     if (!selectedConversationId || !user) return;
     const messageData = {
       senderId: user.id,
       recipientId: selectedConversationId,
-      content: content,
+      content: content || (attachment ? attachment.filename : ''),
     };
     socket.emit('send_message', messageData);
 
@@ -235,26 +264,42 @@ const Chat = () => {
       content,
       timestamp: new Date().toISOString(),
       status: 'sent',
+      attachment: attachment || null,
     };
     setMessages((prev) => [...prev, newMessage]);
 
     setConversations((prev) => {
       const targetConv = prev.find((c) => c.id === selectedConversationId);
       if (!targetConv) return prev;
-      const updatedTarget = { ...targetConv, lastMessage: content };
+      const updatedTarget = { ...targetConv, lastMessage: content || attachment?.filename };
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
       return [updatedTarget, ...otherConvs];
+    });
+  };
+
+  const handleReaction = (messageId, emoji) => {
+    if (!user) return;
+    socket.emit('add_reaction', {
+      messageId,
+      emoji,
+      userId: user.id,
     });
   };
 
   const handleSelectConversation = (conversationId) => {
     setSelectedConversationId(conversationId);
   };
+  const { initiateCall } = useCall();
+
   const handleVideoCall = () => {
-    console.log('Video call clicked');
+    if (selectedConversationId && currentChatUser) {
+      initiateCall(selectedConversationId, 'video', currentChatUser);
+    }
   };
   const handleVoiceCall = () => {
-    console.log('Voice call clicked');
+    if (selectedConversationId && currentChatUser) {
+      initiateCall(selectedConversationId, 'voice', currentChatUser);
+    }
   };
   const handleMenuClick = () => {
     console.log('Menu clicked');
@@ -265,6 +310,9 @@ const Chat = () => {
 
   return (
     <div className="h-screen w-full font-body overflow-hidden bg-surface">
+      <IncomingCallModal />
+      <CallOverlay />
+
       <TopNavBar />
 
       <div className="flex h-screen pt-16">
@@ -294,6 +342,10 @@ const Chat = () => {
                 onTypingStart={handleTypingStart}
                 onTypingStop={handleTypingStop}
                 onFocusInput={markChatAsRead}
+                onReaction={handleReaction}
+                showGallery={showGallery}
+                onOpenGallery={() => setShowGallery(true)}
+                onCloseGallery={() => setShowGallery(false)}
               />
             </section>
           ) : (
@@ -310,7 +362,12 @@ const Chat = () => {
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 rotate-6 opacity-60" />
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/20 -rotate-3 opacity-40" />
                   <div className="relative w-full h-full rounded-2xl bg-surface-container-low border border-white/5 flex items-center justify-center shadow-2xl">
-                    <span className="material-symbols-outlined text-4xl text-primary-light/80" style={{ fontVariationSettings: "'FILL' 0" }}>forum</span>
+                    <span
+                      className="material-symbols-outlined text-4xl text-primary-light/80"
+                      style={{ fontVariationSettings: "'FILL' 0" }}
+                    >
+                      forum
+                    </span>
                   </div>
                 </div>
 

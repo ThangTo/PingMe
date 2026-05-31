@@ -176,6 +176,74 @@ const socketHandler = (io) => {
     });
 
     /**
+     * Event: add_reaction
+     * User react emoji vào một tin nhắn
+     */
+    socket.on('add_reaction', async (data) => {
+      try {
+        const { messageId, emoji, userId } = data;
+
+        const message = await Message.findById(messageId);
+        if (!message) return;
+
+        // Dùng method toggleReaction (toggle = thêm nếu chưa có, xóa nếu đã có)
+        const updated = await message.toggleReaction(emoji, userId);
+
+        // Gửi lại cho sender và recipient qua socket
+        const recipientSocketId = onlineUsers[message.recipient?.toString()];
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit('reaction_added', {
+            messageId,
+            reactions: updated.reactions,
+          });
+        }
+
+        socket.emit('reaction_added', {
+          messageId,
+          reactions: updated.reactions,
+        });
+      } catch (error) {
+        console.error('Lỗi add_reaction:', error);
+      }
+    });
+
+    /**
+     * Event: remove_reaction
+     * User xóa reaction khỏi tin nhắn
+     * (Thực ra dùng add_reaction với emoji đã có sẽ toggle = xóa luôn.
+     *  Event này giữ lại nếu muốn xóa toàn bộ reaction của user vào message)
+     */
+    socket.on('remove_reaction', async (data) => {
+      try {
+        const { messageId, userId, emoji } = data;
+
+        const message = await Message.findById(messageId);
+        if (!message) return;
+
+        //Filter bỏ reaction của user với emoji đó
+        message.reactions = message.reactions.filter(
+          (r) => !(r.emoji === emoji && r.userId.toString() === userId),
+        );
+        await message.save();
+
+        const recipientSocketId = onlineUsers[message.recipient?.toString()];
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit('reaction_removed', {
+            messageId,
+            reactions: message.reactions,
+          });
+        }
+
+        socket.emit('reaction_removed', {
+          messageId,
+          reactions: message.reactions,
+        });
+      } catch (error) {
+        console.error('Lỗi remove_reaction:', error);
+      }
+    });
+
+    /**
      * Event: join_room
      * Cho phép user tham gia một room cụ thể (để chat nhóm hoặc 1-1)
      */

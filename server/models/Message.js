@@ -73,6 +73,12 @@ const messageSchema = new mongoose.Schema(
       ref: 'Message',
       default: null,
     },
+
+    // Reactions (emoji + userId)
+    reactions: [{
+      emoji: { type: String, required: true },
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    }],
   },
   {
     timestamps: true, // createdAt, updatedAt
@@ -114,6 +120,21 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
 messageSchema.methods.markAsRead = async function () {
   this.status = 'read';
   this.readAt = new Date();
+  return await this.save();
+};
+
+// Method: Toggle reaction — thêm nếu chưa có, xóa nếu đã có
+messageSchema.methods.toggleReaction = async function (emoji, userId) {
+  const existing = this.reactions.find(
+    (r) => r.emoji === emoji && r.userId.toString() === userId.toString(),
+  );
+  if (existing) {
+    this.reactions = this.reactions.filter(
+      (r) => !(r.emoji === emoji && r.userId.toString() === userId.toString()),
+    );
+  } else {
+    this.reactions.push({ emoji, userId });
+  }
   return await this.save();
 };
 

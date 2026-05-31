@@ -1,0 +1,727 @@
+\documentclass[12pt,a4paper]{article}
+
+% === PACKAGES ===
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{paralist}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{colortbl}
+\usepackage{url}
+
+% === COLORS ===
+\definecolor{accent}{RGB}{123,47,247}       % Electric violet
+\definecolor{accentCyan}{RGB}{0,217,255}   % Neon cyan
+\definecolor{accentPink}{RGB}{255,45,120}  % Neon pink
+\definecolor{darkBg}{RGB}{13,11,30}         % Deep midnight
+\definecolor{cardBg}{RGB}{26,23,48}        % Card surface
+\definecolor{cardBorder}{RGB}{45,43,80}    % Subtle border
+\definecolor{muted}{RGB}{138,138,168}      % Muted text
+\definecolor{success}{RGB}{0,229,160}       % Neon green
+\definecolor{codebg}{RGB}{22,20,40}        % Code background
+\definecolor{heading}{RGB}{230,230,255}    % Heading color
+
+% === TITLE PAGE ===
+\graphicspath{{./}}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=accentCyan,
+    urlcolor=accentCyan,
+    pdfborder={0 0 0}
+}
+
+% === CUSTOM COMMANDS ===
+\newcommand{\pingme}{PingMe\xspace}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\pkg}[1]{\texttt{#1}}
+\newcommand{\figref}[1]{Figure~\ref{#1}}
+\newcommand{\tabref}[1]{Table~\ref{#1}}
+
+% === LISTINGS STYLE ===
+\lstdefinestyle{latex}{
+    language=Tex,
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small\color{accentCyan},
+    commentstyle=\color{muted}\itshape,
+    keywordstyle=\color{accentPink}\bfseries,
+    stringstyle=\color{success},
+    numbers=none,
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{cardBorder},
+    breaklines=true,
+    breakatwhitespace=true,
+    xleftmargin=0.5cm,
+    xrightmargin=0.5cm,
+    aboveskip=8pt,
+    belowskip=8pt,
+}
+\lstdefinestyle{js}{
+    language=JavaScript,
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small\color{accentCyan},
+    commentstyle=\color{muted}\itshape,
+    keywordstyle=\color{accentPink}\bfseries,
+    stringstyle=\color{success},
+    numbers=left,
+    numbersep=8pt,
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{cardBorder},
+    breaklines=true,
+    breakatwhitespace=true,
+    xleftmargin=0.5cm,
+    xrightmargin=0.5cm,
+    aboveskip=8pt,
+    belowskip=8pt,
+}
+
+% === SECTION FORMATTING ===
+\titleformat{\section}{\Large\bfseries\color{heading}}{}{0pt}{}
+\titleformat{\subsection}{\large\bfseries\color{heading}}{}{0pt}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{heading}}{}{0pt}{}
+\titlespacing*{\section}{0pt}{1.2cm}{0.4cm}
+\titlespacing*{\subsection}{0pt}{0.8cm}{0.3cm}
+\titlespacing*{\subsubsection}{0pt}{0.5cm}{0.2cm}
+
+% === HEADERS / FOOTERS ===
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\color{muted}\small\pingme{} Project Documentation}
+\fancyhead[R]{\color{muted}\small\thepage}
+\fancyfoot[C]{\color{muted}\small Draft --- April 2026}
+\def\headrule{\color{cardBorder}}
+\def\footrule{\color{cardBorder}}
+
+% === DOCUMENT ===
+\begin{document}
+
+% --- COVER PAGE ---
+\thispagestyle{empty}
+\vspace*{2cm}
+\begin{center}
+    \rule{0.95\linewidth}{0.5pt}
+    \vspace{1cm}
+
+    {\Huge\bfseries\color{accentCyan}\pingme{}}
+    \vspace{0.4cm}
+
+    {\LARGE\bfseries\color{heading}Project Report}
+    \vspace{0.8cm}
+
+    {\Large\sffamily\color{offWhite}Real-Time Messaging Application}
+    \vspace{0.6cm}
+
+    {\large\sffamily\color{muted}A Full-Stack Implementation with
+    Socket.io, WebRTC, MongoDB, and React}
+
+    \vspace{2cm}
+    \rule{0.95\linewidth}{0.5pt}
+    \vspace{2cm}
+
+    \begin{tabular}{rl}
+        \textbf{Status:} & \color{success}\textbf{In Progress} \\
+        \textbf{Version:} & 1.0.0 \\
+        \textbf{Date:}   & April 2026 \\
+        \textbf{Branch:} & dev \\
+    \end{tabular}
+\end{center}
+\newpage
+
+% --- TABLE OF CONTENTS ---
+\fancyhead[L]{\color{muted}\small Contents}
+\tableofcontents
+\newpage
+
+% --- SECTION 1: INTRODUCTION ---
+\section{Introduction}
+\label{sec:introduction}
+
+\pingme{} is a full-stack real-time messaging application with a sci-fi neural network
+user interface (dark backgrounds, neon gradient accents, cyberpunk theme). The application
+provides one-on-one chat, friend management, file sharing, and voice/video calling.
+
+The project follows a client--server architecture with two independent Node.js packages:
+a React frontend and an Express backend, communicating via REST API and Socket.io for
+real-time events.
+
+\subsection{Project Goals}
+\begin{compactitem}
+    \item Deliver a real-time messaging experience comparable to modern chat applications.
+    \item Support rich media sharing including images, documents, and file attachments.
+    \item Provide voice and video calling via WebRTC peer-to-peer connections.
+    \item Maintain security through JWT authentication with httpOnly cookies.
+    \item Offer an immersive cyberpunk UI with neon aesthetics and smooth animations.
+\end{compactitem}
+
+\subsection{Technology Stack}
+\label{sec:tech-stack}
+
+\begin{table}[H]
+    \centering
+    \caption{Technology Stack Overview}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{Layer}    & \textbf{Tech}           & \textbf{Role} \\
+        \midrule
+        Frontend         & React 19 + Vite 7       & SPA, state management \\
+        Styling         & Tailwind CSS v4          & CSS-first theming \\
+        Real-time       & Socket.io-client         & Bidirectional events \\
+        HTTP Client     & Axios                   & REST calls + 401 refresh \\
+        Backend         & Express 5 (Node.js ESM) & REST API, Socket.io server \\
+        Database        & MongoDB + Mongoose 8    & Document store \\
+        Auth           & JWT + bcrypt            & Access + refresh tokens \\
+        File Upload     & Multer                  & Multipart handling \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% --- SECTION 2: SYSTEM ARCHITECTURE ---
+\section{System Architecture}
+\label{sec:architecture}
+
+\subsection{Overall Architecture}
+
+\pingme{} uses a client--server model with a three-layer architecture as shown in
+\figref{fig:architecture}.
+
+\begin{figure}[H]
+    \centering
+    \fbox{
+        \begin{minipage}{0.9\linewidth}
+            \centering
+            \vspace{0.5cm}
+            \textbf{Client (React 19 + Vite)} \\
+            \small AuthContext, SocketContext, ChatArea, MessageList, MessageBubble, MessageInput \\
+            \vspace{0.4cm}
+            \hrule
+            \vspace{0.4cm}
+            \textbf{Server (Express 5 + Socket.io 4)} \\
+            \small REST Controllers, Socket.io Handler, Multer Upload, JWT Middleware \\
+            \vspace{0.4cm}
+            \hrule
+            \vspace{0.4cm}
+            \textbf{Database (MongoDB)} \\
+            \small Users, Messages \\
+            \vspace{0.5cm}
+        \end{minipage}
+    }
+    \caption{Three-Layer Architecture}
+    \label{fig:architecture}
+\end{figure}
+
+The frontend communicates with the backend via two channels:
+\begin{compactitem}
+    \item \textbf{REST API} (Axios): Authentication, message retrieval, file upload.
+    \item \textbf{Socket.io}: Real-time message delivery, typing indicators,
+          friend status, call signaling, reactions.
+\end{compactitem}
+
+\subsection{Project Structure}
+\label{sec:project-structure}
+
+\begin{figure}[H]
+    \centering
+    \fbox{
+        \begin{minipage}{0.92\linewidth}
+            \small
+            \raggedright
+            PingMe/ \\
+            \hspace{1em}\file{client/} \\
+            \hspace{2em}\file{src/} \\
+            \hspace{3em}\file{components/} \\
+            \hspace{4em}\file{layout/} --- AuthLayout, ChatArea, Header, Sidebar, TopNavBar \\
+            \hspace{4em}\file{chat/}     --- MessageBubble, MessageInput, MessageList, EmojiPicker \\
+            \hspace{4em}\file{ui/}        --- Avatar, Button, Input, SearchBar, ValidationMessage \\
+            \hspace{3em}\file{context/}  --- AuthContext, SocketContext \\
+            \hspace{3em}\file{pages/}    --- Login, Register, Chat \\
+            \hspace{3em}\file{config/}    --- api.js (Axios instance) \\
+            \hspace{3em}\file{socket.js}   --- Socket.io singleton \\
+            \hspace{2em}\file{server/} \\
+            \hspace{3em}\file{index.js}   --- Express app + HTTP server + Socket.io \\
+            \hspace{3em}\file{config/}    --- db.js (Mongoose connection) \\
+            \hspace{3em}\file{models/}     --- User, Message \\
+            \hspace{3em}\file{controllers/} --- auth, message, user \\
+            \hspace{3em}\file{services/}  --- auth.service.js \\
+            \hspace{3em}\file{middlewares/} --- auth.middleware, upload.middleware \\
+            \hspace{3em}\file{routers/}   --- auth, message, user routes \\
+            \hspace{3em}\file{socket/}    --- socketHandler.js \\
+            \hspace{3em}\file{uploads/}   --- (gitignored) \\
+        \end{minipage}
+    }
+    \caption{Project Directory Structure}
+    \label{fig:structure}
+\end{figure}
+
+% --- SECTION 3: AUTHENTICATION ---
+\section{Authentication System}
+\label{sec:auth}
+
+The authentication system uses a dual-token strategy with httpOnly cookies for security.
+
+\subsection{Token Strategy}
+
+\begin{compactitem}
+    \item \textbf{Access Token} (15 minutes): Short-lived JWT stored in memory.
+      Verified via \code{authMiddleware}.
+    \item \textbf{Refresh Token} (7 days): Long-lived JWT in httpOnly cookie.
+      Used silently when the access token expires.
+\end{compactitem}
+
+The Axios interceptor detects 401 responses, calls \code{POST /auth/refresh},
+updates both tokens, and retries the failed request automatically.
+
+\subsection{Auth Middleware Logic}
+\label{sec:auth-middleware}
+
+The \code{authMiddleware} checks tokens in this priority order:
+
+\begin{lstlisting}[style=js]
+// 1. Check httpOnly cookie first (refresh token flow)
+const refreshToken = req.cookies?.refreshToken;
+if (refreshToken) {
+    const decoded = jwt.verify(refreshToken, ACCESS_TOKEN_SECRET);
+    req.user = decoded;
+    return next();
+}
+// 2. Fall back to Authorization: Bearer header
+const authHeader = req.headers.authorization;
+if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    req.user = decoded;
+    return next();
+}
+return res.status(401).json({ error: 'Unauthorized' });
+\end{lstlisting}
+
+Note: the User model uses \code{select: false} for the \code{password} field.
+Use \code{.select('+password')} when comparing passwords.
+
+% --- SECTION 4: REAL-TIME MESSAGING ---
+\section{Real-Time Messaging}
+\label{sec:messaging}
+
+\subsection{Socket.io Setup}
+\label{sec:socket-setup}
+
+The socket singleton (\file{client/src/socket.js}) is created with \code{autoConnect: false}.
+\code{SocketProvider} auto-connects on mount and registers the user:
+
+\begin{lstlisting}[style=js]
+// Client emits on Chat.jsx mount:
+socket.emit('register_user', userId);
+
+// Server maintains in-memory map:
+const onlineUsers = new Map(); // userId -> socketId
+\end{lstlisting}
+
+After registration the server broadcasts online friends' status to the client.
+
+\subsection{Message Flow}
+\label{sec:message-flow}
+
+Messages follow this flow:
+
+\begin{enumerate}
+    \item User sends message in \code{MessageInput}.
+    \item Client emits \code{send\_message} via Socket.io.
+    \item Server saves message to MongoDB (collection: \code{messages}).
+    \item Server relays message to recipient via \code{receive\_message}.
+    \item Server confirms to sender via \code{message\_sent}.
+    \item Both sides update their message list state.
+\end{enumerate}
+
+\subsection{Status Indicators}
+\label{sec:status-indicators}
+
+Typing state is managed via two Socket.io events:
+\code{typing} / \code{stop\_typing} (client-to-server) and
+\code{user\_typing} / \code{user\_stopped\_typing} (server-to-client).
+
+Read receipts use \code{mark\_messages\_read} (client-to-server) and
+\code{messages\_were\_read} (server-to-client).
+
+% --- SECTION 5: FRIEND MANAGEMENT ---
+\section{Friend Management}
+\label{sec:friends}
+
+Users can search, send requests, accept requests, and browse a friend list.
+All friend operations are exposed via REST API endpoints:
+
+\begin{table}[H]
+    \centering
+    \caption{Friend Management API Endpoints}
+    \begin{tabular}{llp{7cm}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint}             & \textbf{Description} \\
+        \midrule
+        GET    & \code{/api/users}              & List all users except self \\
+        GET    & \code{/api/users/friends}     & Get friend list \\
+        GET    & \code{/api/users/requests}    & Get pending friend requests \\
+        GET    & \code{/api/users/search?q=}   & Search users by name \\
+        POST   & \code{/api/users/request}      & Send a friend request \\
+        POST   & \code{/api/users/accept}       & Accept a friend request \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The User model stores \code{friends: []} and \code{friendRequests: []}
+as arrays of user IDs. A "reject friend request" button exists in the UI
+but the backend route has not been implemented yet.
+
+% --- SECTION 6: MEDIA AND FILE SHARING ---
+\section{Media and File Sharing}
+\label{sec:media}
+
+The media sharing module allows users to send images and file attachments,
+preview media, react to messages, and browse a conversation gallery.
+
+\subsection{Image Upload}
+\label{sec:image-upload}
+
+Images are uploaded via \code{POST /api/messages/upload} with \code{FormData}.
+The backend uses Multer with a 25\,MB file size limit and stores files in
+\file{server/uploads/} (gitignored). File naming convention:
+\code{{userId}\_{timestamp}\_{originalname}}.
+
+Supported image types are validated in the Multer \code{fileFilter}.
+Preview is generated client-side with \code{URL.createObjectURL()} before upload.
+
+Acceptance criteria for image upload:
+\begin{compactitem}
+    \item Native file picker (image/*), max 10\,MB per image.
+    \item Preview before sending, progress indicator during upload.
+    \item Multi-image gallery: up to 5 images per message.
+    \item Retry button on failure.
+    \item Clipboard paste support.
+\end{compactitem}
+
+\subsection{File Attachments}
+\label{sec:file-attachments}
+
+Non-image files are displayed as file cards (icon + filename + size).
+Supported formats: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ZIP, RAR, TXT, CSV.
+Maximum file size: 25\,MB.
+
+Clicking a file card triggers browser download via the static file URL:
+\url{http://localhost:3001/uploads/{filename}}.
+
+\subsection{Image Lightbox}
+\label{sec:lightbox}
+
+Tapping an image opens a fullscreen overlay with a dark backdrop at 90\% opacity.
+Controls: close button (top-right), click backdrop to close,
+swipe down to close (mobile), pinch-to-zoom support.
+
+The Message model has been extended with:
+\code{attachments: [\{ type, url, filename, size \}]}.
+
+\subsection{Message Reactions}
+\label{sec:reactions}
+
+Six quick reactions are available: \texttt{:+1: :heart: :joy: :fire: :clap: :poop:}.
+Triggered by long-press (500\,ms) or hover. Reactions emit via Socket.io:
+
+\begin{lstlisting}[style=js]
+Client --> Server: add_reaction    { messageId, emoji, userId }
+Client --> Server: remove_reaction { messageId, emoji, userId }
+Server --> Client: reaction_added  { messageId, emoji, userId }
+Server --> Client: reaction_removed { messageId, emoji, userId }
+\end{lstlisting}
+
+The Message model now includes: \code{reactions: [\{ emoji, userId \}]}.
+
+Tapping a reaction badge shows the list of users who reacted.
+Reacting with the same emoji again toggles the reaction off.
+
+\subsection{Media Gallery}
+\label{sec:gallery}
+
+Clicking the gallery icon in the chat header opens a grid panel showing
+all images in the conversation (newest first). Clicking a thumbnail
+opens the lightbox at that image. Empty state message:
+``Chua co anh nao duoc chia se''.
+
+% --- SECTION 7: VOICE AND VIDEO CALLS ---
+\section{Voice and Video Calls}
+\label{sec:calls}
+
+Voice and video calling uses WebRTC for peer-to-peer connections and
+Socket.io for signaling (offer/answer/ICE exchange).
+
+\subsection{STUN Configuration}
+\label{sec:stun}
+
+The STUN server is configured using Google's public server:
+
+\begin{lstlisting}[style=js]
+const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' }
+    // TURN server required for production (symmetric NAT)
+];
+\end{lstlisting}
+
+If no ICE candidates are found within 10 seconds,
+a ``Khong the ket noi'' error is shown. A 15-second fallback
+aborts the connection attempt if WebRTC fails.
+
+\subsection{Call Initiation}
+\label{sec:call-init}
+
+\begin{enumerate}
+    \item User clicks call or video-call button in chat header.
+    \item \code{call\_request} emitted via Socket.io with \code{\{ callerId, calleeId, type \}}.
+    \item Caller sees ``Calling...'' overlay; callee sees incoming call modal.
+    \item Callee accepts: \code{call\_accepted} emitted; caller creates RTCPeerConnection.
+    \item Caller gets media stream (audio only for voice, audio+video for video).
+    \item Caller generates and emits \code{offer} (SDP).
+    \item Callee sets remote description, generates \code{answer}, emits it.
+    \item ICE candidates are exchanged via \code{ice\_candidate}.
+    \item When \code{iceConnectionState === 'connected'}: call UI appears.
+\end{enumerate}
+
+\subsection{Call UI}
+\label{sec:call-ui}
+
+The call interface shows:
+\begin{compactitem}
+    \item Full-screen dark overlay.
+    \item Remote video (or avatar + name for voice call).
+    \item Local video as small PIP in bottom-right corner.
+    \item Bottom bar: Mute, Camera toggle (video), End call.
+    \item Timer at top showing call duration.
+    \item Incoming call modal: ringing animation, accept/decline buttons.
+\end{compactitem}
+
+Call state is stored in-memory only (\code{CallContext}) and is lost on reload.
+
+\subsection{Socket Events for Calls}
+\label{sec:call-socket}
+
+\begin{lstlisting}[style=js]
+// Client -> Server
+call_request, call_cancelled, call_accepted, call_rejected,
+call_ended, offer, answer, ice_candidate
+
+// Server -> Client (relayed to specific user)
+incoming_call, call_cancelled, call_accepted, call_rejected,
+call_ended, offer, answer, ice_candidate, user_busy
+\end{lstlisting}
+
+Active calls are tracked in an in-memory \code{Map}:
+\code{activeCalls: callId -> \{ callerId, calleeId, type, startedAt \}}.
+
+% --- SECTION 8: API REFERENCE ---
+\section{API Reference}
+\label{sec:api}
+
+\subsection{Authentication Endpoints}
+\label{sec:auth-endpoints}
+
+\begin{table}[H]
+    \centering
+    \caption{Authentication API}
+    \begin{tabular}{lllp{5.5cm}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint}         & \textbf{Auth} & \textbf{Description} \\
+        \midrule
+        POST & \code{/api/auth/register}   & None     & Create new account \\
+        POST & \code{/api/auth/login}      & None     & Login (sets httpOnly cookies) \\
+        POST & \code{/api/auth/logout}    & Required & Clear cookies \\
+        POST & \code{/api/auth/refresh}   & None     & Refresh tokens \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Message Endpoints}
+\label{sec:message-endpoints}
+
+\begin{table}[H]
+    \centering
+    \caption{Messaging API}
+    \begin{tabular}{lllp{5.5cm}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint}          & \textbf{Auth} & \textbf{Description} \\
+        \midrule
+        GET  & \code{/api/messages/:userId} & Required & Get conversation history \\
+        POST & \code{/api/messages/upload}   & Required & Upload image or file (multipart) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\code{POST /api/messages/upload} returns:
+\code{\{ url, filename, size, type \}}.
+
+% --- SECTION 9: DATABASE SCHEMA ---
+\section{Database Schema}
+\label{sec:database}
+
+\subsection{User Model}
+\label{sec:user-schema}
+
+\begin{lstlisting}[style=js]
+const userSchema = new Schema({
+    username:    { type: String, unique: true },
+    email:       { type: String, unique: true },
+    password:    { type: String, select: false },  // bcrypt
+    avatar:      { type: String, default: '' },
+    friends:     [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    friendRequests: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+}, { timestamps: true });
+\end{lstlisting}
+
+Password is excluded from queries by default (\code{select: false}).
+Use \code{.select('+password')} when comparing.
+
+\subsection{Message Model}
+\label{sec:message-schema}
+
+\begin{lstlisting}[style=js]
+const messageSchema = new Schema({
+    sender:      { type: Schema.Types.ObjectId, ref: 'User', required },
+    recipient:   { type: Schema.Types.ObjectId, ref: 'User', required },
+    content:     { type: String, default: '' },
+    status:      { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
+    roomId:      { type: String, index: true },  // conversation identifier
+    replyTo:     { type: Schema.Types.ObjectId, ref: 'Message', default: null },
+    attachments: [{
+        type:     String,  // 'image' | 'file'
+        url:      String,
+        filename: String,
+        size:     Number,
+    }],
+    reactions:   [{
+        emoji:  String,
+        userId: Schema.Types.ObjectId,
+    }],
+}, { timestamps: true });
+\end{lstlisting}
+
+\index{attachments}
+\index{reactions}
+\index{roomId}
+
+Both \code{attachments} and \code{reactions} are recent additions to the schema
+to support the media sharing module.
+
+% --- SECTION 10: UI AESTHETIC ---
+\section{UI Aesthetic}
+\label{sec:ui}
+
+\pingme{} uses a dark cyberpunk visual theme. Key design decisions:
+
+\begin{compactitem}
+    \item \textbf{Background}: Deep midnight navy (\code{#0D0B1E}).
+    \item \textbf{Accents}: Electric violet (\code{#7B2FF7}), neon cyan (\code{#00D9FF}),
+          neon pink (\code{#FF2D78}).
+    \item \textbf{Fonts}: Space Grotesk (headlines), Inter (body),
+          Material Symbols Outlined (icons).
+    \item \textbf{Animations}: Framer Motion 3D flip transitions on AuthLayout
+          between Login/Register. Custom CSS animations for message pop-in
+          and fade-in effects.
+\end{compactitem}
+
+Tailwind v4 theme tokens are defined in \file{client/src/index.css} using the
+CSS-first configuration style (no \file{tailwind.config.js} file exists).
+Custom utilities include \code{prism-border}, \code{nebula-bg},
+\code{animate-message-pop}, and \code{animate-fade-in}.
+
+% --- SECTION 11: ROADMAP ---
+\section{Development Roadmap}
+\label{sec:roadmap}
+
+\subsection{Current Status}
+\label{sec:current-status}
+
+\begin{table}[H]
+    \centering
+    \caption{Feature Completion Status}
+    \begin{tabular}{llp{5cm}}
+        \toprule
+        \textbf{Feature}               & \textbf{Status} & \textbf{Notes} \\
+        \midrule
+        Authentication                & \color{success}{\textbf{Done}} & JWT, bcrypt, httpOnly cookies \\
+        Real-time Messaging           & \color{success}{\textbf{Done}} & Socket.io relay, typing, read receipts \\
+        Friend Management              & \color{success}{\textbf{Done}} & Request, accept, list, search \\
+        UI/UX                         & \color{success}{\textbf{Done}} & Cyberpunk redesign, animations \\
+        Media \& File Sharing         & \color{accent}{\textbf{In Progress}} & Image upload, lightbox, reactions, gallery \\
+        Voice \& Video Calls          & \color{accent}{\textbf{In Progress}} & WebRTC, call UI, signaling \\
+        Group Chat                    & \color{accentPink}{\textbf{Planned}} & Room management \\
+        Push Notifications            & \color{accentPink}{\textbf{Planned}} & Service workers \\
+        Message Encryption            & \color{accentPink}{\textbf{Planned}} & E2E encryption \\
+        Stories / Status Updates      & \color{accentPink}{\textbf{Planned}} & Ephemeral content \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Next Steps}
+\label{sec:next-steps}
+
+\begin{compactenum}
+    \item \textbf{Complete media sharing}: finish lightbox, reaction badges,
+          media gallery panel on the frontend.
+    \item \textbf{Implement voice/video calls}: build \code{CallContext},
+          \code{useWebRTC} hook, \code{IncomingCallModal}, and \code{CallOverlay}.
+    \item \textbf{TURN server}: configure for production users behind symmetric NAT.
+    \item \textbf{Group chat}: room-based architecture with Socket.io namespaces.
+    \item \textbf{Push notifications}: service worker registration,
+          FCM or Web Push integration.
+    \item \textbf{Message encryption}: implement Signal Protocol or E2E encryption.
+\end{compactenum}
+
+% --- SECTION 12: KNOWN GAPS ---
+\section{Known Gaps and TODOs}
+\label{sec:gaps}
+
+\begin{compactitem}
+    \item ``Reject friend request'' button in \code{Sidebar.jsx} has no backend route.
+    \item Persistent unread counts are client-side only (not stored in database).
+    \item No test suite (unit, integration, or E2E).
+    \item No backend ESLint or Prettier configuration.
+    \item No Docker setup or CI/CD pipeline.
+    \item \file{.env} files are tracked in git --- do not commit real secrets.
+    \item Google OAuth is defined in requirements but not implemented.
+    \item TURN server not configured (call quality affected behind symmetric NAT).
+    \item Persistent call state is lost on page reload.
+\end{compactitem}
+
+% --- SECTION 13: CONCLUSION ---
+\section{Conclusion}
+\label{sec:conclusion}
+
+\pingme{} demonstrates a complete full-stack real-time application architecture.
+The server exposes a clean REST API alongside a Socket.io server for bidirectional
+events, while the React frontend manages both REST and real-time state cleanly.
+
+The most critical outstanding work is completing the media sharing module
+(images, file cards, lightbox, reactions, gallery) and the WebRTC call
+interface. Once these two features are complete, the application reaches
+feature parity with modern chat applications at a fraction of the complexity
+of commercial alternatives.
+
+The codebase is well-structured, with clear separation between components,
+contexts, hooks, and services. The cyberpunk UI theme provides a distinctive
+visual identity that sets \pingme{} apart from generic messaging applications.
+
+\vfill
+\begin{center}
+    \rule{0.7\linewidth}{0.5pt} \\
+    \small\color{muted}
+    \pingme{} Project Report --- April 2026 \\
+    Built with React 19, Express 5, Socket.io 4, MongoDB, and Vite 7
+\end{center}
+
+\end{document}

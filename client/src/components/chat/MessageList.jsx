@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 
-const MessageList = ({ messages = [], currentUserId, isTyping }) => {
+const MessageList = ({ messages = [], currentUserId, isTyping, onReaction }) => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -35,6 +35,7 @@ const MessageList = ({ messages = [], currentUserId, isTyping }) => {
             message={message}
             isOwn={isOwn}
             showAvatar={showAvatar}
+            onReaction={onReaction}
           />
         );
       })}

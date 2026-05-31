@@ -1,4 +1,4 @@
-const Header = ({ user, onVideoCall, onVoiceCall, onMenuClick }) => {
+const Header = ({ user, onVideoCall, onVoiceCall, onMenuClick, onOpenGallery }) => {
   return (
     <header className="flex items-center justify-between px-5 py-3.5 border-b border-white/6 shrink-0">
       {/* Left — Avatar + Name + Status */}
@@ -43,6 +43,13 @@ const Header = ({ user, onVideoCall, onVoiceCall, onMenuClick }) => {
           title="Gọi video"
         >
           <span className="material-symbols-outlined text-xl">videocam</span>
+        </button>
+        <button
+          onClick={onOpenGallery}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-on-surface-variant hover:bg-white/4 hover:text-secondary transition-all"
+          title="Ảnh & File"
+        >
+          <span className="material-symbols-outlined text-xl">perm_media</span>
         </button>
         <button
           onClick={onMenuClick}

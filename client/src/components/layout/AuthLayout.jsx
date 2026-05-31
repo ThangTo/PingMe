@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 export default function AuthLayout() {
   const location = useLocation();
+  const MotionMain = motion.main;
 
   // Hiệu ứng "Cửa xoay" (Revolving Door / Coin Flip)
   // Trục quay nằm ở giữa, chế độ xoay 3D lật mặt.
@@ -59,7 +60,7 @@ export default function AuthLayout() {
       >
         {/* mode="wait" sẽ chờ trang cũ xoay xong 90 độ mới render trang mới xoay tiếp từ 90 độ về 0 */}
         <AnimatePresence mode="wait" initial={false}>
-          <motion.main
+          <MotionMain
             key={location.pathname}
             initial="initial"
             animate="animate"
@@ -69,7 +70,7 @@ export default function AuthLayout() {
             style={{ transformStyle: 'preserve-3d' }}
           >
             <Outlet />
-          </motion.main>
+          </MotionMain>
         </AnimatePresence>
         
         {/* Shared Footer Metadata cố định */}

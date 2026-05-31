@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## My Role in This Project
+
+Tôi là người hướng dẫn realtime/socket cho bạn. Nguyên tắc:
+
+- **Phần realtime & socket (Socket.io, WebRTC, signaling):** Tôi sẽ **hướng dẫn** — giải thích cái gì cần code, ở file nào, tại sao. Bạn tự implement để học.
+- **Phần không liên quan realtime (UI, state thường, API REST, logic thuần túy):** Tôi có thể tự code.
+
 ## Project Overview
 
 **PingMe** is a full-stack real-time messaging app with a sci-fi neural network UI (dark backgrounds, neon gradient accents, cyberpunk theme). Monorepo with two independent Node.js packages.
@@ -36,7 +43,12 @@ cd client && npm run lint
 | Database | — | MongoDB + Mongoose 8 |
 | Auth | localStorage + Context API | JWT + bcrypt (httpOnly cookies) |
 
-## Architecture
+## Project Specs (`.claude/specs/`)
+
+Always read the relevant spec before implementing features. Current active specs:
+
+- `media-file-sharing/requirements.md` — Images, file attachments, lightbox, reactions, media gallery
+- `voice-video-calls/requirements.md` — WebRTC calls (STUN, offer/answer signaling, call UI)
 
 ### Client (`client/src/`)
 - `main.jsx` — Entry point: mounts `AuthProvider` + `SocketProvider`
@@ -81,6 +93,7 @@ POST /api/auth/login      — No auth   — Login (sets httpOnly cookies)
 POST /api/auth/logout     — Auth      — Clear cookies
 POST /api/auth/refresh    — No auth   — Refresh tokens
 GET  /api/messages/:userId — Auth     — Get conversation
+POST /api/messages/upload — Auth      — Multipart file upload (images/files)
 GET  /api/users           — Auth      — All users except self
 GET  /api/users/friends   — Auth      — Friend list
 GET  /api/users/requests  — Auth      — Pending friend requests
@@ -95,15 +108,21 @@ GET  /health              — No auth   — Health check
 ```
 Client → Server: register_user, send_message, typing, stop_typing,
                   mark_messages_read, send_friend_request, accept_friend_request,
-                  join_room, leave_room
+                  add_reaction, remove_reaction,
+                  call_request, call_cancelled, call_accepted, call_rejected, call_ended,
+                  offer, answer, ice_candidate
 Server → Client: get_online_friends, user_status_changed, receive_message,
                   message_sent, user_typing, user_stopped_typing, messages_were_read,
-                  receive_friend_request, friend_request_accepted, connection_success
+                  receive_friend_request, friend_request_accepted, connection_success,
+                  reaction_added, reaction_removed,
+                  incoming_call, call_cancelled, call_accepted, call_rejected,
+                  call_ended, offer, answer, ice_candidate, user_busy
 ```
 
 ## Known Gaps / TODOs
 
-- Video/voice call buttons are UI stubs — no WebRTC logic wired up
+- ⚠️ Media & File Sharing — in progress (backend: multer upload, frontend: lightbox, reactions)
+- ⚠️ Voice & Video Calls — in progress (WebRTC + Socket.io signaling)
 - "Reject friend request" button exists in `Sidebar.jsx` — no backend route
 - Persistent unread counts are client-side only (not stored in DB)
 - No tests, no backend ESLint, no Prettier, no Docker, no CI/CD
@@ -124,4 +143,6 @@ server/.env:  MONGODB_URI, ACCESS_TOKEN_SECRET, REFRESH_TOKEN_SECRET,
 - `nodemon` watches server files and auto-restarts on changes.
 - Always apply `authMiddleware` to new protected routes.
 - Controllers delegate business logic to services — don't put logic directly in controllers.
-- Use the `.kiro/specs/` directory for project requirements and roadmap context.
+- Use the `.claude/specs/` directory for project requirements and roadmap context.
+- **Socket realtime:** Đọc spec trước khi code phần socket. Mỗi bước realtime đều cần được hướng dẫn rõ ràng.
+- **Khi nào tự làm:** Phần UI/frontend thuần túy (không liên quan socket), logic state thường, file cấu trúc mới không có socket → tự code luôn.
