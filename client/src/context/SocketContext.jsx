@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
 import socket, { connectSocket, disconnectSocket, isSocketConnected } from '../socket';
 
 /**
@@ -29,6 +30,7 @@ export const useSocket = () => {
  * Wrap component tree với provider này để sử dụng socket
  */
 export const SocketProvider = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
   // State để track connection status
   const [isConnected, setIsConnected] = useState(false);
   const [socketId, setSocketId] = useState(null);
@@ -57,10 +59,6 @@ export const SocketProvider = ({ children }) => {
     socket.on('disconnect', handleDisconnect);
     socket.on('connect_error', handleConnectError);
 
-    // Tự động connect khi component mount (optional)
-    // Nếu muốn connect thủ công, comment dòng này
-    connectSocket();
-
     // Cleanup: Disconnect và remove listeners khi unmount
     return () => {
       socket.off('connect', handleConnect);
@@ -71,6 +69,17 @@ export const SocketProvider = ({ children }) => {
       // disconnectSocket(); // Uncomment nếu muốn disconnect khi unmount
     };
   }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (isAuthenticated) {
+      connectSocket();
+      return;
+    }
+
+    disconnectSocket();
+  }, [isAuthenticated, isLoading]);
 
   // Context value
   const value = {

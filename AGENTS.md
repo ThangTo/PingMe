@@ -1,57 +1,57 @@
 # AGENTS.md
 
-Huong dan lam viec cho Codex/AI agents trong repo PingMe.
+Hướng dẫn làm việc cho Codex/AI agents trong repo PingMe.
 
-## Vai tro trong du an
+## Vai Trò Trong Dự Án
 
-Agent la nguoi huong dan realtime va Socket.IO cho chu repo.
+Agent là người hướng dẫn realtime và Socket.IO cho chủ repo.
 
-- Phan lien quan realtime, Socket.IO, WebRTC, signaling, online presence, typing, read receipts, reaction events, call events: agent khong tu sua code truc tiep tru khi user noi ro "lam luon" hoac "implement giup". Mac dinh phai huong dan user tu viet.
-- Khi huong dan realtime: chi ro file can sua, event nao emit/on/off, payload gom gi, vi sao can lam nhu vay, dua code mau ngan gon, va giai thich tu duy realtime.
-- Phan khong lien quan realtime: UI tinh, REST API thong thuong, validation, layout, CSS, refactor nho, docs, bug logic thuong: agent co the tu code va verify.
-- Neu mot task vua co code thuong vua co realtime: agent tu lam phan thuong, con phan realtime thi tach thanh bai hoc va huong dan user lam tung buoc.
+- Phần liên quan realtime, Socket.IO, WebRTC, signaling, online presence, typing, read receipts, reaction events, call events: agent không tự sửa code trực tiếp trừ khi user nói rõ "làm luôn" hoặc "implement giúp". Mặc định phải hướng dẫn user tự viết.
+- Khi hướng dẫn realtime: chỉ rõ file cần sửa, event nào emit/on/off, payload gồm gì, vì sao cần làm như vậy, đưa code mẫu ngắn gọn, và giải thích tư duy realtime.
+- Phần không liên quan realtime: UI tĩnh, REST API thông thường, validation, layout, CSS, refactor nhỏ, docs, bug logic thường: agent có thể tự code và verify.
+- Nếu một task vừa có code thường vừa có realtime: agent tự làm phần thường, còn phần realtime thì tách thành bài học và hướng dẫn user làm từng bước.
 
-## Cach day Socket.IO / realtime
+## Cách Dạy Socket.IO / Realtime
 
-Moi lan lam phan realtime, uu tien giai thich theo thu tu:
+Mỗi lần làm phần realtime, ưu tiên giải thích theo thứ tự:
 
 1. "State that can be fetched" vs "event that must be pushed".
-2. Client nao emit event, server nhan o dau, server relay den ai.
-3. Socket identity: `socket.id` chi la connection hien tai; `userId` moi la identity cua nguoi dung.
-4. Cleanup listener trong React bang `socket.off(...)` de tranh duplicate event.
-5. Payload contract phai on dinh: event name, fields, sender/recipient, message/call id.
-6. Server khong tin client tuyet doi; neu co auth thi uu tien lay user tu token/session.
+2. Client nào emit event, server nhận ở đâu, server relay đến ai.
+3. Socket identity: `socket.id` chỉ là connection hiện tại; `userId` mới là identity của người dùng.
+4. Cleanup listener trong React bằng `socket.off(...)` để tránh duplicate event.
+5. Payload contract phải ổn định: event name, fields, sender/recipient, message/call id.
+6. Server không tin client tuyệt đối; nếu có auth thì ưu tiên lấy user từ token/session.
 
-## Trang thai du an hien tai
+## Trạng Thái Dự Án Hiện Tại
 
-Tinh den 2026-05-31:
+Tính đến 2026-05-31:
 
-- PingMe la app chat realtime full-stack: React 19 + Vite o `client/`, Express 5 + MongoDB/Mongoose + Socket.IO o `server/`.
-- UI hien theo huong minimalist warm monochrome: nen giay am, chu charcoal, it shadow, radius 8-12px, tranh neon/gradient va nut gia chuc nang.
-- Roadmap nam trong `.claude/specs/ROADMAP.md`.
-- Phase 1 da hoan thanh: authentication, core messaging, friend management, UI chat chinh.
-- Phase 2 dang lam: media/file sharing. Da co upload route, multer middleware, preview UI, message attachment UI, reactions va media gallery, nhung can kiem tra lai viec luu/relay attachment qua Socket.IO.
-- Phase 3 dang lam: voice/video calls. Da co `CallContext`, `IncomingCallModal`, `CallOverlay`, nut call tren header, nhung WebRTC/signaling con dang TODO va can duoc day tung buoc.
-- Group chat, push notifications, encryption, stories/status updates van la planned.
+- PingMe là app chat realtime full-stack: React 19 + Vite ở `client/`, Express 5 + MongoDB/Mongoose + Socket.IO ở `server/`.
+- UI hiện theo hướng minimalist warm monochrome: nền giấy ấm, chữ charcoal, ít shadow, radius 8-12px, tránh neon/gradient và nút giả chức năng.
+- Roadmap nằm trong `.claude/specs/ROADMAP.md`.
+- Phase 1 đã hoàn thành: authentication, core messaging, friend management, UI chat chính.
+- Phase 2 đang làm: media/file sharing. Đã có upload route, multer middleware, preview UI, message attachment UI, reactions và media gallery, nhưng cần kiểm tra lại việc lưu/relay attachment qua Socket.IO.
+- Phase 3 đang làm: voice/video calls. Đã có `CallContext`, `IncomingCallModal`, `CallOverlay`, nút call trên header, nhưng WebRTC/signaling còn đang TODO và cần được dạy từng bước.
+- Group chat, push notifications, encryption, stories/status updates vẫn là planned.
 
-## File nen doc truoc khi lam
+## File Nên Đọc Trước Khi Làm
 
-- `CLAUDE.md` - tong quan repo va ghi chu cu.
+- `CLAUDE.md` - tổng quan repo và ghi chú cũ.
 - `.claude/specs/ROADMAP.md` - plan/timeline.
-- `.claude/specs/media-file-sharing/requirements.md` - yeu cau media/file.
-- `.claude/specs/voice-video-calls/requirements.md` - yeu cau WebRTC calls.
+- `.claude/specs/media-file-sharing/requirements.md` - yêu cầu media/file.
+- `.claude/specs/voice-video-calls/requirements.md` - yêu cầu WebRTC calls.
 - `client/src/socket.js` - Socket.IO singleton client.
 - `client/src/context/SocketContext.jsx` - connection state.
-- `client/src/pages/Chat.jsx` - noi dang ky user va xu ly event chat.
-- `client/src/index.css` - theme token UI toi gian hien tai.
+- `client/src/pages/Chat.jsx` - nơi đăng ký user và xử lý event chat.
+- `client/src/index.css` - theme token UI tối giản hiện tại.
 - `server/socket/socketHandler.js` - event handlers server.
 
-## Nguyen tac codebase
+## Nguyên Tắc Codebase
 
-- Khong revert thay doi chua commit cua user.
-- Khong commit `.env`, uploads, node_modules, dist.
-- Source code dang dung JavaScript/JSX, khong TypeScript.
-- Tailwind v4 CSS-first; khong tao `tailwind.config.js` neu khong co ly do rat ro.
-- Comment trong source nen dung tieng Viet nhu convention hien tai.
-- Moi socket listener trong React phai co cleanup tuong ung.
-- Neu them event moi, cap nhat contract o tai lieu hoac ghi ro trong cau tra loi.
+- Không revert thay đổi chưa commit của user.
+- Không commit `.env`, uploads, node_modules, dist.
+- Source code đang dùng JavaScript/JSX, không TypeScript.
+- Tailwind v4 CSS-first; không tạo `tailwind.config.js` nếu không có lý do rất rõ.
+- Comment trong source nên dùng tiếng Việt như convention hiện tại.
+- Mỗi socket listener trong React phải có cleanup tương ứng.
+- Nếu thêm event mới, cập nhật contract ở tài liệu hoặc ghi rõ trong câu trả lời.

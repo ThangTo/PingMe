@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 
@@ -7,18 +8,81 @@ import User from '../models/User.js';
  *
  * @param {Server} io - Socket.io server instance
  */
-const onlineUsers = {};
+const onlineUsers = new Map();
+
+const parseCookieHeader = (cookieHeader = '') =>
+  cookieHeader.split(';').reduce((cookies, pair) => {
+    const [rawKey, ...rawValue] = pair.trim().split('=');
+    if (!rawKey) return cookies;
+    cookies[rawKey] = decodeURIComponent(rawValue.join('='));
+    return cookies;
+  }, {});
+
+const getSocketToken = (socket) => {
+  const authToken = socket.handshake.auth?.token;
+  if (authToken) return authToken;
+
+  const cookies = parseCookieHeader(socket.handshake.headers.cookie || '');
+  return cookies.accessToken;
+};
+
+const getOnlineSocketIds = (userId) => {
+  const socketIds = onlineUsers.get(userId?.toString());
+  return socketIds ? [...socketIds] : [];
+};
+
+const isUserOnline = (userId) => getOnlineSocketIds(userId).length > 0;
+
+const emitToUser = (io, userId, eventName, payload) => {
+  getOnlineSocketIds(userId).forEach((socketId) => {
+    io.to(socketId).emit(eventName, payload);
+  });
+};
+
+const emitToUsers = (io, userIds, eventName, payload) => {
+  const uniqueUserIds = new Set(userIds.filter((userId) => Boolean(userId)));
+  uniqueUserIds.forEach((userId) => {
+    emitToUser(io, userId, eventName, payload);
+  });
+};
 
 const socketHandler = (io) => {
+  io.use((socket, next) => {
+    try {
+      const token = getSocketToken(socket);
+
+      if (!token) {
+        return next(new Error('UNAUTHORIZED'));
+      }
+
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      socket.userId = decoded.userId;
+      socket.username = decoded.username;
+
+      next();
+    } catch (error) {
+      console.error('Lỗi Verify Socket Token:', error.message);
+      next(new Error('UNAUTHORIZED'));
+    }
+  });
+
   // Lắng nghe sự kiện kết nối từ client
   io.on('connection', (socket) => {
     // socket.id là định danh duy nhất cho mỗi kết nối client
     console.log(`🟢 User Connected: ${socket.id}`);
 
     //Đăng kí user
-    socket.on('register_user', async (userId) => {
-      onlineUsers[userId] = socket.id;
-      console.log(`👤 User ${userId} is now online with socket ${socket.id}`);
+    socket.on('register_user', async () => {
+      const userId = socket.userId.toString();
+      const wasOffline = !isUserOnline(userId);
+
+      if (!onlineUsers.has(userId)) {
+        onlineUsers.set(userId, new Set());
+      }
+
+      onlineUsers.get(userId).add(socket.id);
+      socket.data.userId = userId;
+      console.log(`👤 User ${userId} is online on ${onlineUsers.get(userId).size} tab(s)`);
 
       try {
         // 1. Tìm User A trong DB, lấy ra cái mảng ID bạn bè của A
@@ -28,21 +92,20 @@ const socketHandler = (io) => {
         const friendIds = user.friends.map((id) => id.toString());
 
         // 2. Tách ra: "Trong đám bạn A, ai đang online?"
-        const onlineFriends = friendIds.filter((fId) => onlineUsers[fId]);
+        const onlineFriends = friendIds.filter((fId) => isUserOnline(fId));
 
         // 3. Gửi ngược lại cho A: "Đây là danh sách bạn bè đang online của bạn nè"
         socket.emit('get_online_friends', onlineFriends);
 
         // 4. Báo cho từng người bạn đang online: "Ê, thằng A vừa online nhé!"
-        onlineFriends.forEach((friendId) => {
-          const friendSocketId = onlineUsers[friendId];
-          if (friendSocketId) {
-            io.to(friendSocketId).emit('user_status_changed', {
+        if (wasOffline) {
+          onlineFriends.forEach((friendId) => {
+            emitToUser(io, friendId, 'user_status_changed', {
               userId: userId,
               status: 'online',
             });
-          }
-        });
+          });
+        }
       } catch (error) {
         console.error('Lỗi lấy danh sách bạn bè online:', error);
       }
@@ -68,7 +131,8 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { tempId, senderId, recipientId, content, attachment } = data;
+        const { tempId, recipientId, content, attachment } = data;
+        const senderId = socket.userId;
 
         const newMessage = await Message.create({
           sender: senderId,
@@ -87,10 +151,8 @@ const socketHandler = (io) => {
           attachment: newMessage.attachment,
         });
 
-        const recipientSocketId = onlineUsers[recipientId];
-
-        if (recipientSocketId) {
-          io.to(recipientSocketId).emit('receive_message', {
+        if (isUserOnline(recipientId)) {
+          emitToUser(io, recipientId, 'receive_message', {
             id: newMessage.id,
             senderId,
             content,
@@ -110,11 +172,12 @@ const socketHandler = (io) => {
      * Notify the recipient when someone sends them a friend request
      */
     socket.on('send_friend_request', (data) => {
-      const { senderId, senderName, recipientId } = data;
-      const recipientSocketId = onlineUsers[recipientId];
+      const { recipientId } = data;
+      const senderId = socket.userId;
+      const senderName = socket.username;
 
-      if (recipientSocketId) {
-        io.to(recipientSocketId).emit('receive_friend_request', {
+      if (isUserOnline(recipientId)) {
+        emitToUser(io, recipientId, 'receive_friend_request', {
           senderId,
           senderName,
         });
@@ -127,11 +190,11 @@ const socketHandler = (io) => {
      * Notify both users to refresh their friend list when a request is accepted
      */
     socket.on('accept_friend_request', (data) => {
-      const { userId, friendId } = data;
-      const friendSocketId = onlineUsers[friendId];
+      const { friendId } = data;
+      const userId = socket.userId;
 
-      if (friendSocketId) {
-        io.to(friendSocketId).emit('friend_request_accepted', {
+      if (isUserOnline(friendId)) {
+        emitToUser(io, friendId, 'friend_request_accepted', {
           friendId: userId,
         });
         console.log(`✅ Friend acceptance between ${userId} and ${friendId} notified.`);
@@ -143,12 +206,12 @@ const socketHandler = (io) => {
      * Xử lý khi User A đang gõ tin nhắn cho User B
      */
     socket.on('typing', (data) => {
-      const { senderId, receiverId } = data;
-      const receiverSocketId = onlineUsers[receiverId];
+      const { receiverId } = data;
+      const senderId = socket.userId;
 
-      if (receiverSocketId) {
+      if (isUserOnline(receiverId)) {
         // Chỉ gửi sự kiện 'user_typing' đến đúng người nhận
-        io.to(receiverSocketId).emit('user_typing', { senderId });
+        emitToUser(io, receiverId, 'user_typing', { senderId });
       }
     });
 
@@ -157,36 +220,49 @@ const socketHandler = (io) => {
      * Xử lý khi User A dừng gõ
      */
     socket.on('stop_typing', (data) => {
-      const { senderId, receiverId } = data;
-      const receiverSocketId = onlineUsers[receiverId];
+      const { receiverId } = data;
+      const senderId = socket.userId;
 
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('user_stopped_typing', { senderId });
+      if (isUserOnline(receiverId)) {
+        emitToUser(io, receiverId, 'user_stopped_typing', { senderId });
       }
     });
 
     socket.on('mark_messages_read', async (data) => {
-      const { senderId, readerId, messageIds } = data;
+      const { senderId, messageIds } = data;
+      const readerId = socket.userId;
 
       if (!Array.isArray(messageIds) || messageIds.length === 0) return;
 
       try {
+        const messagesToRead = await Message.find({
+          _id: { $in: messageIds },
+          sender: senderId,
+          recipient: readerId,
+          status: { $ne: 'read' },
+        })
+          .select('_id sender')
+          .lean();
+
+        if (messagesToRead.length === 0) return;
+
+        const readableMessageIds = messagesToRead.map((message) => message._id);
+        const verifiedSenderId = messagesToRead[0].sender.toString();
+
         await Message.updateMany(
           {
-            _id: { $in: messageIds },
-            sender: senderId,
+            _id: { $in: readableMessageIds },
+            sender: verifiedSenderId,
             recipient: readerId,
             status: { $ne: 'read' },
           },
           { $set: { status: 'read', readAt: new Date() } },
         );
 
-        const senderSocketId = onlineUsers[senderId];
-
-        if (senderSocketId) {
-          io.to(senderSocketId).emit('messages_were_read', {
+        if (isUserOnline(verifiedSenderId)) {
+          emitToUser(io, verifiedSenderId, 'messages_were_read', {
             readerId,
-            messageIds,
+            messageIds: readableMessageIds.map((id) => id.toString()),
             status: 'read',
           });
         }
@@ -201,24 +277,19 @@ const socketHandler = (io) => {
      */
     socket.on('add_reaction', async (data) => {
       try {
-        const { messageId, emoji, userId } = data;
+        const { messageId, emoji } = data;
+        const userId = socket.userId;
 
         const message = await Message.findById(messageId);
         if (!message) return;
 
+        const participantIds = [message.sender?.toString(), message.recipient?.toString()];
+        if (!participantIds.includes(userId)) return;
+
         // Dùng method toggleReaction (toggle = thêm nếu chưa có, xóa nếu đã có)
         const updated = await message.toggleReaction(emoji, userId);
 
-        // Gửi lại cho sender và recipient qua socket
-        const recipientSocketId = onlineUsers[message.recipient?.toString()];
-        if (recipientSocketId) {
-          io.to(recipientSocketId).emit('reaction_added', {
-            messageId,
-            reactions: updated.reactions,
-          });
-        }
-
-        socket.emit('reaction_added', {
+        emitToUsers(io, [message.sender, message.recipient], 'reaction_added', {
           messageId,
           reactions: updated.reactions,
         });
@@ -235,10 +306,14 @@ const socketHandler = (io) => {
      */
     socket.on('remove_reaction', async (data) => {
       try {
-        const { messageId, userId, emoji } = data;
+        const { messageId, emoji } = data;
+        const userId = socket.userId;
 
         const message = await Message.findById(messageId);
         if (!message) return;
+
+        const participantIds = [message.sender?.toString(), message.recipient?.toString()];
+        if (!participantIds.includes(userId)) return;
 
         //Filter bỏ reaction của user với emoji đó
         message.reactions = message.reactions.filter(
@@ -246,15 +321,7 @@ const socketHandler = (io) => {
         );
         await message.save();
 
-        const recipientSocketId = onlineUsers[message.recipient?.toString()];
-        if (recipientSocketId) {
-          io.to(recipientSocketId).emit('reaction_removed', {
-            messageId,
-            reactions: message.reactions,
-          });
-        }
-
-        socket.emit('reaction_removed', {
+        emitToUsers(io, [message.sender, message.recipient], 'reaction_removed', {
           messageId,
           reactions: message.reactions,
         });
@@ -265,12 +332,12 @@ const socketHandler = (io) => {
 
     socket.on('mark_message_delivered', async (data) => {
       try {
-        const { messageId, senderId, receiverId } = data;
+        const { messageId } = data;
+        const receiverId = socket.userId;
 
         const message = await Message.findOneAndUpdate(
           {
             _id: messageId,
-            sender: senderId,
             recipient: receiverId,
             status: 'sent',
           },
@@ -280,10 +347,10 @@ const socketHandler = (io) => {
 
         if (!message) return;
 
-        const senderSocketId = onlineUsers[senderId];
+        const senderId = message.sender.toString();
 
-        if (senderSocketId) {
-          io.to(senderSocketId).emit('message_was_delivered', {
+        if (isUserOnline(senderId)) {
+          emitToUser(io, senderId, 'message_was_delivered', {
             messageId: message.id,
             receiverId,
             status: 'delivered',
@@ -331,37 +398,39 @@ const socketHandler = (io) => {
     socket.on('disconnect', async (reason) => {
       console.log(`🔴 User Disconnected: ${socket.id}`);
 
-      // 1. Tìm xem thằng nào vừa ngắt kết nối
-      let disconnectedUserId = null;
-      for (const userId in onlineUsers) {
-        if (onlineUsers[userId] === socket.id) {
-          disconnectedUserId = userId;
-          delete onlineUsers[userId];
-          break;
-        }
+      const disconnectedUserId = socket.data.userId || socket.userId?.toString();
+      if (!disconnectedUserId) return;
+
+      const socketIds = onlineUsers.get(disconnectedUserId);
+      if (!socketIds) return;
+
+      socketIds.delete(socket.id);
+
+      if (socketIds.size > 0) {
+        console.log(
+          `👤 User ${disconnectedUserId} still online on ${socketIds.size} tab(s)`,
+        );
+        return;
       }
 
-      // 2. Nếu tìm thấy nó, báo cho bạn bè nó biết là nó offline rồi
-      if (disconnectedUserId) {
-        try {
-          const user = await User.findById(disconnectedUserId).select('friends');
-          if (user) {
-            const friendIds = user.friends.map((id) => id.toString());
+      onlineUsers.delete(disconnectedUserId);
 
-            friendIds.forEach((friendId) => {
-              const friendSocketId = onlineUsers[friendId];
-              if (friendSocketId) {
-                // Gửi trực tiếp cho từng bạn bè đang online
-                io.to(friendSocketId).emit('user_status_changed', {
-                  userId: disconnectedUserId,
-                  status: 'offline',
-                });
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Lỗi khi xử lý offline:', error);
+      try {
+        const user = await User.findById(disconnectedUserId).select('friends');
+        if (user) {
+          const friendIds = user.friends.map((id) => id.toString());
+
+          friendIds.forEach((friendId) => {
+            if (isUserOnline(friendId)) {
+              emitToUser(io, friendId, 'user_status_changed', {
+                userId: disconnectedUserId,
+                status: 'offline',
+              });
+            }
+          });
         }
+      } catch (error) {
+        console.error('Lỗi khi xử lý offline:', error);
       }
     });
 
@@ -374,22 +443,6 @@ const socketHandler = (io) => {
     });
   });
 
-  // Middleware: Chạy trước khi connection được chấp nhận
-  io.use((socket, next) => {
-    // Ví dụ: Verify token authentication
-    const token = socket.handshake.auth.token;
-
-    if (token) {
-      // Verify token logic here (sẽ implement sau với JWT)
-      console.log(`🔐 Token received from ${socket.id}`);
-    }
-
-    // Cho phép kết nối tiếp tục
-    next();
-
-    // Nếu muốn reject connection:
-    // next(new Error('Authentication failed'));
-  });
 };
 
 export default socketHandler;

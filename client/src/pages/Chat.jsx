@@ -32,11 +32,11 @@ const Chat = () => {
   }, [messages]);
 
   useEffect(() => {
-    if (user && user.id) {
-      socket.emit('register_user', user.id);
-      console.log('📤 Đã đăng ký User ID với Socket:', user.id);
+    if (user && user.id && isConnected) {
+      socket.emit('register_user');
+      console.log('📤 Đã đăng ký socket cho user hiện tại:', user.id);
     }
-  }, [user]);
+  }, [user, isConnected]);
 
   useEffect(() => {
     const handleGetOnlineFriends = (friendsList) => {
@@ -96,7 +96,6 @@ const Chat = () => {
 
       if (messageIds.length > 0) {
         socket.emit('mark_messages_read', {
-          readerId: user.id,
           senderId: selectedConversationId,
           messageIds,
         });
@@ -152,7 +151,6 @@ const Chat = () => {
 
           if (user && user.id && unreadMessageIds.length > 0 && document.hasFocus()) {
             socket.emit('mark_messages_read', {
-              readerId: user.id,
               senderId: selectedConversationId,
               messageIds: unreadMessageIds,
             });
@@ -201,14 +199,11 @@ const Chat = () => {
       if (user?.id && data.id && data.senderId) {
         socket.emit('mark_message_delivered', {
           messageId: data.id,
-          senderId: data.senderId,
-          receiverId: user.id,
         });
       }
 
       if (shouldMarkRead && user?.id) {
         socket.emit('mark_messages_read', {
-          readerId: user.id,
           senderId: data.senderId,
           messageIds: [data.id],
         });
@@ -319,13 +314,13 @@ const Chat = () => {
 
   const handleTypingStart = () => {
     if (selectedConversationId && user) {
-      socket.emit('typing', { senderId: user.id, receiverId: selectedConversationId });
+      socket.emit('typing', { receiverId: selectedConversationId });
     }
   };
 
   const handleTypingStop = () => {
     if (selectedConversationId && user) {
-      socket.emit('stop_typing', { senderId: user.id, receiverId: selectedConversationId });
+      socket.emit('stop_typing', { receiverId: selectedConversationId });
     }
   };
 
@@ -335,7 +330,6 @@ const Chat = () => {
 
     const messageData = {
       tempId,
-      senderId: user.id,
       recipientId: selectedConversationId,
       content: content || (attachment ? attachment.filename : ''),
       attachment: attachment || null,
@@ -370,7 +364,6 @@ const Chat = () => {
     socket.emit('add_reaction', {
       messageId,
       emoji,
-      userId: user.id,
     });
   };
 
