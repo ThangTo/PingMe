@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import api from '../../config/api';
 
 const MessageInput = ({
@@ -7,6 +7,9 @@ const MessageInput = ({
   onTypingStart,
   onTypingStop,
   onFocus,
+  editingMessage,
+  onEditMessage,
+  onCancelEditMessage,
 }) => {
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState(null); // { url, type, file }
@@ -15,7 +18,32 @@ const MessageInput = ({
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
+  const wasEditingRef = useRef(false);
   const typingTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!editingMessage) {
+      if (wasEditingRef.current) {
+        setMessage('');
+        setPreview(null);
+        setUploadError('');
+        setUploadProgress(0);
+        wasEditingRef.current = false;
+      }
+
+      return;
+    }
+
+    wasEditingRef.current = true;
+    setMessage(editingMessage.content || '');
+    setPreview(null);
+    setUploadError('');
+    setUploadProgress(0);
+
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, [editingMessage]);
 
   const handleTextChange = (e) => {
     setMessage(e.target.value);
@@ -105,6 +133,18 @@ const MessageInput = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (editingMessage) {
+      if (!message.trim()) return;
+
+      onEditMessage?.(message.trim());
+      setMessage('');
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (onTypingStop) onTypingStop();
+
+      return;
+    }
+
     if (preview) {
       await handleSendWithAttachment();
       return;
@@ -118,7 +158,9 @@ const MessageInput = ({
     }
   };
 
-  const canSend = (message.trim() || preview) && !disabled && !isUploading;
+  const canSend = editingMessage
+    ? message.trim() && !disabled
+    : (message.trim() || preview) && !disabled && !isUploading;
 
   return (
     <footer className="shrink-0 border-t border-outline-variant bg-surface px-4 py-3 md:px-7 md:py-5">
@@ -126,38 +168,38 @@ const MessageInput = ({
       {preview && (
         <div className="mx-auto mb-3 max-w-[860px] rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
           <div className="flex items-center gap-3">
-          {preview.type === 'image' ? (
-            <img
-              src={preview.url}
-              alt="File preview"
-              className="h-12 w-12 rounded-md border border-outline-variant object-cover"
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-md border border-outline-variant bg-surface-container-low">
-              <span className="material-symbols-outlined text-xl text-on-surface-variant">
-                description
-              </span>
+            {preview.type === 'image' ? (
+              <img
+                src={preview.url}
+                alt="File preview"
+                className="h-12 w-12 rounded-md border border-outline-variant object-cover"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-md border border-outline-variant bg-surface-container-low">
+                <span className="material-symbols-outlined text-xl text-on-surface-variant">
+                  description
+                </span>
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="truncate text-sm font-medium text-on-surface">
+                {preview.name || (preview.type === 'image' ? 'Ảnh đã chọn' : 'File đã chọn')}
+              </p>
+              <p className="text-xs text-on-surface-variant">
+                {isUploading ? `Đang tải lên ${uploadProgress}%` : 'Sẵn sàng gửi'}
+              </p>
             </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="truncate text-sm font-medium text-on-surface">
-              {preview.name || (preview.type === 'image' ? 'Ảnh đã chọn' : 'File đã chọn')}
-            </p>
-            <p className="text-xs text-on-surface-variant">
-              {isUploading ? `Đang tải lên ${uploadProgress}%` : 'Sẵn sàng gửi'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setPreview(null);
-              setUploadError('');
-              setUploadProgress(0);
-            }}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high"
-          >
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPreview(null);
+                setUploadError('');
+                setUploadProgress(0);
+              }}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
           </div>
 
           {isUploading && (
@@ -186,11 +228,35 @@ const MessageInput = ({
         </div>
       )}
 
+      {editingMessage && (
+        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-lg border border-accent bg-accent-soft px-3 py-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-on-surface">Đang chỉnh sửa tin nhắn</p>
+            <p className="truncate text-xs text-on-surface-variant">{editingMessage.content}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setMessage('');
+              onCancelEditMessage?.();
+            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
+          >
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
-        accept={preview?.type === 'file' ? '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv' : 'image/*'}
+        accept={
+          preview?.type === 'file'
+            ? '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv'
+            : 'image/*'
+        }
+        disabled={disabled || Boolean(editingMessage)}
         onChange={handleFileChange}
         className="hidden"
       />
@@ -203,7 +269,7 @@ const MessageInput = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
+          disabled={disabled || Boolean(editingMessage)}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-30"
           title="Đính kèm"
         >
@@ -221,7 +287,13 @@ const MessageInput = ({
           disabled={disabled}
           autoComplete="off"
           className="min-w-0 flex-1 border-none bg-transparent py-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant"
-          placeholder={preview ? 'Nhấn gửi để upload' : 'Nhập tin nhắn...'}
+          placeholder={
+            editingMessage
+              ? 'Chỉnh sửa tin nhắn...'
+              : preview
+                ? 'Nhấn gửi để upload'
+                : 'Nhập tin nhắn...'
+          }
         />
 
         <button
@@ -246,17 +318,15 @@ const MessageInput = ({
           type="submit"
           disabled={!canSend}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all ${
-            canSend
-              ? 'bg-accent text-white hover:bg-accent-dark active:scale-[0.98]'
-              : 'hidden'
+            canSend ? 'bg-accent text-white hover:bg-accent-dark active:scale-[0.98]' : 'hidden'
           }`}
-          title="Gửi tin nhắn"
+          title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi tin nhắn'}
         >
           <span
             className="material-symbols-outlined text-xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
-            send
+            {editingMessage ? 'check' : 'send'}
           </span>
         </button>
       </form>

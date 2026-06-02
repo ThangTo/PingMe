@@ -3,7 +3,13 @@ import EmojiPicker from './EmojiPicker';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
-const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }) => {
+const MessageBubble = ({
+  message,
+  isOwn = false,
+  showAvatar = true,
+  onReaction,
+  onEditMessage,
+}) => {
   const [showPicker, setShowPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -11,6 +17,7 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
   const messageRef = useRef(null);
   const pickerRef = useRef(null);
   const actionsRef = useRef(null);
+  const mobileActionsRef = useRef(null);
 
   const canReact = Boolean(message.id) && message.status !== 'sending';
 
@@ -26,7 +33,8 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
       if (
         messageRef.current?.contains(event.target) ||
         pickerRef.current?.contains(event.target) ||
-        actionsRef.current?.contains(event.target)
+        actionsRef.current?.contains(event.target) ||
+        mobileActionsRef.current?.contains(event.target)
       ) {
         return;
       }
@@ -114,8 +122,20 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
   const actionItems = [
     { key: 'reply', label: 'Trả lời', icon: 'reply' },
     { key: 'copy', label: 'Sao chép', icon: 'content_copy', onClick: handleCopy },
-    { key: 'edit', label: 'Chỉnh sửa', icon: 'edit' },
-    { key: 'delete', label: 'Xóa', icon: 'delete', danger: true },
+    ...(isOwn
+      ? [
+          {
+            key: 'edit',
+            label: 'Chỉnh sửa',
+            icon: 'edit',
+            onClick: () => {
+              onEditMessage?.(message);
+              closeMenus();
+            },
+          },
+          { key: 'delete', label: 'Xóa', icon: 'delete', danger: true },
+        ]
+      : []),
     { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
   ];
 
@@ -146,7 +166,9 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
         </div>
       )}
 
-      <div className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
+      <div
+        className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
+      >
         {/* Avatar */}
         <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
@@ -157,7 +179,9 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
         </div>
 
         {/* Bubble column */}
-        <div className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}>
+        <div
+          className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}
+        >
           {/* Sender name */}
           {!isOwn && showAvatar && message.senderName && (
             <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
@@ -188,7 +212,9 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
                 className="flex min-w-[240px] max-w-[360px] items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)] transition-colors hover:bg-surface-container-low"
                 onClick={(e) => e.stopPropagation()}
               >
-                <span className="material-symbols-outlined shrink-0 text-3xl text-on-surface">description</span>
+                <span className="material-symbols-outlined shrink-0 text-3xl text-on-surface">
+                  description
+                </span>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-medium text-on-surface">
                     {message.attachment.filename}
@@ -279,6 +305,7 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
           {/* Timestamp + status */}
           <span className={`px-1 text-[11px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
             {formatTime(message.timestamp)}
+            {message.isEdited && <span className="ml-1">Đã sửa</span>}
             {isOwn && (
               <span className="ml-1">
                 {message.status === 'sending'
@@ -295,8 +322,12 @@ const MessageBubble = ({ message, isOwn = false, showAvatar = true, onReaction }
       </div>
 
       {showActions && (
-        <div className="fixed inset-0 z-40 bg-[#1f1d1a]/38 backdrop-blur-[1px] md:hidden" onClick={closeMenus}>
+        <div
+          className="fixed inset-0 z-40 bg-[#1f1d1a]/38 backdrop-blur-[1px] md:hidden"
+          onClick={closeMenus}
+        >
           <div
+            ref={mobileActionsRef}
             className="absolute inset-x-4 bottom-4"
             onClick={(event) => event.stopPropagation()}
             onContextMenu={(event) => event.preventDefault()}

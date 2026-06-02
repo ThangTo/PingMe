@@ -14,6 +14,7 @@ const MessageList = ({
   currentUserId,
   isTyping,
   onReaction,
+  onEditMessage,
   isLoading = false,
   error = '',
   searchQuery = '',
@@ -57,7 +58,9 @@ const MessageList = ({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
         <div className="flex h-16 w-16 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest">
-          <span className="material-symbols-outlined text-3xl text-on-surface-variant/50">chat_bubble</span>
+          <span className="material-symbols-outlined text-3xl text-on-surface-variant/50">
+            chat_bubble
+          </span>
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-on-surface">Chưa có tin nhắn nào</p>
@@ -98,6 +101,7 @@ const MessageList = ({
             isOwn={isOwn}
             showAvatar={showAvatar}
             onReaction={onReaction}
+            onEditMessage={onEditMessage}
           />
         );
       })}
@@ -110,9 +114,18 @@ const MessageList = ({
             </span>
           </div>
           <div className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)]">
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50" style={{ animationDelay: '0ms' }} />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50" style={{ animationDelay: '150ms' }} />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50" style={{ animationDelay: '300ms' }} />
+            <span
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50"
+              style={{ animationDelay: '0ms' }}
+            />
+            <span
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50"
+              style={{ animationDelay: '150ms' }}
+            />
+            <span
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50"
+              style={{ animationDelay: '300ms' }}
+            />
           </div>
         </div>
       )}

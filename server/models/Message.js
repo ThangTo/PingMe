@@ -59,6 +59,17 @@ const messageSchema = new mongoose.Schema(
       default: 'sent',
     },
 
+    //Đã chỉnh sửa
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Đã xóa (soft delete)
     isDeleted: {
       type: Boolean,

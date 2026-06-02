@@ -32,6 +32,7 @@ const Chat = () => {
   const [friendsError, setFriendsError] = useState('');
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [messagesError, setMessagesError] = useState('');
+  const [editingMessage, setEditingMessage] = useState(null);
   const messagesRef = useRef(messages);
 
   useEffect(() => {
@@ -155,6 +156,8 @@ const Chat = () => {
             status: msg.status,
             reactions: msg.reactions || [],
             attachment: msg.attachment || null,
+            isEdited: msg.isEdited || false,
+            editedAt: msg.editedAt || null,
           }));
           setMessages(normalizedMessages);
 
@@ -317,6 +320,40 @@ const Chat = () => {
 
     socket.on('message_was_delivered', handleMessageWasDelivered);
 
+    //Updated
+    const handleMessageUpdated = (data) => {
+      const conversationId = data.senderId === user?.id ? data.recipientId : data.senderId;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? {
+                ...msg,
+                content: data.content,
+                isEdited: data.isEdited,
+                editedAt: data.editedAt,
+              }
+            : msg,
+        ),
+      );
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId
+            ? { ...conv, lastMessage: data.content, lastMessageAt: data.updatedAt }
+            : conv,
+        ),
+      );
+    };
+
+    const handleMessageEditFailed = (data) => {
+      console.error('Sửa tin nhắn thất bại:', data.error);
+      alert(data.error || 'Không thể sửa tin nhắn');
+    };
+
+    socket.on('message_updated', handleMessageUpdated);
+    socket.on('message_edit_failed', handleMessageEditFailed);
+
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('friend_request_accepted', handleFriendAccepted);
@@ -325,6 +362,8 @@ const Chat = () => {
       socket.off('reaction_removed', handleRemoveReaction);
       socket.off('message_sent', handleMessageSent);
       socket.off('message_was_delivered', handleMessageWasDelivered);
+      socket.off('message_updated', handleMessageUpdated);
+      socket.off('message_edit_failed', handleMessageEditFailed);
     };
   }, [selectedConversationId, user, fetchFriends]);
 
@@ -384,6 +423,7 @@ const Chat = () => {
   };
 
   const handleSelectConversation = (conversationId) => {
+    setEditingMessage(null);
     setSelectedConversationId(conversationId);
     setShowDetails(true);
     setActiveRailItem('messages');
@@ -418,6 +458,27 @@ const Chat = () => {
     if (itemKey === 'settings') {
       setSelectedConversationId(null);
     }
+  };
+
+  //Edit message
+  const handleStartEditMessage = (message) => {
+    if (!message || message.senderId !== user?.id || message.status === 'sending') return;
+    setEditingMessage(message);
+  };
+
+  const handleCancelEditMessage = () => {
+    setEditingMessage(null);
+  };
+
+  const handleEditMessage = (content) => {
+    if (!editingMessage) return;
+
+    socket.emit('edit_message', {
+      messageId: editingMessage.id,
+      content,
+    });
+
+    setEditingMessage(null);
   };
 
   return (
@@ -462,6 +523,10 @@ const Chat = () => {
                     onReaction={handleReaction}
                     onBack={() => setSelectedConversationId(null)}
                     onToggleDetails={() => setShowDetails((prev) => !prev)}
+                    editingMessage={editingMessage}
+                    onStartEditMessage={handleStartEditMessage}
+                    onEditMessage={handleEditMessage}
+                    onCancelEditMessage={handleCancelEditMessage}
                     isLoading={isMessagesLoading}
                     error={messagesError}
                   />
@@ -487,7 +552,8 @@ const Chat = () => {
                         Chọn cuộc trò chuyện
                       </h2>
                       <p className="text-sm leading-6 text-on-surface-variant">
-                        Tin nhắn, media và trạng thái realtime sẽ hiện ở đây khi bạn chọn một cuộc trò chuyện.
+                        Tin nhắn, media và trạng thái realtime sẽ hiện ở đây khi bạn chọn một cuộc
+                        trò chuyện.
                       </p>
                     </div>
 

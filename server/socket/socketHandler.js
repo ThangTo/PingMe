@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
@@ -298,6 +299,64 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on('edit_message', async (data) => {
+      try {
+        const { messageId, content } = data;
+        const editorId = socket.userId;
+        const nextContent = typeof content === 'string' ? content.trim() : '';
+
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          socket.emit('message_edit_failed', { messageId, error: 'messageId không hợp lệ' });
+          return;
+        }
+
+        if (!nextContent) {
+          socket.emit('message_edit_failed', { messageId, error: 'Nội dung không được rỗng' });
+          return;
+        }
+
+        if (nextContent.length > 5000) {
+          socket.emit('message_edit_failed', { messageId, error: 'Tin nhắn tối đa 5000 ký tự' });
+          return;
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message || message.isDeleted) {
+          socket.emit('message_edit_failed', { messageId, error: 'Tin nhắn không tồn tại' });
+          return;
+        }
+
+        if (message.sender.toString() !== editorId) {
+          socket.emit('message_edit_failed', {
+            messageId,
+            error: 'Bạn chỉ được sửa tin nhắn của mình',
+          });
+          return;
+        }
+
+        message.content = nextContent;
+        message.isEdited = true;
+        message.editedAt = new Date();
+        await message.save();
+
+        emitToUsers(io, [message.sender, message.recipient], 'message_updated', {
+          messageId: message.id,
+          senderId: message.sender.toString(),
+          recipientId: message.recipient?.toString(),
+          content: message.content,
+          isEdited: message.isEdited,
+          editedAt: message.editedAt,
+          updatedAt: message.updatedAt,
+        });
+      } catch (error) {
+        console.error('Lỗi edit_message:', error);
+        socket.emit('message_edit_failed', {
+          messageId: data?.messageId,
+          error: 'Không thể sửa tin nhắn',
+        });
+      }
+    });
+
     /**
      * Event: remove_reaction
      * User xóa reaction khỏi tin nhắn
@@ -407,9 +466,7 @@ const socketHandler = (io) => {
       socketIds.delete(socket.id);
 
       if (socketIds.size > 0) {
-        console.log(
-          `👤 User ${disconnectedUserId} still online on ${socketIds.size} tab(s)`,
-        );
+        console.log(`👤 User ${disconnectedUserId} still online on ${socketIds.size} tab(s)`);
         return;
       }
 
@@ -442,7 +499,6 @@ const socketHandler = (io) => {
       console.error(`❌ Socket Error for ${socket.id}:`, error);
     });
   });
-
 };
 
 export default socketHandler;
