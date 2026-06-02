@@ -76,6 +76,11 @@ const messageSchema = new mongoose.Schema(
       default: false,
     },
 
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Thời gian đọc
     readAt: {
       type: Date,
@@ -112,7 +117,6 @@ messageSchema.index({ createdAt: -1 }); // Sắp xếp theo thời gian mới nh
 // Static method: Lấy tin nhắn giữa 2 users
 messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) {
   return this.find({
-    isDeleted: false,
     $or: [
       { sender: user1Id, recipient: user2Id },
       { sender: user2Id, recipient: user1Id },
@@ -128,7 +132,6 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
 messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
   return this.find({
     roomId: roomId,
-    isDeleted: false,
   })
     .sort({ createdAt: -1 })
     .limit(limit)

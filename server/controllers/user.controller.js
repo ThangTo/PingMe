@@ -5,6 +5,7 @@ import Message from '../models/Message.js';
 
 const getMessagePreview = (message) => {
   if (!message) return 'Bắt đầu trò chuyện';
+  if (message.isDeleted) return 'Tin nhắn này đã được thu hồi';
   return message.content || message.attachment?.filename || 'Tệp đính kèm';
 };
 
@@ -166,7 +167,6 @@ const userController = {
       const lastMessages = await Message.aggregate([
         {
           $match: {
-            isDeleted: false,
             $or: [
               { sender: currentUserObjectId, recipient: { $in: friendObjectIds } },
               { sender: { $in: friendObjectIds }, recipient: currentUserObjectId },

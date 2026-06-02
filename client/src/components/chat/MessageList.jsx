@@ -4,8 +4,8 @@ import MessageBubble from './MessageBubble';
 const messageMatchesSearch = (message, query) => {
   if (!query) return true;
   const normalizedQuery = query.toLowerCase();
-  const content = message.content || '';
-  const filename = message.attachment?.filename || '';
+  const content = message.isDeleted ? 'Tin nhắn này đã được thu hồi' : message.content || '';
+  const filename = message.isDeleted ? '' : message.attachment?.filename || '';
   return `${content} ${filename}`.toLowerCase().includes(normalizedQuery);
 };
 
@@ -15,6 +15,7 @@ const MessageList = ({
   isTyping,
   onReaction,
   onEditMessage,
+  onDeleteMessage,
   isLoading = false,
   error = '',
   searchQuery = '',
@@ -102,6 +103,7 @@ const MessageList = ({
             showAvatar={showAvatar}
             onReaction={onReaction}
             onEditMessage={onEditMessage}
+            onDeleteMessage={onDeleteMessage}
           />
         );
       })}

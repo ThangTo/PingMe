@@ -9,6 +9,7 @@ const MessageBubble = ({
   showAvatar = true,
   onReaction,
   onEditMessage,
+  onDeleteMessage,
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -19,7 +20,8 @@ const MessageBubble = ({
   const actionsRef = useRef(null);
   const mobileActionsRef = useRef(null);
 
-  const canReact = Boolean(message.id) && message.status !== 'sending';
+  const isRevoked = Boolean(message.isDeleted);
+  const canReact = Boolean(message.id) && !isRevoked && message.status !== 'sending';
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
@@ -64,7 +66,7 @@ const MessageBubble = ({
   }, []);
 
   // Gom reactions theo emoji
-  const reactionGroups = (message.reactions || []).reduce((acc, r) => {
+  const reactionGroups = (isRevoked ? [] : message.reactions || []).reduce((acc, r) => {
     if (!acc[r.emoji]) acc[r.emoji] = { emoji: r.emoji, count: 0, users: [] };
     acc[r.emoji].count++;
     acc[r.emoji].users.push(r.userId);
@@ -122,7 +124,7 @@ const MessageBubble = ({
   const actionItems = [
     { key: 'reply', label: 'Trả lời', icon: 'reply' },
     { key: 'copy', label: 'Sao chép', icon: 'content_copy', onClick: handleCopy },
-    ...(isOwn
+    ...(isOwn && !isRevoked
       ? [
           {
             key: 'edit',
@@ -133,7 +135,16 @@ const MessageBubble = ({
               closeMenus();
             },
           },
-          { key: 'delete', label: 'Xóa', icon: 'delete', danger: true },
+          {
+            key: 'delete',
+            label: 'Thu hồi',
+            icon: 'delete',
+            danger: true,
+            onClick: () => {
+              onDeleteMessage?.(message);
+              closeMenus();
+            },
+          },
         ]
       : []),
     { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
@@ -198,7 +209,16 @@ const MessageBubble = ({
             onTouchCancel={handleTouchEnd}
           >
             {/* Nội dung: image / file / text */}
-            {message.attachment?.type === 'image' ? (
+            {isRevoked ? (
+              <div
+                className={`inline-flex items-center gap-2 rounded-lg border border-dashed border-outline-variant bg-surface-container-low px-4 py-2.5 text-[14px] italic text-on-surface-variant shadow-[0_2px_10px_rgba(40,37,32,0.02)] ${
+                  isOwn ? 'text-right' : ''
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">block</span>
+                <span>Tin nhắn này đã được thu hồi</span>
+              </div>
+            ) : message.attachment?.type === 'image' ? (
               <img
                 src={message.attachment.url}
                 alt={message.attachment.filename || 'Ảnh trong tin nhắn'}
@@ -305,7 +325,7 @@ const MessageBubble = ({
           {/* Timestamp + status */}
           <span className={`px-1 text-[11px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
             {formatTime(message.timestamp)}
-            {message.isEdited && <span className="ml-1">Đã sửa</span>}
+            {!isRevoked && message.isEdited && <span className="ml-1">Đã sửa</span>}
             {isOwn && (
               <span className="ml-1">
                 {message.status === 'sending'

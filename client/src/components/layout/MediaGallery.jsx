@@ -5,7 +5,7 @@ const MediaGallery = ({ messages = [], onClose }) => {
 
   // Lọc chỉ lấy messages có ảnh
   const imageMessages = messages
-    .filter((msg) => msg.attachment?.type === 'image')
+    .filter((msg) => !msg.isDeleted && msg.attachment?.type === 'image')
     .reverse(); // Mới nhất trước
 
   return (

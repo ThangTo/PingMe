@@ -14,8 +14,10 @@ import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
 import api from '../config/api';
 
-const getMessagePreview = (content, attachment) =>
-  content || attachment?.filename || (attachment ? 'Tệp đính kèm' : 'Tin nhắn mới');
+const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
+
+const getMessagePreview = (content, attachment, isDeleted = false) =>
+  isDeleted ? REVOKED_MESSAGE_TEXT : content || attachment?.filename || (attachment ? 'Tệp đính kèm' : 'Tin nhắn mới');
 
 const Chat = () => {
   const { user } = useAuth();
@@ -102,7 +104,7 @@ const Chat = () => {
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
       const unreadMessages = messagesRef.current.filter(
-        (m) => m.senderId === selectedConversationId && m.status !== 'read' && m.id,
+        (m) => m.senderId === selectedConversationId && !m.isDeleted && m.status !== 'read' && m.id,
       );
 
       const messageIds = unreadMessages.map((m) => m.id);
@@ -158,11 +160,13 @@ const Chat = () => {
             attachment: msg.attachment || null,
             isEdited: msg.isEdited || false,
             editedAt: msg.editedAt || null,
+            isDeleted: msg.isDeleted || false,
+            deletedAt: msg.deletedAt || null,
           }));
           setMessages(normalizedMessages);
 
           const unreadMessageIds = normalizedMessages
-            .filter((msg) => msg.senderId === selectedConversationId && msg.status !== 'read')
+            .filter((msg) => msg.senderId === selectedConversationId && !msg.isDeleted && msg.status !== 'read')
             .map((msg) => msg.id);
 
           if (user && user.id && unreadMessageIds.length > 0 && document.hasFocus()) {
@@ -351,8 +355,64 @@ const Chat = () => {
       alert(data.error || 'Không thể sửa tin nhắn');
     };
 
+    const handleMessageDeleted = (data) => {
+      const conversationId = data.senderId === user?.id ? data.recipientId : data.senderId;
+      const lastMessage = data.conversationLastMessage;
+      const shouldReduceUnread =
+        data.recipientId === user?.id &&
+        data.previousStatus !== 'read' &&
+        selectedConversationId !== conversationId;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? {
+                ...msg,
+                content: data.content || REVOKED_MESSAGE_TEXT,
+                attachment: null,
+                reactions: [],
+                isEdited: false,
+                editedAt: null,
+                isDeleted: true,
+                deletedAt: data.deletedAt,
+              }
+            : msg,
+        ),
+      );
+
+      setEditingMessage((prev) => (prev?.id === data.messageId ? null : prev));
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId
+            ? {
+                ...conv,
+                lastMessage: lastMessage
+                  ? getMessagePreview(
+                      lastMessage.content,
+                      lastMessage.attachment,
+                      lastMessage.isDeleted,
+                    )
+                  : 'Bắt đầu trò chuyện',
+                lastMessageAt: lastMessage?.timestamp || null,
+                unreadCount: shouldReduceUnread
+                  ? Math.max(0, (conv.unreadCount || 0) - 1)
+                  : conv.unreadCount,
+              }
+            : conv,
+        ),
+      );
+    };
+
+    const handleMessageDeleteFailed = (data) => {
+      console.error('Thu hồi tin nhắn thất bại:', data.error);
+      alert(data.error || 'Không thể thu hồi tin nhắn');
+    };
+
     socket.on('message_updated', handleMessageUpdated);
     socket.on('message_edit_failed', handleMessageEditFailed);
+    socket.on('message_deleted', handleMessageDeleted);
+    socket.on('message_delete_failed', handleMessageDeleteFailed);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
@@ -364,6 +424,8 @@ const Chat = () => {
       socket.off('message_was_delivered', handleMessageWasDelivered);
       socket.off('message_updated', handleMessageUpdated);
       socket.off('message_edit_failed', handleMessageEditFailed);
+      socket.off('message_deleted', handleMessageDeleted);
+      socket.off('message_delete_failed', handleMessageDeleteFailed);
     };
   }, [selectedConversationId, user, fetchFriends]);
 
@@ -462,7 +524,7 @@ const Chat = () => {
 
   //Edit message
   const handleStartEditMessage = (message) => {
-    if (!message || message.senderId !== user?.id || message.status === 'sending') return;
+    if (!message || message.isDeleted || message.senderId !== user?.id || message.status === 'sending') return;
     setEditingMessage(message);
   };
 
@@ -479,6 +541,17 @@ const Chat = () => {
     });
 
     setEditingMessage(null);
+  };
+
+  const handleDeleteMessage = (message) => {
+    if (!message || message.isDeleted || message.senderId !== user?.id || message.status === 'sending') return;
+
+    const confirmed = window.confirm('Thu hồi tin nhắn này cho cả hai bên?');
+    if (!confirmed) return;
+
+    socket.emit('delete_message', {
+      messageId: message.id,
+    });
   };
 
   return (
@@ -527,6 +600,7 @@ const Chat = () => {
                     onStartEditMessage={handleStartEditMessage}
                     onEditMessage={handleEditMessage}
                     onCancelEditMessage={handleCancelEditMessage}
+                    onDeleteMessage={handleDeleteMessage}
                     isLoading={isMessagesLoading}
                     error={messagesError}
                   />

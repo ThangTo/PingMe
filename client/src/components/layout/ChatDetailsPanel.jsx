@@ -44,7 +44,7 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
   const media = useMemo(
     () =>
       messages
-        .filter((message) => message.attachment?.type === 'image')
+        .filter((message) => !message.isDeleted && message.attachment?.type === 'image')
         .map((message) => ({
           id: message.id,
           url: message.attachment.url,
@@ -57,7 +57,7 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
   const files = useMemo(
     () =>
       messages
-        .filter((message) => message.attachment?.type === 'file')
+        .filter((message) => !message.isDeleted && message.attachment?.type === 'file')
         .map((message) => ({
           id: message.id,
           url: message.attachment.url,
@@ -72,6 +72,7 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
   const links = useMemo(
     () =>
       messages.flatMap((message) => {
+        if (message.isDeleted) return [];
         const matches = message.content?.match(urlRegex) || [];
         return matches.map((url) => ({
           id: `${message.id}-${url}`,

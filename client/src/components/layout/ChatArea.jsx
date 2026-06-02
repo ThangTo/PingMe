@@ -19,6 +19,7 @@ const ChatArea = ({
   onStartEditMessage,
   onEditMessage,
   onCancelEditMessage,
+  onDeleteMessage,
   isLoading = false,
   error = '',
 }) => {
@@ -30,8 +31,8 @@ const ChatArea = ({
     if (!query) return 0;
 
     return messages.filter((message) => {
-      const content = message.content || '';
-      const filename = message.attachment?.filename || '';
+      const content = message.isDeleted ? 'Tin nhắn này đã được thu hồi' : message.content || '';
+      const filename = message.isDeleted ? '' : message.attachment?.filename || '';
       return `${content} ${filename}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
@@ -88,6 +89,7 @@ const ChatArea = ({
           error={error}
           searchQuery={searchQuery}
           onEditMessage={onStartEditMessage}
+          onDeleteMessage={onDeleteMessage}
         />
       </div>
 

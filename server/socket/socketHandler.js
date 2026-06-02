@@ -47,6 +47,8 @@ const emitToUsers = (io, userIds, eventName, payload) => {
   });
 };
 
+const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
+
 const socketHandler = (io) => {
   io.use((socket, next) => {
     try {
@@ -240,6 +242,7 @@ const socketHandler = (io) => {
           _id: { $in: messageIds },
           sender: senderId,
           recipient: readerId,
+          isDeleted: false,
           status: { $ne: 'read' },
         })
           .select('_id sender')
@@ -255,6 +258,7 @@ const socketHandler = (io) => {
             _id: { $in: readableMessageIds },
             sender: verifiedSenderId,
             recipient: readerId,
+            isDeleted: false,
             status: { $ne: 'read' },
           },
           { $set: { status: 'read', readAt: new Date() } },
@@ -282,7 +286,7 @@ const socketHandler = (io) => {
         const userId = socket.userId;
 
         const message = await Message.findById(messageId);
-        if (!message) return;
+        if (!message || message.isDeleted) return;
 
         const participantIds = [message.sender?.toString(), message.recipient?.toString()];
         if (!participantIds.includes(userId)) return;
@@ -357,6 +361,89 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on('delete_message', async (data) => {
+      try {
+        const { messageId } = data;
+        const deleterId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          socket.emit('message_delete_failed', { messageId, error: 'messageId không hợp lệ' });
+          return;
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message || message.isDeleted) {
+          socket.emit('message_delete_failed', { messageId, error: 'Tin nhắn không tồn tại' });
+          return;
+        }
+
+        if (message.sender.toString() !== deleterId) {
+          socket.emit('message_delete_failed', {
+            messageId,
+            error: 'Bạn chỉ được thu hồi tin nhắn của mình',
+          });
+          return;
+        }
+
+        const senderId = message.sender.toString();
+        const recipientId = message.recipient?.toString();
+        const previousStatus = message.status;
+        const deletedAt = new Date();
+
+        message.content = REVOKED_MESSAGE_TEXT;
+        message.attachment = null;
+        message.messageType = 'text';
+        message.reactions = [];
+        message.isEdited = false;
+        message.editedAt = null;
+        message.isDeleted = true;
+        message.deletedAt = deletedAt;
+        await message.save();
+
+        const conversationLastMessage = await Message.findOne({
+          $or: [
+            { sender: senderId, recipient: recipientId },
+            { sender: recipientId, recipient: senderId },
+          ],
+        })
+          .sort({ createdAt: -1 })
+          .select('content attachment createdAt isDeleted')
+          .lean();
+
+        emitToUsers(io, [message.sender, message.recipient], 'message_deleted', {
+          messageId: message.id,
+          senderId,
+          recipientId,
+          content: REVOKED_MESSAGE_TEXT,
+          attachment: null,
+          reactions: [],
+          isDeleted: true,
+          deletedAt: message.deletedAt,
+          updatedAt: message.updatedAt,
+          previousStatus,
+          conversationLastMessage: conversationLastMessage
+            ? {
+                id: conversationLastMessage._id.toString(),
+                content: conversationLastMessage.isDeleted
+                  ? REVOKED_MESSAGE_TEXT
+                  : conversationLastMessage.content,
+                attachment: conversationLastMessage.isDeleted
+                  ? null
+                  : conversationLastMessage.attachment,
+                isDeleted: conversationLastMessage.isDeleted,
+                timestamp: conversationLastMessage.createdAt,
+              }
+            : null,
+        });
+      } catch (error) {
+        console.error('Lỗi delete_message:', error);
+        socket.emit('message_delete_failed', {
+          messageId: data?.messageId,
+          error: 'Không thể thu hồi tin nhắn',
+        });
+      }
+    });
+
     /**
      * Event: remove_reaction
      * User xóa reaction khỏi tin nhắn
@@ -369,7 +456,7 @@ const socketHandler = (io) => {
         const userId = socket.userId;
 
         const message = await Message.findById(messageId);
-        if (!message) return;
+        if (!message || message.isDeleted) return;
 
         const participantIds = [message.sender?.toString(), message.recipient?.toString()];
         if (!participantIds.includes(userId)) return;
@@ -398,6 +485,7 @@ const socketHandler = (io) => {
           {
             _id: messageId,
             recipient: receiverId,
+            isDeleted: false,
             status: 'sent',
           },
           { $set: { status: 'delivered' } },
