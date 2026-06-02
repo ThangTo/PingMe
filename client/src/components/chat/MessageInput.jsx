@@ -1,6 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
 import api from '../../config/api';
 
+const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
+
+const getReplyPreviewText = (replyingMessage) => {
+  if (!replyingMessage) return '';
+  if (replyingMessage.isDeleted) return REVOKED_MESSAGE_TEXT;
+  return replyingMessage.content || replyingMessage.attachment?.filename || 'Tệp đính kèm';
+};
+
 const MessageInput = ({
   onSendMessage,
   disabled = false,
@@ -8,8 +16,10 @@ const MessageInput = ({
   onTypingStop,
   onFocus,
   editingMessage,
+  replyingMessage,
   onEditMessage,
   onCancelEditMessage,
+  onCancelReplyMessage,
 }) => {
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState(null); // { url, type, file }
@@ -44,6 +54,14 @@ const MessageInput = ({
       inputRef.current?.focus();
     });
   }, [editingMessage]);
+
+  useEffect(() => {
+    if (!replyingMessage || editingMessage) return;
+
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, [replyingMessage, editingMessage]);
 
   const handleTextChange = (e) => {
     setMessage(e.target.value);
@@ -113,13 +131,17 @@ const MessageInput = ({
     setUploadProgress(0);
     try {
       const uploadedFile = await handleUpload(preview.file);
-      onSendMessage(preview.type === 'image' ? '' : preview.name, {
-        type: preview.type,
-        url: uploadedFile.url,
-        filename: uploadedFile.filename,
-        size: uploadedFile.size,
-        mimeType: uploadedFile.type,
-      });
+      onSendMessage(
+        preview.type === 'image' ? '' : preview.name,
+        {
+          type: preview.type,
+          url: uploadedFile.url,
+          filename: uploadedFile.filename,
+          size: uploadedFile.size,
+          mimeType: uploadedFile.type,
+        },
+        replyingMessage,
+      );
       setPreview(null);
       setUploadProgress(0);
     } catch (error) {
@@ -151,7 +173,7 @@ const MessageInput = ({
     }
 
     if (message.trim() && !disabled) {
-      onSendMessage(message.trim());
+      onSendMessage(message.trim(), null, replyingMessage);
       setMessage('');
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (onTypingStop) onTypingStop();
@@ -240,6 +262,26 @@ const MessageInput = ({
               setMessage('');
               onCancelEditMessage?.();
             }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
+          >
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+      )}
+
+      {replyingMessage && !editingMessage && (
+        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2">
+          <div className="min-w-0 border-l-2 border-accent pl-3">
+            <p className="text-xs font-semibold text-on-surface">
+              Đang trả lời {replyingMessage.senderName || 'tin nhắn'}
+            </p>
+            <p className="truncate text-xs text-on-surface-variant">
+              {getReplyPreviewText(replyingMessage)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReplyMessage}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
           >
             <span className="material-symbols-outlined text-xl">close</span>

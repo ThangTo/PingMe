@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import EmojiPicker from './EmojiPicker';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
+
+const getReplyPreviewText = (replyTo) => {
+  if (!replyTo) return '';
+  if (replyTo.isDeleted) return REVOKED_MESSAGE_TEXT;
+  return replyTo.content || replyTo.attachment?.filename || 'Tệp đính kèm';
+};
 
 const MessageBubble = ({
   message,
@@ -10,6 +17,8 @@ const MessageBubble = ({
   onReaction,
   onEditMessage,
   onDeleteMessage,
+  onReplyMessage,
+  onJumpToMessage,
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -122,7 +131,15 @@ const MessageBubble = ({
   };
 
   const actionItems = [
-    { key: 'reply', label: 'Trả lời', icon: 'reply' },
+    {
+      key: 'reply',
+      label: 'Trả lời',
+      icon: 'reply',
+      onClick: () => {
+        onReplyMessage?.(message);
+        closeMenus();
+      },
+    },
     { key: 'copy', label: 'Sao chép', icon: 'content_copy', onClick: handleCopy },
     ...(isOwn && !isRevoked
       ? [
@@ -202,12 +219,33 @@ const MessageBubble = ({
 
           <div
             ref={messageRef}
-            className="relative inline-flex items-center"
+            className="relative inline-flex max-w-full flex-col items-stretch gap-1"
             onContextMenu={openContextMenu}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
           >
+            {message.replyTo && !isRevoked && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onJumpToMessage?.(message.replyTo.id);
+                }}
+                className={`max-w-[min(360px,68vw)] rounded-md border-l-2 border-accent bg-surface-container-low px-3 py-2 text-left transition-colors hover:bg-surface-container-high ${
+                  isOwn ? 'self-end' : 'self-start'
+                }`}
+                title="Đi tới tin nhắn gốc"
+              >
+                <p className="truncate text-xs font-semibold text-on-surface">
+                  {message.replyTo.senderName || 'Tin nhắn'}
+                </p>
+                <p className="truncate text-xs text-on-surface-variant">
+                  {getReplyPreviewText(message.replyTo)}
+                </p>
+              </button>
+            )}
+
             {/* Nội dung: image / file / text */}
             {isRevoked ? (
               <div

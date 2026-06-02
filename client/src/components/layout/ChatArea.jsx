@@ -16,9 +16,12 @@ const ChatArea = ({
   onBack,
   onToggleDetails,
   editingMessage,
+  replyingMessage,
   onStartEditMessage,
+  onStartReplyMessage,
   onEditMessage,
   onCancelEditMessage,
+  onCancelReplyMessage,
   onDeleteMessage,
   isLoading = false,
   error = '',
@@ -90,6 +93,7 @@ const ChatArea = ({
           searchQuery={searchQuery}
           onEditMessage={onStartEditMessage}
           onDeleteMessage={onDeleteMessage}
+          onReplyMessage={onStartReplyMessage}
         />
       </div>
 
@@ -99,8 +103,10 @@ const ChatArea = ({
         onTypingStop={onTypingStop}
         onFocus={onFocusInput}
         editingMessage={editingMessage}
+        replyingMessage={replyingMessage}
         onEditMessage={onEditMessage}
         onCancelEditMessage={onCancelEditMessage}
+        onCancelReplyMessage={onCancelReplyMessage}
       />
     </section>
   );

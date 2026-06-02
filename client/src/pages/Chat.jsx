@@ -19,6 +19,26 @@ const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const getMessagePreview = (content, attachment, isDeleted = false) =>
   isDeleted ? REVOKED_MESSAGE_TEXT : content || attachment?.filename || (attachment ? 'Tệp đính kèm' : 'Tin nhắn mới');
 
+const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
+  if (!message) return null;
+
+  const senderId = message.sender?._id || message.sender || message.senderId;
+  const senderName =
+    message.sender?.username ||
+    message.senderName ||
+    (senderId === currentUser?.id ? 'Bạn' : currentChatUser?.name || 'Tin nhắn');
+  const isDeleted = Boolean(message.isDeleted);
+
+  return {
+    id: message._id || message.id,
+    senderId,
+    senderName,
+    content: isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    attachment: isDeleted ? null : message.attachment || null,
+    isDeleted,
+  };
+};
+
 const Chat = () => {
   const { user } = useAuth();
   const { isConnected } = useSocket();
@@ -35,6 +55,7 @@ const Chat = () => {
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [messagesError, setMessagesError] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
+  const [replyingMessage, setReplyingMessage] = useState(null);
   const messagesRef = useRef(messages);
 
   useEffect(() => {
@@ -162,6 +183,7 @@ const Chat = () => {
             editedAt: msg.editedAt || null,
             isDeleted: msg.isDeleted || false,
             deletedAt: msg.deletedAt || null,
+            replyTo: normalizeReplyPreview(msg.replyTo, user, null),
           }));
           setMessages(normalizedMessages);
 
@@ -304,6 +326,7 @@ const Chat = () => {
                 timestamp: data.timestamp,
                 status: data.status,
                 attachment: data.attachment || msg.attachment,
+                replyTo: data.replyTo || msg.replyTo || null,
               }
             : msg,
         ),
@@ -329,16 +352,39 @@ const Chat = () => {
       const conversationId = data.senderId === user?.id ? data.recipientId : data.senderId;
 
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? {
-                ...msg,
+        prev.map((msg) => {
+          if (msg.id === data.messageId) {
+            return {
+              ...msg,
+              content: data.content,
+              isEdited: data.isEdited,
+              editedAt: data.editedAt,
+            };
+          }
+
+          if (msg.replyTo?.id === data.messageId) {
+            return {
+              ...msg,
+              replyTo: {
+                ...msg.replyTo,
                 content: data.content,
-                isEdited: data.isEdited,
-                editedAt: data.editedAt,
-              }
-            : msg,
-        ),
+                isDeleted: false,
+              },
+            };
+          }
+
+          return msg;
+        }),
+      );
+
+      setReplyingMessage((prev) =>
+        prev?.id === data.messageId
+          ? {
+              ...prev,
+              content: data.content,
+              isDeleted: false,
+            }
+          : prev,
       );
 
       setConversations((prev) =>
@@ -364,23 +410,47 @@ const Chat = () => {
         selectedConversationId !== conversationId;
 
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? {
-                ...msg,
-                content: data.content || REVOKED_MESSAGE_TEXT,
+        prev.map((msg) => {
+          if (msg.id === data.messageId) {
+            return {
+              ...msg,
+              content: data.content || REVOKED_MESSAGE_TEXT,
+              attachment: null,
+              reactions: [],
+              isEdited: false,
+              editedAt: null,
+              isDeleted: true,
+              deletedAt: data.deletedAt,
+            };
+          }
+
+          if (msg.replyTo?.id === data.messageId) {
+            return {
+              ...msg,
+              replyTo: {
+                ...msg.replyTo,
+                content: REVOKED_MESSAGE_TEXT,
                 attachment: null,
-                reactions: [],
-                isEdited: false,
-                editedAt: null,
                 isDeleted: true,
-                deletedAt: data.deletedAt,
-              }
-            : msg,
-        ),
+              },
+            };
+          }
+
+          return msg;
+        }),
       );
 
       setEditingMessage((prev) => (prev?.id === data.messageId ? null : prev));
+      setReplyingMessage((prev) =>
+        prev?.id === data.messageId
+          ? {
+              ...prev,
+              content: REVOKED_MESSAGE_TEXT,
+              attachment: null,
+              isDeleted: true,
+            }
+          : prev,
+      );
 
       setConversations((prev) =>
         prev.map((conv) =>
@@ -429,6 +499,8 @@ const Chat = () => {
     };
   }, [selectedConversationId, user, fetchFriends]);
 
+  const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
+
   const handleTypingStart = () => {
     if (selectedConversationId && user) {
       socket.emit('typing', { receiverId: selectedConversationId });
@@ -441,15 +513,17 @@ const Chat = () => {
     }
   };
 
-  const handleSendMessage = (content, attachment) => {
+  const handleSendMessage = (content, attachment, replyTo = replyingMessage) => {
     if (!selectedConversationId || !user) return;
     const tempId = crypto.randomUUID();
+    const replyPreview = normalizeReplyPreview(replyTo, user, currentChatUser);
 
     const messageData = {
       tempId,
       recipientId: selectedConversationId,
       content: content || (attachment ? attachment.filename : ''),
       attachment: attachment || null,
+      replyToId: replyPreview?.id || null,
     };
     socket.emit('send_message', messageData);
 
@@ -460,8 +534,10 @@ const Chat = () => {
       timestamp: new Date().toISOString(),
       status: 'sending',
       attachment: attachment || null,
+      replyTo: replyPreview,
     };
     setMessages((prev) => [...prev, newMessage]);
+    setReplyingMessage(null);
 
     setConversations((prev) => {
       const targetConv = prev.find((c) => c.id === selectedConversationId);
@@ -486,6 +562,7 @@ const Chat = () => {
 
   const handleSelectConversation = (conversationId) => {
     setEditingMessage(null);
+    setReplyingMessage(null);
     setSelectedConversationId(conversationId);
     setShowDetails(true);
     setActiveRailItem('messages');
@@ -493,8 +570,6 @@ const Chat = () => {
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
   };
-
-  const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
 
   useEffect(() => {
     const handleShortcut = (event) => {
@@ -518,6 +593,8 @@ const Chat = () => {
   const handleRailNavigate = (itemKey) => {
     setActiveRailItem(itemKey);
     if (itemKey === 'settings') {
+      setEditingMessage(null);
+      setReplyingMessage(null);
       setSelectedConversationId(null);
     }
   };
@@ -525,11 +602,22 @@ const Chat = () => {
   //Edit message
   const handleStartEditMessage = (message) => {
     if (!message || message.isDeleted || message.senderId !== user?.id || message.status === 'sending') return;
+    setReplyingMessage(null);
     setEditingMessage(message);
   };
 
   const handleCancelEditMessage = () => {
     setEditingMessage(null);
+  };
+
+  const handleStartReplyMessage = (message) => {
+    if (!message || message.status === 'sending') return;
+    setEditingMessage(null);
+    setReplyingMessage(normalizeReplyPreview(message, user, currentChatUser));
+  };
+
+  const handleCancelReplyMessage = () => {
+    setReplyingMessage(null);
   };
 
   const handleEditMessage = (content) => {
@@ -577,6 +665,8 @@ const Chat = () => {
                 error={friendsError}
                 focusSearchSignal={focusSearchSignal}
                 onOpenSettings={() => {
+                  setEditingMessage(null);
+                  setReplyingMessage(null);
                   setSelectedConversationId(null);
                   setActiveRailItem('settings');
                 }}
@@ -594,12 +684,19 @@ const Chat = () => {
                     onTypingStop={handleTypingStop}
                     onFocusInput={markChatAsRead}
                     onReaction={handleReaction}
-                    onBack={() => setSelectedConversationId(null)}
+                    onBack={() => {
+                      setEditingMessage(null);
+                      setReplyingMessage(null);
+                      setSelectedConversationId(null);
+                    }}
                     onToggleDetails={() => setShowDetails((prev) => !prev)}
                     editingMessage={editingMessage}
+                    replyingMessage={replyingMessage}
                     onStartEditMessage={handleStartEditMessage}
+                    onStartReplyMessage={handleStartReplyMessage}
                     onEditMessage={handleEditMessage}
                     onCancelEditMessage={handleCancelEditMessage}
+                    onCancelReplyMessage={handleCancelReplyMessage}
                     onDeleteMessage={handleDeleteMessage}
                     isLoading={isMessagesLoading}
                     error={messagesError}

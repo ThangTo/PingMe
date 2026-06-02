@@ -49,6 +49,19 @@ const emitToUsers = (io, userIds, eventName, payload) => {
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
+const formatReplyPreview = (message) => {
+  if (!message) return null;
+
+  return {
+    id: message.id || message._id?.toString(),
+    senderId: message.sender?._id?.toString() || message.sender?.toString(),
+    senderName: message.sender?.username || '',
+    content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    attachment: message.isDeleted ? null : message.attachment || null,
+    isDeleted: Boolean(message.isDeleted),
+  };
+};
+
 const socketHandler = (io) => {
   io.use((socket, next) => {
     try {
@@ -134,8 +147,31 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { tempId, recipientId, content, attachment } = data;
+        const { tempId, recipientId, content, attachment, replyToId } = data;
         const senderId = socket.userId;
+        let replyToMessage = null;
+
+        if (replyToId) {
+          if (!mongoose.Types.ObjectId.isValid(replyToId)) {
+            socket.emit('error', { message: 'replyToId không hợp lệ' });
+            return;
+          }
+
+          replyToMessage = await Message.findOne({
+            _id: replyToId,
+            $or: [
+              { sender: senderId, recipient: recipientId },
+              { sender: recipientId, recipient: senderId },
+            ],
+          }).populate('sender', 'username avatar');
+
+          if (!replyToMessage) {
+            socket.emit('error', {
+              message: 'Tin nhắn được trả lời không tồn tại trong cuộc trò chuyện này',
+            });
+            return;
+          }
+        }
 
         const newMessage = await Message.create({
           sender: senderId,
@@ -144,6 +180,7 @@ const socketHandler = (io) => {
           attachment: attachment || null,
           messageType: attachment?.type || 'text',
           status: 'sent',
+          replyTo: replyToMessage?._id || null,
         });
 
         socket.emit('message_sent', {
@@ -152,6 +189,7 @@ const socketHandler = (io) => {
           timestamp: newMessage.createdAt,
           status: newMessage.status,
           attachment: newMessage.attachment,
+          replyTo: formatReplyPreview(replyToMessage),
         });
 
         if (isUserOnline(recipientId)) {
@@ -162,6 +200,7 @@ const socketHandler = (io) => {
             attachment: newMessage.attachment,
             timestamp: newMessage.createdAt,
             status: newMessage.status,
+            replyTo: formatReplyPreview(replyToMessage),
           });
         }
       } catch (error) {

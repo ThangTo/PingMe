@@ -114,15 +114,15 @@ Mục tiêu: chat 1-1 nhanh, đúng status, đúng sync, refresh không mất st
 | 3.7 Conversation summary | DONE | Friends API trả `lastMessage`, `lastMessageAt`, `unreadCount` |
 | 3.8 Typing indicators | DONE | `typing`, `stop_typing` |
 | 3.9 Multi-tab presence | DONE | `userId -> Set(socketId)` |
-| 3.10 Message edit/delete | PLANNED | Edit, delete for me, delete for everyone |
-| 3.11 Reply/thread basics | PLANNED | Reply to message, scroll to original |
+| 3.10 Message edit/revoke | DONE | Edit message, thu hồi message cho cả hai bên |
+| 3.11 Reply basics | DONE | Reply to message, scroll to original |
 | 3.12 Pin message | PLANNED | Pin message trong chat 1-1 |
 
 Next actions:
 
-- Làm `edit_message` và `delete_message`.
-- Thêm UI menu cho message actions.
-- Thêm server authorization: chỉ sender mới edit/delete message của mình.
+- Làm pin message trong chat 1-1.
+- Pin cần cập nhật realtime cho cả hai user trong conversation.
+- Sau khi pin xong, cân nhắc chuyển sang album/multiple images hoặc group chat MVP.
 
 ## Pipeline 4 - Media, Files, Reactions
 
@@ -388,12 +388,12 @@ Mục tiêu: dùng tốt trên phone, gần như app native.
 Nên làm theo thứ tự gần nhất:
 
 1. Commit/push mốc vừa làm: socket auth identity + multi-tab presence + `PIPELINE.md`.
-2. Pipeline 3.10: Message edit/delete.
-3. Pipeline 4.9: Upload progress/retry.
-4. Pipeline 5.4: Mobile responsive chat.
-5. Pipeline 6.1-6.4: Group chat MVP.
-6. Pipeline 9.2-9.4: Voice/video call MVP.
-7. Pipeline 8.2-8.4: Notifications.
+2. Pipeline 3.12: Pin message.
+3. Pipeline 4.8: Multiple images per message.
+4. Pipeline 6.1-6.4: Group chat MVP.
+5. Pipeline 9.2-9.4: Voice/video call MVP.
+6. Pipeline 8.2-8.4: Notifications.
+7. Pipeline 10.4: API/socket smoke tests.
 
 Nếu bị rối, quay lại nguyên tắc này:
 

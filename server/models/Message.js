@@ -125,7 +125,12 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .sort({ createdAt: -1 })
     .limit(limit)
     .populate('sender', 'username avatar')
-    .populate('recipient', 'username avatar');
+    .populate('recipient', 'username avatar')
+    .populate({
+      path: 'replyTo',
+      select: 'content attachment sender isDeleted',
+      populate: { path: 'sender', select: 'username avatar' },
+    });
 };
 
 // Static method: Lấy tin nhắn trong room
@@ -135,7 +140,12 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
   })
     .sort({ createdAt: -1 })
     .limit(limit)
-    .populate('sender', 'username avatar');
+    .populate('sender', 'username avatar')
+    .populate({
+      path: 'replyTo',
+      select: 'content attachment sender isDeleted',
+      populate: { path: 'sender', select: 'username avatar' },
+    });
 };
 
 // Method: Đánh dấu tin nhắn đã đọc

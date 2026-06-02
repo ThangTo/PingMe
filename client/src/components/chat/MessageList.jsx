@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 
 const messageMatchesSearch = (message, query) => {
@@ -16,11 +16,15 @@ const MessageList = ({
   onReaction,
   onEditMessage,
   onDeleteMessage,
+  onReplyMessage,
   isLoading = false,
   error = '',
   searchQuery = '',
 }) => {
   const messagesEndRef = useRef(null);
+  const messageRefs = useRef(new Map());
+  const highlightTimeoutRef = useRef(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const visibleMessages = searchQuery.trim()
     ? messages.filter((message) => messageMatchesSearch(message, searchQuery.trim()))
     : messages;
@@ -28,6 +32,25 @@ const MessageList = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    };
+  }, []);
+
+  const handleJumpToMessage = (messageId) => {
+    const target = messageRefs.current.get(messageId);
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedMessageId(messageId);
+
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMessageId(null);
+    }, 1400);
+  };
 
   if (isLoading) {
     return (
@@ -96,15 +119,28 @@ const MessageList = ({
         const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
 
         return (
-          <MessageBubble
+          <div
             key={message.id || index}
-            message={message}
-            isOwn={isOwn}
-            showAvatar={showAvatar}
-            onReaction={onReaction}
-            onEditMessage={onEditMessage}
-            onDeleteMessage={onDeleteMessage}
-          />
+            ref={(node) => {
+              if (!message.id) return;
+              if (node) messageRefs.current.set(message.id, node);
+              else messageRefs.current.delete(message.id);
+            }}
+            className={`rounded-xl transition-colors duration-300 ${
+              highlightedMessageId === message.id ? 'bg-accent-soft/70' : ''
+            }`}
+          >
+            <MessageBubble
+              message={message}
+              isOwn={isOwn}
+              showAvatar={showAvatar}
+              onReaction={onReaction}
+              onEditMessage={onEditMessage}
+              onDeleteMessage={onDeleteMessage}
+              onReplyMessage={onReplyMessage}
+              onJumpToMessage={handleJumpToMessage}
+            />
+          </div>
         );
       })}
 
