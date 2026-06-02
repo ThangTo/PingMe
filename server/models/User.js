@@ -52,6 +52,14 @@ const userSchema = new mongoose.Schema(
       default: 'https://via.placeholder.com/150', // Avatar mặc định
     },
 
+    // Giới thiệu ngắn trên profile
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [160, 'Bio cannot exceed 160 characters'],
+      default: '',
+    },
+
     // Trạng thái online/offline
     isOnline: {
       type: Boolean,

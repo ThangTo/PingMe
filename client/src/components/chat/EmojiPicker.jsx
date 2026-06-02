@@ -1,11 +1,13 @@
 const EmojiPicker = ({ emojis = [], onSelect }) => {
   return (
-    <div className="z-10 flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest p-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+    <div className="z-10 flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest p-1.5 shadow-[0_10px_28px_rgba(40,37,32,0.12)]">
       {emojis.map((emoji) => (
         <button
+          type="button"
           key={emoji}
           onClick={() => onSelect(emoji)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-surface-container-low active:scale-[0.98]"
+          aria-label={`Thả cảm xúc ${emoji}`}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-lg transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 active:scale-[0.98]"
         >
           {emoji}
         </button>

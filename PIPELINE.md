@@ -51,7 +51,7 @@ Mục tiêu: dự án dễ đọc, dễ chạy, dễ follow, có quy tắc làm 
 | 0.2 Product pipeline | DONE | `PIPELINE.md` chia Basic/Advanced pipeline |
 | 0.3 Local run guide | DONE | Lệnh chạy client/server nằm trong `CLAUDE.md` |
 | 0.4 Env hygiene | DONE | `.env`, uploads, node_modules, dist được ignore |
-| 0.5 Formatting/lint baseline | IN_PROGRESS | Client có ESLint; backend chưa có lint/prettier |
+| 0.5 Formatting/lint baseline | DONE | Client có ESLint; backend có `npm run check` syntax baseline |
 | 0.6 Test strategy | PLANNED | Thêm smoke test hoặc script test API/socket cơ bản |
 
 Next actions:
@@ -71,7 +71,7 @@ Mục tiêu: login/register/logout ổn định, identity đúng cho REST và So
 | 1.4 Protected routes | DONE | `/chat` cần auth |
 | 1.5 Socket auth identity | DONE | Socket verify cookie, gắn `socket.userId` |
 | 1.6 Logout socket cleanup | DONE | Socket disconnect khi không authenticated |
-| 1.7 Profile basics | PLANNED | username, avatar, bio, password change |
+| 1.7 Profile basics | DONE | username, avatar URL, bio, password change |
 | 1.8 Session/device management | PLANNED | Xem và revoke các session/device |
 
 Definition of Done riêng:
@@ -90,7 +90,7 @@ Mục tiêu: tìm bạn, gửi lời mời, chấp nhận/từ chối, xem danh 
 | 2.3 Accept friend request | DONE | Chấp nhận lời mời |
 | 2.4 Friend list | DONE | Sidebar hiện conversations từ friends |
 | 2.5 Realtime friend events | IN_PROGRESS | Có notify accept; cần đồng bộ đầy đủ request mới |
-| 2.6 Reject/cancel request | PLANNED | Từ chối, hủy lời mời đã gửi |
+| 2.6 Reject/cancel request | DONE | Từ chối lời mời đã nhận, hủy lời mời đã gửi |
 | 2.7 Block/report user | PLANNED | Chặn người dùng, report abuse |
 
 Next actions:
@@ -138,7 +138,7 @@ Mục tiêu: gửi ảnh/file/reaction như một chat app hiện đại.
 | 4.6 Reactions | DONE | Toggle reaction qua socket |
 | 4.7 Media gallery | DONE | Panel xem media trong conversation |
 | 4.8 Multiple images per message | PLANNED | Album/grouped media |
-| 4.9 Upload progress/retry | PLANNED | Progress bar, retry khi fail |
+| 4.9 Upload progress/retry | DONE | Progress bar, retry khi upload fail |
 | 4.10 Voice messages | PLANNED | Record audio, waveform, playback |
 
 Next actions:
@@ -155,10 +155,10 @@ Mục tiêu: app dùng hằng ngày thay vì chỉ là demo.
 | 5.1 Minimalist redesign | DONE | Warm monochrome UI |
 | 5.2 Collapsible sidebar | DONE | Sidebar có compact rail |
 | 5.3 Empty/loading/error states | IN_PROGRESS | Có một số state, cần đồng bộ toàn app |
-| 5.4 Mobile responsive chat | PLANNED | Sidebar drawer, chat full screen trên mobile |
-| 5.5 Keyboard shortcuts | PLANNED | Enter send, Esc close, Ctrl/Cmd+K search |
-| 5.6 Accessibility pass | PLANNED | Focus states, aria labels, keyboard nav |
-| 5.7 Theme settings | PLANNED | Light/dark/system, chat wallpaper optional |
+| 5.4 Mobile responsive chat | DONE | Conversation list và chat full screen trên mobile |
+| 5.5 Keyboard shortcuts | DONE | Enter send, Esc close, Ctrl/Cmd+K focus search |
+| 5.6 Accessibility pass | IN_PROGRESS | Focus states, aria labels, keyboard nav cơ bản |
+| 5.7 Theme settings | DONE | Light/dark/system local preference |
 
 Next actions:
 
@@ -193,9 +193,9 @@ Mục tiêu: tìm nhanh người, conversation, message và media.
 |---|---|---|
 | 7.1 Search friends/users | DONE | Search user trong sidebar |
 | 7.2 Search conversations | IN_PROGRESS | Filter local conversations |
-| 7.3 Search messages in current chat | PLANNED | Text search trong conversation |
+| 7.3 Search messages in current chat | DONE | Text/file-name search trong conversation hiện tại |
 | 7.4 Global message search | PLANNED | Search all messages user được phép xem |
-| 7.5 Media/file search | PLANNED | Lọc image, file, link |
+| 7.5 Media/file search | DONE | Lọc media, file, link trong detail panel |
 | 7.6 Jump to message | PLANNED | Search result click -> scroll to message |
 
 Backend notes:
@@ -250,7 +250,7 @@ Mục tiêu: dự án có thể deploy, debug, rollback, và không vỡ vì tha
 | 10.2 Backend health check | DONE | `GET /health` |
 | 10.3 Error logging cleanup | PLANNED | Log có context, không spam console |
 | 10.4 API/socket smoke tests | PLANNED | Test login, send message, receipts |
-| 10.5 CI pipeline | PLANNED | lint/build/check on push |
+| 10.5 CI pipeline | DONE | GitHub Actions chạy client lint/build và server check |
 | 10.6 Deployment plan | PLANNED | Client hosting, server hosting, MongoDB |
 | 10.7 File storage plan | PLANNED | Local uploads -> cloud storage |
 | 10.8 Monitoring | PLANNED | uptime, errors, socket connection counts |

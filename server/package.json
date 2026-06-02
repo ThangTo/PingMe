@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "check": "node --check index.js && node --check controllers/auth.controller.js && node --check controllers/message.controller.js && node --check controllers/user.controller.js && node --check middlewares/auth.middleware.js && node --check middlewares/upload.middleware.js && node --check socket/socketHandler.js",
+    "test": "npm run check"
   },
   "keywords": [
     "socket.io",

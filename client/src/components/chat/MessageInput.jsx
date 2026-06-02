@@ -11,6 +11,7 @@ const MessageInput = ({
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState(null); // { url, type, file }
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
@@ -47,6 +48,7 @@ const MessageInput = ({
 
     const objectUrl = URL.createObjectURL(file);
     setUploadError('');
+    setUploadProgress(0);
     setPreview({
       url: objectUrl,
       type: isImage ? 'image' : 'file',
@@ -65,6 +67,11 @@ const MessageInput = ({
 
     const response = await api.post('/messages/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (!progressEvent.total) return;
+        const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setUploadProgress(progress);
+      },
     });
 
     return response.data.file;
@@ -75,6 +82,7 @@ const MessageInput = ({
 
     setIsUploading(true);
     setUploadError('');
+    setUploadProgress(0);
     try {
       const uploadedFile = await handleUpload(preview.file);
       onSendMessage(preview.type === 'image' ? '' : preview.name, {
@@ -85,6 +93,7 @@ const MessageInput = ({
         mimeType: uploadedFile.type,
       });
       setPreview(null);
+      setUploadProgress(0);
     } catch (error) {
       console.error('Upload thất bại:', error);
       setUploadError('Upload thất bại, thử lại');
@@ -112,10 +121,11 @@ const MessageInput = ({
   const canSend = (message.trim() || preview) && !disabled && !isUploading;
 
   return (
-    <footer className="shrink-0 border-t border-outline-variant bg-surface-container-lowest px-6 py-4">
+    <footer className="shrink-0 border-t border-outline-variant bg-surface px-4 py-3 md:px-7 md:py-5">
       {/* Preview khi có file đính kèm */}
       {preview && (
-        <div className="mb-3 flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container p-3">
+        <div className="mx-auto mb-3 max-w-[860px] rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+          <div className="flex items-center gap-3">
           {preview.type === 'image' ? (
             <img
               src={preview.url}
@@ -134,25 +144,46 @@ const MessageInput = ({
               {preview.name || (preview.type === 'image' ? 'Ảnh đã chọn' : 'File đã chọn')}
             </p>
             <p className="text-xs text-on-surface-variant">
-              {isUploading ? 'Đang tải lên...' : 'Sẵn sàng gửi'}
+              {isUploading ? `Đang tải lên ${uploadProgress}%` : 'Sẵn sàng gửi'}
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
               setPreview(null);
+              setUploadError('');
+              setUploadProgress(0);
             }}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high"
           >
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
+          </div>
+
+          {isUploading && (
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-container-low">
+              <div
+                className="h-full rounded-full bg-accent transition-[width]"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
 
       {uploadError && (
-        <p className="mb-3 rounded-md border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
-          {uploadError}
-        </p>
+        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-md border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+          <p>{uploadError}</p>
+          {preview && (
+            <button
+              type="button"
+              onClick={handleSendWithAttachment}
+              className="shrink-0 rounded-md bg-error px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              Thử lại
+            </button>
+          )}
+        </div>
       )}
 
       {/* Hidden file input */}
@@ -166,14 +197,14 @@ const MessageInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container px-3 py-2.5 transition-colors focus-within:border-primary"
+        className="mx-auto flex h-12 max-w-[860px] items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 transition-colors focus-within:border-accent"
       >
         {/* Attachment */}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:opacity-30"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-30"
           title="Đính kèm"
         >
           <span className="material-symbols-outlined text-xl">attach_file</span>
@@ -189,18 +220,35 @@ const MessageInput = ({
           onFocus={onFocus}
           disabled={disabled}
           autoComplete="off"
-          className="flex-1 border-none bg-transparent py-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant"
+          className="min-w-0 flex-1 border-none bg-transparent py-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant"
           placeholder={preview ? 'Nhấn gửi để upload' : 'Nhập tin nhắn...'}
         />
 
-        {/* Send */}
+        <button
+          type="button"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+          title="Cảm xúc"
+        >
+          <span className="material-symbols-outlined text-xl">sentiment_satisfied</span>
+        </button>
+
+        {!canSend && (
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            title="Ghi âm"
+          >
+            <span className="material-symbols-outlined text-xl">mic</span>
+          </button>
+        )}
+
         <button
           type="submit"
           disabled={!canSend}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-all ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all ${
             canSend
-              ? 'bg-primary text-white hover:bg-primary-dark active:scale-[0.98]'
-              : 'cursor-not-allowed bg-surface-container-high text-on-surface-variant'
+              ? 'bg-accent text-white hover:bg-accent-dark active:scale-[0.98]'
+              : 'hidden'
           }`}
           title="Gửi tin nhắn"
         >

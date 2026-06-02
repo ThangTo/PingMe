@@ -2,9 +2,11 @@
  * Chat Page - Layout tổng theo hướng tối giản, giữ nguyên realtime flow.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import TopNavBar from '../components/layout/TopNavBar';
+import AppRail from '../components/layout/AppRail';
 import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
+import ChatDetailsPanel from '../components/layout/ChatDetailsPanel';
+import SettingsPanel from '../components/layout/SettingsPanel';
 import IncomingCallModal from '../components/call/IncomingCallModal';
 import CallOverlay from '../components/call/CallOverlay';
 import { useAuth } from '../context/AuthContext';
@@ -23,8 +25,13 @@ const Chat = () => {
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [showGallery, setShowGallery] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
+  const [activeRailItem, setActiveRailItem] = useState('messages');
+  const [focusSearchSignal, setFocusSearchSignal] = useState(0);
+  const [isFriendsLoading, setIsFriendsLoading] = useState(false);
+  const [friendsError, setFriendsError] = useState('');
+  const [isMessagesLoading, setIsMessagesLoading] = useState(false);
+  const [messagesError, setMessagesError] = useState('');
   const messagesRef = useRef(messages);
 
   useEffect(() => {
@@ -68,6 +75,8 @@ const Chat = () => {
 
   const fetchFriends = useCallback(async () => {
     try {
+      if (conversations.length === 0) setIsFriendsLoading(true);
+      setFriendsError('');
       const response = await api.get('/users/friends');
       if (response.data.success) {
         const formattedFriends = response.data.friends.map((u) => ({
@@ -83,8 +92,11 @@ const Chat = () => {
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách bạn bè:', error);
+      setFriendsError('Không thể tải danh sách trò chuyện');
+    } finally {
+      setIsFriendsLoading(false);
     }
-  }, [onlineUsers]);
+  }, [conversations.length, onlineUsers]);
 
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
@@ -121,7 +133,6 @@ const Chat = () => {
   }, [markChatAsRead]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) fetchFriends();
   }, [user, fetchFriends]);
 
@@ -132,6 +143,8 @@ const Chat = () => {
         return;
       }
       try {
+        setIsMessagesLoading(true);
+        setMessagesError('');
         const response = await api.get(`/messages/${selectedConversationId}`);
         if (response.data.success) {
           const normalizedMessages = response.data.messages.map((msg) => ({
@@ -168,6 +181,9 @@ const Chat = () => {
         }
       } catch (error) {
         console.error('Lỗi khi lấy tin nhắn:', error);
+        setMessagesError('Không thể tải lịch sử tin nhắn');
+      } finally {
+        setIsMessagesLoading(false);
       }
     };
     fetchMessages();
@@ -369,6 +385,8 @@ const Chat = () => {
 
   const handleSelectConversation = (conversationId) => {
     setSelectedConversationId(conversationId);
+    setShowDetails(true);
+    setActiveRailItem('messages');
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
@@ -376,70 +394,113 @@ const Chat = () => {
 
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
 
+  useEffect(() => {
+    const handleShortcut = (event) => {
+      const isSearchShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
+
+      if (isSearchShortcut) {
+        event.preventDefault();
+        setActiveRailItem('messages');
+        setFocusSearchSignal((value) => value + 1);
+      }
+
+      if (event.key === 'Escape') {
+        setShowDetails(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
+
+  const handleRailNavigate = (itemKey) => {
+    setActiveRailItem(itemKey);
+    if (itemKey === 'settings') {
+      setSelectedConversationId(null);
+    }
+  };
+
   return (
-    <div className="min-h-[100dvh] w-full overflow-hidden bg-background font-body text-on-surface">
+    <div className="h-[100dvh] w-full overflow-hidden bg-background font-body text-on-surface">
       <IncomingCallModal />
       <CallOverlay />
 
-      <TopNavBar />
+      <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface shadow-[0_18px_60px_rgba(40,37,32,0.08)]">
+        <AppRail activeItem={activeRailItem} onNavigate={handleRailNavigate} />
 
-      <div className="mx-auto flex h-[100dvh] max-w-[1440px] pt-16">
-        <main className="relative flex min-w-0 flex-1 overflow-hidden border-x border-outline-variant bg-surface">
-          {/* Sidebar - Conversation List */}
-          <Sidebar
-            conversations={conversations}
-            onSelectConversation={handleSelectConversation}
-            selectedConversationId={selectedConversationId}
-            onFriendAdded={fetchFriends}
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
-          />
-
-          {/* Chat Window */}
-          {selectedConversationId ? (
-            <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-container-lowest">
-              <ChatArea
-                currentUser={currentChatUser}
-                messages={messages}
-                currentUserId={user?.id || 'current'}
-                onSendMessage={handleSendMessage}
-                isTyping={isTyping}
-                onTypingStart={handleTypingStart}
-                onTypingStop={handleTypingStop}
-                onFocusInput={markChatAsRead}
-                onReaction={handleReaction}
-                showGallery={showGallery}
-                onOpenGallery={() => setShowGallery(true)}
-                onCloseGallery={() => setShowGallery(false)}
-              />
-            </section>
+        <main className="relative flex min-w-0 flex-1 overflow-hidden bg-surface">
+          {activeRailItem === 'settings' ? (
+            <SettingsPanel onBack={() => setActiveRailItem('messages')} />
           ) : (
-            /* Empty State */
-            <section className="relative flex flex-1 flex-col items-center justify-center bg-surface-container-lowest px-8">
-              <div className="max-w-sm animate-fade-in text-center">
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl border border-outline-variant bg-surface-container">
-                  <span className="material-symbols-outlined text-3xl text-on-surface-variant">
-                    forum
-                  </span>
-                </div>
+            <>
+              <Sidebar
+                conversations={conversations}
+                onSelectConversation={handleSelectConversation}
+                selectedConversationId={selectedConversationId}
+                onFriendAdded={fetchFriends}
+                isChatOpen={Boolean(selectedConversationId)}
+                isLoading={isFriendsLoading}
+                error={friendsError}
+                focusSearchSignal={focusSearchSignal}
+                onOpenSettings={() => {
+                  setSelectedConversationId(null);
+                  setActiveRailItem('settings');
+                }}
+              />
 
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-headline font-semibold tracking-[-0.03em] text-on-surface">
-                    Chọn cuộc trò chuyện
-                  </h2>
-                  <p className="text-sm leading-6 text-on-surface-variant">
-                    Tin nhắn, media và trạng thái realtime sẽ hiện ở đây khi bạn chọn một người bạn.
-                  </p>
-                </div>
+              {selectedConversationId ? (
+                <>
+                  <ChatArea
+                    currentUser={currentChatUser}
+                    messages={messages}
+                    currentUserId={user?.id || 'current'}
+                    onSendMessage={handleSendMessage}
+                    isTyping={isTyping}
+                    onTypingStart={handleTypingStart}
+                    onTypingStop={handleTypingStop}
+                    onFocusInput={markChatAsRead}
+                    onReaction={handleReaction}
+                    onBack={() => setSelectedConversationId(null)}
+                    onToggleDetails={() => setShowDetails((prev) => !prev)}
+                    isLoading={isMessagesLoading}
+                    error={messagesError}
+                  />
+                  {showDetails && currentChatUser && (
+                    <ChatDetailsPanel
+                      user={currentChatUser}
+                      messages={messages}
+                      onClose={() => setShowDetails(false)}
+                    />
+                  )}
+                </>
+              ) : (
+                <section className="relative hidden flex-1 flex-col items-center justify-center bg-surface px-8 md:flex">
+                  <div className="max-w-sm animate-fade-in text-center">
+                    <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest">
+                      <span className="material-symbols-outlined text-3xl text-on-surface-variant">
+                        forum
+                      </span>
+                    </div>
 
-                {!isConnected && (
-                  <div className="mt-6 inline-flex items-center gap-2 rounded-md border border-error/20 bg-error-container px-3 py-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-error" />
-                    <p className="text-xs font-medium text-error">Đang kết nối lại</p>
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-headline font-semibold tracking-[-0.03em] text-on-surface">
+                        Chọn cuộc trò chuyện
+                      </h2>
+                      <p className="text-sm leading-6 text-on-surface-variant">
+                        Tin nhắn, media và trạng thái realtime sẽ hiện ở đây khi bạn chọn một cuộc trò chuyện.
+                      </p>
+                    </div>
+
+                    {!isConnected && (
+                      <div className="mt-6 inline-flex items-center gap-2 rounded-md border border-error/20 bg-error-container px-3 py-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-error" />
+                        <p className="text-xs font-medium text-error">Đang kết nối lại</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </section>
+                </section>
+              )}
+            </>
           )}
         </main>
       </div>

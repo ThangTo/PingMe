@@ -34,6 +34,7 @@ const authController = {
           username: user.username,
           email: user.email,
           avatar: user.avatar,
+          bio: user.bio || '',
         },
       });
     } catch (error) {
@@ -74,6 +75,7 @@ const authController = {
           username: user.username,
           email: user.email,
           avatar: user.avatar,
+          bio: user.bio || '',
         },
       });
     } catch (error) {
