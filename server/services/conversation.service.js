@@ -9,6 +9,11 @@ export const toIdString = (value) => {
 export const getDirectKey = (userA, userB) =>
   [toIdString(userA), toIdString(userB)].sort().join(':');
 
+export const getUserRoomId = (userId) => `user:${toIdString(userId)}`;
+
+export const getConversationRoomId = (conversationId) =>
+  `conversation:${toIdString(conversationId)}`;
+
 export const getOrCreateDirectConversation = async (userA, userB) => {
   const userAId = toIdString(userA);
   const userBId = toIdString(userB);

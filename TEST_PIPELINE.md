@@ -223,6 +223,50 @@ Lưu ý: `Chỉnh sửa`, `Xóa`, `Chuyển tiếp`, `Trả lời` hiện là UI
 - Nhập text nhiều dòng nếu app hỗ trợ Shift+Enter; nếu chưa hỗ trợ, ghi lại là enhancement.
 - Bấm `Esc`, kiểm tra detail panel hoặc menu đang mở được đóng.
 
+## Stage 8.5 - Group Chat MVP
+
+Dùng ít nhất 3 account: A, B, C. A đã kết bạn với B và C.
+
+### Tạo Nhóm
+
+- A mở sidebar và bấm nút `Tạo nhóm`.
+- A nhập tên nhóm hợp lệ từ 2 đến 80 ký tự.
+- A chọn B và C trong danh sách thành viên.
+- A bấm `Tạo nhóm`.
+- Kiểm tra group mới xuất hiện trong sidebar của A và được mở ngay.
+- B/C đang online kiểm tra group mới xuất hiện realtime hoặc sau khi nhận message đầu tiên.
+- Reload A/B/C, kiểm tra group vẫn còn trong sidebar.
+
+### Gửi/Nhận Tin Nhắn Nhóm
+
+- A gửi text vào group.
+- B và C phải nhận message realtime mà không reload.
+- B gửi message trả lời.
+- A và C phải nhận message realtime.
+- Kiểm tra bubble bên trái trong group có tên người gửi.
+- Reload group, kiểm tra history vẫn có đủ message.
+
+### Typing Nhóm
+
+- A mở group, B bắt đầu gõ.
+- A thấy typing indicator trong group.
+- B ngừng gõ hoặc gửi message, indicator biến mất.
+- C mở group và test tương tự để chắc event đi qua room.
+
+### Media Và Reaction Trong Group
+
+- A gửi 1 ảnh kèm text vào group.
+- B/C nhận đúng ảnh và text.
+- B reaction vào message của A.
+- A/C thấy reaction realtime.
+- Mở detail panel trong group, kiểm tra media/file/link được lấy từ group history.
+
+### Regression Direct Chat
+
+- A quay lại chat 1-1 với B.
+- Gửi text, ảnh, reaction, read receipt như cũ.
+- Kiểm tra direct chat không bị ảnh hưởng bởi room group.
+
 ## Stage 9 - CI Và Git Hygiene
 
 - Chạy `git status --short`.
@@ -250,7 +294,6 @@ Các mục dưới đây thuộc realtime/WebRTC hoặc stage riêng, sẽ có c
 - Edit/delete message realtime.
 - Reply/thread và jump to original.
 - Pin message realtime.
-- Group chat và Socket.IO rooms.
 - Notification push/service worker.
 - Voice/video call signaling và WebRTC.
 - Multi-device session revoke.

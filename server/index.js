@@ -48,6 +48,8 @@ const io = new Server(server, {
 });
 
 // Gọi socket handler (tách logic socket ra file riêng)
+app.set('io', io);
+
 socketHandler(io);
 
 // routes

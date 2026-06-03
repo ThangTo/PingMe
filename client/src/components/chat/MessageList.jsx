@@ -22,6 +22,7 @@ const messageMatchesSearch = (message, query) => {
 const MessageList = ({
   messages = [],
   currentUserId,
+  reactionUsersById = {},
   isTyping,
   onReaction,
   onEditMessage,
@@ -38,6 +39,7 @@ const MessageList = ({
   const messageRefs = useRef(new Map());
   const highlightTimeoutRef = useRef(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [activeActionMessageId, setActiveActionMessageId] = useState(null);
   const visibleMessages = searchQuery.trim()
     ? messages.filter((message) => messageMatchesSearch(message, searchQuery.trim()))
     : messages;
@@ -50,6 +52,14 @@ const MessageList = ({
     return () => {
       if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
     };
+  }, []);
+
+  const openActionMenu = useCallback((messageId) => {
+    setActiveActionMessageId(messageId);
+  }, []);
+
+  const closeActionMenu = useCallback((messageId) => {
+    setActiveActionMessageId((currentId) => (currentId === messageId ? null : currentId));
   }, []);
 
   const handleJumpToMessage = useCallback((messageId) => {
@@ -139,6 +149,7 @@ const MessageList = ({
         const isOwn = message.senderId === currentUserId;
         const prevMessage = visibleMessages[index - 1];
         const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
+        const isActionMenuOpen = activeActionMessageId === message.id;
 
         return (
           <div
@@ -148,7 +159,9 @@ const MessageList = ({
               if (node) messageRefs.current.set(message.id, node);
               else messageRefs.current.delete(message.id);
             }}
-            className={`rounded-xl transition-colors duration-300 ${
+            className={`relative rounded-xl transition-colors duration-300 ${
+              isActionMenuOpen ? 'z-[150]' : 'z-0'
+            } ${
               highlightedMessageId === message.id ? 'bg-accent-soft/70' : ''
             }`}
           >
@@ -156,6 +169,7 @@ const MessageList = ({
               message={message}
               isOwn={isOwn}
               showAvatar={showAvatar}
+              reactionUsersById={reactionUsersById}
               onReaction={onReaction}
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
@@ -163,6 +177,9 @@ const MessageList = ({
               onPinMessage={onPinMessage}
               isPinned={pinnedMessageIds.includes(message.id)}
               onJumpToMessage={handleJumpToMessage}
+              isActionMenuOpen={isActionMenuOpen}
+              onOpenActionMenu={() => openActionMenu(message.id)}
+              onCloseActionMenu={() => closeActionMenu(message.id)}
             />
           </div>
         );

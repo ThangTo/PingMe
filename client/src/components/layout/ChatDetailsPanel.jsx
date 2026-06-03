@@ -3,6 +3,15 @@ import { useMemo, useState } from 'react';
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
 
+const getInitials = (name = '') =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || '?';
+
 const tabs = [
   { key: 'media', label: 'Media' },
   { key: 'files', label: 'Tệp' },
@@ -48,6 +57,7 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
   const [activeTab, setActiveTab] = useState('media');
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const isGroup = Boolean(user?.isGroup);
 
   const media = useMemo(
     () =>
@@ -135,12 +145,18 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
         <div className="flex items-start justify-between px-6 pb-4 pt-6">
           <div className="flex min-w-0 items-start gap-4">
             <div className="relative h-16 w-16 shrink-0">
-              <img
-                src={user?.avatar || fallbackAvatar}
-                alt={user?.name || 'User'}
-                className="h-full w-full rounded-full border border-outline-variant object-cover"
-              />
-              {user?.isOnline && (
+              {user?.avatar || !isGroup ? (
+                <img
+                  src={user?.avatar || fallbackAvatar}
+                  alt={user?.name || 'User'}
+                  className="h-full w-full rounded-full border border-outline-variant object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-base font-semibold text-on-surface">
+                  {getInitials(user?.name)}
+                </div>
+              )}
+              {!isGroup && user?.isOnline && (
                 <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-surface bg-secondary" />
               )}
             </div>
@@ -148,7 +164,12 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
               <h2 className="truncate text-lg font-semibold tracking-[-0.03em] text-on-surface">
                 {user?.name || 'Cuộc trò chuyện'}
               </h2>
-              <p className="mt-1 text-sm text-secondary">
+              {isGroup && (
+                <p className="mt-1 text-sm text-secondary">
+                  {user?.memberCount || 0} thành viên
+                </p>
+              )}
+              <p className={`mt-1 text-sm text-secondary ${isGroup ? 'hidden' : ''}`}>
                 {user?.isOnline ? 'Đang online' : 'Ngoại tuyến'}
               </p>
             </div>
@@ -164,7 +185,7 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 px-6">
+        <div className={`grid gap-2 px-6 ${isGroup ? 'grid-cols-2' : 'grid-cols-4'}`}>
           {[
             { icon: 'call', label: 'Gọi thoại' },
             { icon: 'videocam', label: 'Gọi video' },
@@ -174,7 +195,7 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
             <button
               key={item.label}
               type="button"
-              className="flex h-[74px] flex-col items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low"
+              className={`${isGroup && ['call', 'videocam'].includes(item.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low`}
               title={item.label}
             >
               <span className="material-symbols-outlined text-[24px]">{item.icon}</span>

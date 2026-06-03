@@ -51,13 +51,18 @@ const MessageBubble = ({
   onPinMessage,
   onJumpToMessage,
   isPinned = false,
+  reactionUsersById = {},
+  isActionMenuOpen = false,
+  onOpenActionMenu,
+  onCloseActionMenu,
 }) => {
   const [showPicker, setShowPicker] = useState(false);
-  const [showActions, setShowActions] = useState(false);
+  const [activeReactionEmoji, setActiveReactionEmoji] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const longPressTimer = useRef(null);
   const lightboxTouchStartX = useRef(null);
   const messageRef = useRef(null);
+  const reactionDetailsRef = useRef(null);
   const pickerRef = useRef(null);
   const actionsRef = useRef(null);
   const mobileActionsRef = useRef(null);
@@ -70,6 +75,7 @@ const MessageBubble = ({
   const hasAttachments = attachments.length > 0;
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
+  const showActions = isActionMenuOpen;
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
@@ -118,7 +124,7 @@ const MessageBubble = ({
   };
 
   useEffect(() => {
-    if (!showPicker) return undefined;
+    if (!showPicker && !showActions) return undefined;
 
     const handlePointerDown = (event) => {
       if (
@@ -131,13 +137,13 @@ const MessageBubble = ({
       }
 
       setShowPicker(false);
-      setShowActions(false);
+      onCloseActionMenu?.();
     };
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setShowPicker(false);
-        setShowActions(false);
+        onCloseActionMenu?.();
       }
     };
 
@@ -148,7 +154,28 @@ const MessageBubble = ({
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showPicker]);
+  }, [onCloseActionMenu, showActions, showPicker]);
+
+  useEffect(() => {
+    if (!activeReactionEmoji) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (reactionDetailsRef.current?.contains(event.target)) return;
+      setActiveReactionEmoji(null);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setActiveReactionEmoji(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeReactionEmoji]);
 
   useEffect(() => {
     if (lightboxIndex === null) return undefined;
@@ -186,16 +213,35 @@ const MessageBubble = ({
 
   const reactionGroups = (isRevoked ? [] : message.reactions || []).reduce((acc, r) => {
     if (!acc[r.emoji]) acc[r.emoji] = { emoji: r.emoji, count: 0, users: [] };
+    const userId = r.userId?.toString?.() || r.userId || '';
+    const reactionUser = reactionUsersById[userId];
+
     acc[r.emoji].count++;
-    acc[r.emoji].users.push(r.userId);
+    acc[r.emoji].users.push({
+      id: userId,
+      name: reactionUser?.name || r.userName || 'Người dùng',
+      avatar: reactionUser?.avatar || '',
+    });
     return acc;
   }, {});
 
   const reactionsList = Object.values(reactionGroups);
+  const pinnedBadge =
+    isPinned && !isRevoked ? (
+      <span
+        className={`absolute -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d7c7b5] bg-accent-soft px-1 text-on-surface shadow-[0_4px_12px_rgba(40,37,32,0.1)] ${
+          isOwn ? 'right-0.5' : 'left-0.5'
+        }`}
+        title="Tin nhắn đã ghim"
+      >
+        <PinGlyph className="text-[13px]" />
+      </span>
+    ) : null;
 
   const closeMenus = () => {
     setShowPicker(false);
-    setShowActions(false);
+    onCloseActionMenu?.();
+    setActiveReactionEmoji(null);
   };
 
   const handleEmojiSelect = (emoji) => {
@@ -207,7 +253,7 @@ const MessageBubble = ({
     event.preventDefault();
     event.stopPropagation();
     if (!canReact) return;
-    setShowActions(false);
+    onCloseActionMenu?.();
     setShowPicker((current) => !current);
   };
 
@@ -215,15 +261,15 @@ const MessageBubble = ({
     event.preventDefault();
     event.stopPropagation();
     if (!canReact) return;
-    setShowPicker(true);
-    setShowActions(true);
+    setShowPicker(false);
+    onOpenActionMenu?.();
   };
 
   const handleTouchStart = () => {
     if (!canReact) return;
     longPressTimer.current = setTimeout(() => {
       setShowPicker(true);
-      setShowActions(true);
+      onOpenActionMenu?.();
     }, 520);
   };
 
@@ -396,17 +442,6 @@ const MessageBubble = ({
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
           >
-            {isPinned && !isRevoked && (
-              <span
-                className={`absolute -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d7c7b5] bg-accent-soft px-1 text-on-surface shadow-[0_4px_12px_rgba(40,37,32,0.1)] ${
-                  isOwn ? 'right-0.5' : 'left-0.5'
-                }`}
-                title="Tin nhắn đã ghim"
-              >
-                <PinGlyph className="text-[13px]" />
-              </span>
-            )}
-
             {message.replyTo && !isRevoked && (
               <button
                 type="button"
@@ -439,8 +474,9 @@ const MessageBubble = ({
               </div>
             ) : (
               <div
-                className={`flex max-w-[min(540px,74vw)] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}
+                className={`relative flex max-w-[min(540px,74vw)] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}
               >
+                {pinnedBadge}
                 {imageAttachments.length > 0 && (
                   <>
                     <div className="md:hidden">
@@ -613,7 +649,7 @@ const MessageBubble = ({
             {showPicker && (
               <div
                 ref={pickerRef}
-                className={`absolute bottom-full z-20 mb-2 ${isOwn ? 'right-0' : 'left-0'} ${showActions ? 'hidden md:block' : ''}`}
+                className={`absolute bottom-full z-[90] mb-2 ${isOwn ? 'right-0' : 'left-0'} ${showActions ? 'hidden md:block' : ''}`}
                 onContextMenu={(event) => event.preventDefault()}
               >
                 <EmojiPicker emojis={QUICK_EMOJIS} onSelect={handleEmojiSelect} />
@@ -623,8 +659,8 @@ const MessageBubble = ({
             {showActions && (
               <div
                 ref={actionsRef}
-                className={`absolute top-full z-20 mt-2 hidden w-52 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest py-1 shadow-[0_16px_40px_rgba(40,37,32,0.14)] md:block ${
-                  isOwn ? 'right-0' : 'left-0'
+                className={`absolute top-1/2 z-[200] hidden w-52 -translate-y-1/2 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest py-1 shadow-[0_18px_48px_rgba(40,37,32,0.18)] md:block ${
+                  isOwn ? 'right-full mr-3' : 'left-full ml-3'
                 }`}
                 onContextMenu={(event) => event.preventDefault()}
               >
@@ -658,12 +694,43 @@ const MessageBubble = ({
 
           {reactionsList.length > 0 && (
             <div className="mt-0.5 flex flex-wrap gap-1">
-              {reactionsList.map(({ emoji, count }) => (
-                <span
-                  key={emoji}
-                  className="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-2 py-0.5 text-xs text-on-surface shadow-[0_1px_4px_rgba(40,37,32,0.04)]"
-                >
-                  {emoji} {count}
+              {reactionsList.map(({ emoji, count, users }) => (
+                <span key={emoji} ref={activeReactionEmoji === emoji ? reactionDetailsRef : null} className="relative">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveReactionEmoji((current) => (current === emoji ? null : emoji));
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-2 py-0.5 text-xs text-on-surface shadow-[0_1px_4px_rgba(40,37,32,0.04)] transition-colors hover:bg-surface-container-low"
+                    title={users.map((reactionUser) => `${reactionUser.name}: ${emoji}`).join('\n')}
+                  >
+                    {emoji} {count}
+                  </button>
+
+                  {activeReactionEmoji === emoji && (
+                    <div
+                      className={`absolute bottom-full z-30 mb-2 min-w-44 max-w-64 rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-left shadow-[0_14px_34px_rgba(40,37,32,0.14)] ${
+                        isOwn ? 'right-0' : 'left-0'
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center gap-2 border-b border-outline-variant px-2 pb-2 text-xs font-semibold text-on-surface">
+                        <span>{emoji}</span>
+                        <span>{count} reaction</span>
+                      </div>
+                      <div className="max-h-44 overflow-y-auto">
+                        {users.map((reactionUser, index) => (
+                          <div
+                            key={`${reactionUser.id}-${emoji}-${index}`}
+                            className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-xs text-on-surface hover:bg-surface-container-low"
+                          >
+                            <span className="truncate">{reactionUser.name}</span>
+                            <span className="shrink-0">{emoji}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </span>
               ))}
             </div>

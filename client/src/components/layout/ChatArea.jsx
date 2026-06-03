@@ -40,6 +40,7 @@ const ChatArea = ({
   currentUser,
   messages = [],
   currentUserId,
+  reactionUsersById,
   onSendMessage,
   isTyping,
   onTypingStart,
@@ -280,6 +281,7 @@ const ChatArea = ({
         <MessageList
           messages={messages}
           currentUserId={currentUserId}
+          reactionUsersById={reactionUsersById}
           isTyping={isTyping}
           onReaction={onReaction}
           isLoading={isLoading}

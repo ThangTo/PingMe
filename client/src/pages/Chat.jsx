@@ -21,6 +21,15 @@ const getMessageAttachments = ({ attachment, attachments } = {}) => {
   return attachment ? [attachment] : [];
 };
 
+const getIdString = (value) => value?._id?.toString?.() || value?.id || value?.toString?.() || '';
+
+const normalizeReactions = (reactions = []) =>
+  reactions.map((reaction) => ({
+    ...reaction,
+    userId: getIdString(reaction.userId),
+    userName: reaction.userId?.username || reaction.userName || '',
+  }));
+
 const getMessagePreview = (content, attachment, isDeleted = false, attachments = []) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (content) return content;
@@ -54,13 +63,18 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
 };
 
 const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatUser) => ({
-  id: msg._id,
+  id: msg._id || msg.id,
   conversationId: msg.conversation || selectedConversationId,
-  senderId: msg.sender._id || msg.sender,
+  senderId: msg.sender?._id || msg.sender || msg.senderId,
+  senderName:
+    msg.sender?.username ||
+    msg.senderName ||
+    (msg.sender?._id === currentUser?.id || msg.sender === currentUser?.id ? 'Bạn' : currentChatUser?.name || ''),
+  senderAvatar: msg.sender?.avatar || msg.senderAvatar || '',
   content: msg.content,
-  timestamp: msg.createdAt,
+  timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
-  reactions: msg.reactions || [],
+  reactions: normalizeReactions(msg.reactions),
   attachment: msg.attachment || null,
   attachments: getMessageAttachments(msg),
   isEdited: msg.isEdited || false,
@@ -79,6 +93,34 @@ const mergeMessagesById = (currentMessages, nextMessages) => {
   return [...merged.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 };
 
+const formatConversationSummary = (conversation, onlineUsers = []) => {
+  const pinnedMessages = conversation.pinnedMessages || [];
+  const latestPinnedMessage =
+    conversation.latestPinnedMessage || conversation.pinnedMessage || pinnedMessages[0] || null;
+  const isGroup = conversation.type === 'group';
+
+  return {
+    id: conversation._id || conversation.id,
+    peerId: conversation.peerId || null,
+    type: conversation.type || 'direct',
+    name: conversation.name,
+    avatar: conversation.avatar,
+    isOnline: !isGroup && conversation.peerId
+      ? onlineUsers.includes(conversation.peerId)
+      : Boolean(conversation.isOnline),
+    isGroup,
+    members: conversation.members || [],
+    memberCount: conversation.memberCount || conversation.members?.length || 0,
+    lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
+    lastMessageAt: conversation.lastMessageAt || null,
+    unreadCount: conversation.unreadCount || 0,
+    pinnedMessages,
+    pinnedMessageCount: conversation.pinnedMessageCount ?? pinnedMessages.length,
+    latestPinnedMessage,
+    pinnedMessage: latestPinnedMessage,
+  };
+};
+
 const Chat = () => {
   const { user } = useAuth();
   const { isConnected } = useSocket();
@@ -87,7 +129,7 @@ const Chat = () => {
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [showDetails, setShowDetails] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
   const [activeRailItem, setActiveRailItem] = useState('messages');
   const [focusSearchSignal, setFocusSearchSignal] = useState(0);
   const [isFriendsLoading, setIsFriendsLoading] = useState(false);
@@ -119,6 +161,32 @@ const Chat = () => {
   }, [messages, pendingJumpMessageId]);
 
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
+  const currentChatUserName = currentChatUser?.name;
+  const reactionUsersById = {
+    ...(user?.id
+      ? {
+          [user.id]: {
+            name: 'Bạn',
+            avatar: user.avatar || '',
+          },
+        }
+      : {}),
+  };
+
+  if (currentChatUser?.peerId) {
+    reactionUsersById[currentChatUser.peerId] = {
+      name: currentChatUser.name,
+      avatar: currentChatUser.avatar || '',
+    };
+  }
+
+  (currentChatUser?.members || []).forEach((member) => {
+    if (!member.id) return;
+    reactionUsersById[member.id] = {
+      name: member.id === user?.id ? 'Bạn' : member.username || 'Người dùng',
+      avatar: member.avatar || '',
+    };
+  });
 
   useEffect(() => {
     if (user && user.id && isConnected) {
@@ -176,6 +244,8 @@ const Chat = () => {
               ? onlineUsers.includes(conversation.peerId)
               : conversation.isOnline,
             isGroup: conversation.type === 'group',
+            members: conversation.members || [],
+            memberCount: conversation.memberCount || conversation.members?.length || 0,
             lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
             lastMessageAt: conversation.lastMessageAt || null,
             unreadCount: conversation.unreadCount || 0,
@@ -194,6 +264,35 @@ const Chat = () => {
       setIsFriendsLoading(false);
     }
   }, [conversations.length, onlineUsers]);
+
+  const upsertConversation = useCallback(
+    (conversation, options = {}) => {
+      const formattedConversation = formatConversationSummary(conversation, onlineUsers);
+      if (!formattedConversation.id) return null;
+
+      setConversations((prev) => {
+        const existing = prev.find((item) => item.id === formattedConversation.id);
+        const mergedConversation = existing
+          ? { ...existing, ...formattedConversation }
+          : formattedConversation;
+        const otherConversations = prev.filter((item) => item.id !== formattedConversation.id);
+        return [mergedConversation, ...otherConversations];
+      });
+
+      socket.emit('join_conversation', { conversationId: formattedConversation.id });
+
+      if (options.select) {
+        setEditingMessage(null);
+        setReplyingMessage(null);
+        setSelectedConversationId(formattedConversation.id);
+        setShowDetails(false);
+        setActiveRailItem('messages');
+      }
+
+      return formattedConversation;
+    },
+    [onlineUsers],
+  );
 
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
@@ -245,7 +344,7 @@ const Chat = () => {
         const response = await api.get(`/messages/conversation/${selectedConversationId}`);
         if (response.data.success) {
           const normalizedMessages = response.data.messages.map((msg) =>
-            normalizeMessage(msg, selectedConversationId, user, null),
+            normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
           );
           setMessages(normalizedMessages);
 
@@ -278,7 +377,7 @@ const Chat = () => {
       }
     };
     fetchMessages();
-  }, [selectedConversationId, user]);
+  }, [selectedConversationId, user, currentChatUserName]);
 
   useEffect(() => {
     const handleTyping = (data) => {
@@ -319,6 +418,7 @@ const Chat = () => {
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
       };
+      const hasConversation = conversationsRef.current.some((conv) => conv.id === eventConversationId);
 
       console.log('📨 Received message:', data);
       if (user?.id && data.id && data.senderId) {
@@ -339,6 +439,10 @@ const Chat = () => {
           ...prev,
           shouldMarkRead ? { ...incomingMessage, status: 'read' } : incomingMessage,
         ]);
+      }
+
+      if (!hasConversation) {
+        fetchFriends();
       }
 
       setConversations((prev) => {
@@ -364,6 +468,13 @@ const Chat = () => {
 
     socket.on('friend_request_accepted', handleFriendAccepted);
 
+    const handleConversationCreated = (data) => {
+      if (!data?.conversation) return;
+      upsertConversation(data.conversation);
+    };
+
+    socket.on('conversation_created', handleConversationCreated);
+
     const handleMessagesRead = (data) => {
       console.log('Người kia đã đọc tin nhắn:', data);
 
@@ -385,7 +496,7 @@ const Chat = () => {
     const handleAddReaction = (data) => {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === data.messageId ? { ...msg, reactions: data.reactions } : msg,
+          msg.id === data.messageId ? { ...msg, reactions: normalizeReactions(data.reactions) } : msg,
         ),
       );
     };
@@ -395,7 +506,7 @@ const Chat = () => {
     const handleRemoveReaction = (data) => {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === data.messageId ? { ...msg, reactions: data.reactions } : msg,
+          msg.id === data.messageId ? { ...msg, reactions: normalizeReactions(data.reactions) } : msg,
         ),
       );
     };
@@ -412,6 +523,8 @@ const Chat = () => {
                 id: data.id,
                 timestamp: data.timestamp,
                 status: data.status,
+                senderName: data.senderName || msg.senderName,
+                senderAvatar: data.senderAvatar || msg.senderAvatar,
                 attachment: data.attachment || savedAttachments[0] || msg.attachment,
                 attachments: savedAttachments.length > 0 ? savedAttachments : msg.attachments || [],
                 replyTo: data.replyTo || msg.replyTo || null,
@@ -659,6 +772,7 @@ const Chat = () => {
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('friend_request_accepted', handleFriendAccepted);
+      socket.off('conversation_created', handleConversationCreated);
       socket.off('messages_were_read', handleMessagesRead);
       socket.off('reaction_added', handleAddReaction);
       socket.off('reaction_removed', handleRemoveReaction);
@@ -673,9 +787,16 @@ const Chat = () => {
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('message_delete_failed', handleMessageDeleteFailed);
     };
-  }, [selectedConversationId, currentChatUser?.peerId, user, fetchFriends]);
+  }, [selectedConversationId, currentChatUser?.peerId, user, fetchFriends, upsertConversation]);
 
   const handleTypingStart = () => {
+    if (selectedConversationId && currentChatUser?.isGroup && user) {
+      socket.emit('typing', {
+        conversationId: selectedConversationId,
+      });
+      return;
+    }
+
     if (selectedConversationId && currentChatUser?.peerId && user) {
       socket.emit('typing', {
         receiverId: currentChatUser.peerId,
@@ -685,6 +806,13 @@ const Chat = () => {
   };
 
   const handleTypingStop = () => {
+    if (selectedConversationId && currentChatUser?.isGroup && user) {
+      socket.emit('stop_typing', {
+        conversationId: selectedConversationId,
+      });
+      return;
+    }
+
     if (selectedConversationId && currentChatUser?.peerId && user) {
       socket.emit('stop_typing', {
         receiverId: currentChatUser.peerId,
@@ -718,6 +846,8 @@ const Chat = () => {
       id: tempId,
       conversationId: selectedConversationId,
       senderId: user.id,
+      senderName: user.username || 'Bạn',
+      senderAvatar: user.avatar || '',
       content: cleanContent,
       timestamp: new Date().toISOString(),
       status: 'sending',
@@ -799,8 +929,9 @@ const Chat = () => {
     setEditingMessage(null);
     setReplyingMessage(null);
     setSelectedConversationId(conversationId);
-    setShowDetails(true);
+    setShowDetails(false);
     setActiveRailItem('messages');
+    socket.emit('join_conversation', { conversationId });
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
@@ -895,6 +1026,9 @@ const Chat = () => {
                 onSelectConversation={handleSelectConversation}
                 selectedConversationId={selectedConversationId}
                 onFriendAdded={fetchFriends}
+                onConversationCreated={(conversation) =>
+                  upsertConversation(conversation, { select: true })
+                }
                 isChatOpen={Boolean(selectedConversationId)}
                 isLoading={isFriendsLoading}
                 error={friendsError}
@@ -913,6 +1047,7 @@ const Chat = () => {
                     currentUser={currentChatUser}
                     messages={messages}
                     currentUserId={user?.id || 'current'}
+                    reactionUsersById={reactionUsersById}
                     onSendMessage={handleSendMessage}
                     isTyping={isTyping}
                     onTypingStart={handleTypingStart}

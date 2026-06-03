@@ -137,7 +137,7 @@ Mục tiêu: gửi ảnh/file/reaction như một chat app hiện đại.
 | 4.5 File bubble + download | DONE | File card UI |
 | 4.6 Reactions | DONE | Toggle reaction qua socket |
 | 4.7 Media gallery | DONE | Panel xem media trong conversation |
-| 4.8 Multiple images per message | PLANNED | Album/grouped media |
+| 4.8 Multiple images per message | DONE | Album/grouped media |
 | 4.9 Upload progress/retry | DONE | Progress bar, retry khi upload fail |
 | 4.10 Voice messages | PLANNED | Record audio, waveform, playback |
 
@@ -171,10 +171,10 @@ Mục tiêu: group chat cơ bản giống Telegram group nhỏ.
 
 | Stage | Status | Output |
 |---|---|---|
-| 6.1 Group schema | PLANNED | `Group` model: name, avatar, members, admins |
-| 6.2 Create group | PLANNED | Tạo nhóm từ danh sách friends |
-| 6.3 Group message send/receive | PLANNED | Room/socket event cho group |
-| 6.4 Group history | PLANNED | REST fetch messages by group |
+| 6.1 Group schema | DONE | Dùng `Conversation` type `group`: title, avatar, members, role |
+| 6.2 Create group | IN_PROGRESS | Tạo nhóm từ danh sách friends, cần user test |
+| 6.3 Group message send/receive | IN_PROGRESS | Socket.IO room `conversation:<id>`, cần user test 2-3 account |
+| 6.4 Group history | IN_PROGRESS | REST fetch messages by conversation group, cần user test refresh |
 | 6.5 Add/remove members | PLANNED | Admin action có authorization |
 | 6.6 Role basics | PLANNED | owner/admin/member |
 | 6.7 Group unread count | PLANNED | unread theo group |

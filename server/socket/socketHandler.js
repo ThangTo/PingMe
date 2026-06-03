@@ -4,9 +4,11 @@ import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
+  getConversationRoomId,
   getConversationMemberIds,
   getOrCreateDirectConversation,
   getPeerMember,
+  getUserRoomId,
   isConversationMember,
   toIdString,
 } from '../services/conversation.service.js';
@@ -53,6 +55,18 @@ const emitToUsers = (io, userIds, eventName, payload) => {
   uniqueUserIds.forEach((userId) => {
     emitToUser(io, userId, eventName, payload);
   });
+};
+
+const joinOnlineUsersToConversation = (io, userIds, conversationId) => {
+  const roomId = getConversationRoomId(conversationId);
+
+  userIds.forEach((userId) => {
+    getOnlineSocketIds(userId).forEach((socketId) => {
+      io.sockets.sockets.get(socketId)?.join(roomId);
+    });
+  });
+
+  return roomId;
 };
 
 const loadConversationForSend = async ({ conversationId, recipientId, senderId }) => {
@@ -275,6 +289,7 @@ const socketHandler = (io) => {
 
       onlineUsers.get(userId).add(socket.id);
       socket.data.userId = userId;
+      socket.join(getUserRoomId(userId));
       console.log(`👤 User ${userId} is online on ${onlineUsers.get(userId).size} tab(s)`);
 
       try {
@@ -286,6 +301,11 @@ const socketHandler = (io) => {
 
         // 2. Tách ra: "Trong đám bạn A, ai đang online?"
         const onlineFriends = friendIds.filter((fId) => isUserOnline(fId));
+
+        const conversations = await Conversation.find({ 'members.user': userId }).select('_id').lean();
+        conversations.forEach((conversation) => {
+          socket.join(getConversationRoomId(conversation._id));
+        });
 
         // 3. Gửi ngược lại cho A: "Đây là danh sách bạn bè đang online của bạn nè"
         socket.emit('get_online_friends', onlineFriends);
@@ -318,6 +338,23 @@ const socketHandler = (io) => {
       });
     });
 
+    socket.on('join_conversation', async (data) => {
+      try {
+        const { conversationId } = data || {};
+        const userId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+        const conversation = await Conversation.findById(conversationId).select('members');
+        if (!conversation || !isConversationMember(conversation, userId)) return;
+
+        socket.join(getConversationRoomId(conversation._id));
+        socket.emit('conversation_joined', { conversationId: conversation._id.toString() });
+      } catch (error) {
+        console.error('Loi join_conversation:', error);
+      }
+    });
+
     /**
      * Event: send_message
      * Xử lý khi client gửi tin nhắn
@@ -344,6 +381,7 @@ const socketHandler = (io) => {
         const resolvedConversationId = conversation._id.toString();
         const resolvedRecipientId = getDirectRecipientId(conversation, senderId, recipientId);
         const memberIds = getConversationMemberIds(conversation);
+        const senderUser = await User.findById(senderId).select('username avatar').lean();
         let replyToMessage = null;
 
         if (replyToId) {
@@ -385,6 +423,8 @@ const socketHandler = (io) => {
           id: newMessage.id,
           conversationId: resolvedConversationId,
           recipientId: resolvedRecipientId,
+          senderName: senderUser?.username || socket.username || '',
+          senderAvatar: senderUser?.avatar || '',
           timestamp: newMessage.createdAt,
           status: newMessage.status,
           attachment: newMessage.attachment,
@@ -392,21 +432,32 @@ const socketHandler = (io) => {
           replyTo: formatReplyPreview(replyToMessage),
         });
 
+        const messagePayload = {
+          id: newMessage.id,
+          conversationId: resolvedConversationId,
+          senderId,
+          senderName: senderUser?.username || socket.username || '',
+          senderAvatar: senderUser?.avatar || '',
+          recipientId: resolvedRecipientId,
+          content: newMessage.content,
+          attachment: newMessage.attachment,
+          attachments: newMessage.attachments || [],
+          timestamp: newMessage.createdAt,
+          status: newMessage.status,
+          replyTo: formatReplyPreview(replyToMessage),
+          isGroup: conversation.type === 'group',
+        };
+
+        if (conversation.type === 'group') {
+          const roomId = joinOnlineUsersToConversation(io, memberIds, resolvedConversationId);
+          socket.to(roomId).emit('receive_message', messagePayload);
+          return;
+        }
+
         memberIds
           .filter((memberId) => memberId !== senderId)
           .forEach((memberId) => {
-            emitToUser(io, memberId, 'receive_message', {
-              id: newMessage.id,
-              conversationId: resolvedConversationId,
-              senderId,
-              recipientId: resolvedRecipientId,
-              content: newMessage.content,
-              attachment: newMessage.attachment,
-              attachments: newMessage.attachments || [],
-              timestamp: newMessage.createdAt,
-              status: newMessage.status,
-              replyTo: formatReplyPreview(replyToMessage),
-            });
+            emitToUser(io, memberId, 'receive_message', messagePayload);
           });
       } catch (error) {
         console.error('Lỗi khi gửi tin nhắn:', error);
@@ -452,9 +503,26 @@ const socketHandler = (io) => {
      * Event: typing
      * Xử lý khi User A đang gõ tin nhắn cho User B
      */
-    socket.on('typing', (data) => {
+    socket.on('typing', async (data) => {
       const { receiverId, conversationId } = data;
       const senderId = socket.userId;
+
+      if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+        const conversation = await Conversation.findById(conversationId).select('type members');
+        if (conversation?.type === 'group' && isConversationMember(conversation, senderId)) {
+          const roomId = joinOnlineUsersToConversation(
+            io,
+            getConversationMemberIds(conversation),
+            conversation._id,
+          );
+          socket.to(roomId).emit('user_typing', {
+            senderId,
+            senderName: socket.username || '',
+            conversationId: conversation._id.toString(),
+          });
+          return;
+        }
+      }
 
       if (isUserOnline(receiverId)) {
         // Chỉ gửi sự kiện 'user_typing' đến đúng người nhận
@@ -466,9 +534,26 @@ const socketHandler = (io) => {
      * Event: stop_typing
      * Xử lý khi User A dừng gõ
      */
-    socket.on('stop_typing', (data) => {
+    socket.on('stop_typing', async (data) => {
       const { receiverId, conversationId } = data;
       const senderId = socket.userId;
+
+      if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+        const conversation = await Conversation.findById(conversationId).select('type members');
+        if (conversation?.type === 'group' && isConversationMember(conversation, senderId)) {
+          const roomId = joinOnlineUsersToConversation(
+            io,
+            getConversationMemberIds(conversation),
+            conversation._id,
+          );
+          socket.to(roomId).emit('user_stopped_typing', {
+            senderId,
+            senderName: socket.username || '',
+            conversationId: conversation._id.toString(),
+          });
+          return;
+        }
+      }
 
       if (isUserOnline(receiverId)) {
         emitToUser(io, receiverId, 'user_stopped_typing', { senderId, conversationId });

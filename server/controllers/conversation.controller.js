@@ -4,6 +4,7 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
   attachLegacyDirectMessages,
+  getUserRoomId,
   getOrCreateDirectConversation,
   getPeerMember,
   toIdString,
@@ -73,6 +74,18 @@ const getPinnedMessages = (conversation) => {
     : [];
 };
 
+const formatConversationMembers = (conversation) =>
+  (conversation.members || []).map((member) => {
+    const memberUser = member.user;
+
+    return {
+      id: toIdString(memberUser),
+      username: memberUser?.username || 'Nguoi dung',
+      avatar: memberUser?.avatar || '',
+      role: member.role || 'member',
+    };
+  });
+
 const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
   const peerMember = getPeerMember(conversation, currentUserId);
   const peer = peerMember?.user;
@@ -80,14 +93,17 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
   const conversationId = conversation._id.toString();
   const pinnedMessages = getPinnedMessages(conversation);
   const latestPinnedMessage = pinnedMessages[0] || null;
+  const members = formatConversationMembers(conversation);
 
   return {
     _id: conversation._id,
     type: conversation.type,
-    peerId: conversation.type === 'direct' ? peer?._id : null,
+    peerId: conversation.type === 'direct' ? toIdString(peer) : null,
     name: conversation.type === 'direct' ? peer?.username || 'Người dùng' : conversation.title,
     avatar: conversation.type === 'direct' ? peer?.avatar : conversation.avatar,
     isOnline: conversation.type === 'direct' ? Boolean(peer?.isOnline) : false,
+    members,
+    memberCount: members.length,
     lastMessage: getMessagePreview(lastMessage),
     lastMessageAt: lastMessage?.createdAt || conversation.updatedAt || conversation.createdAt,
     unreadCount: unreadCountByConversation.get(conversationId) || 0,
@@ -99,6 +115,94 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
 };
 
 const conversationController = {
+  createGroup: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { title, memberIds = [], avatar = '' } = req.body;
+      const groupTitle = typeof title === 'string' ? title.trim() : '';
+
+      if (groupTitle.length < 2 || groupTitle.length > 80) {
+        return res.status(400).json({ error: 'Ten nhom can tu 2 den 80 ky tu' });
+      }
+
+      if (!Array.isArray(memberIds) || memberIds.length === 0) {
+        return res.status(400).json({ error: 'Can chon it nhat 1 thanh vien' });
+      }
+
+      const uniqueMemberIds = [...new Set(memberIds.map((id) => id?.toString()).filter(Boolean))]
+        .filter((id) => id !== currentUserId);
+
+      if (uniqueMemberIds.length === 0) {
+        return res.status(400).json({ error: 'Can chon it nhat 1 thanh vien khac ban' });
+      }
+
+      if (uniqueMemberIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+        return res.status(400).json({ error: 'Danh sach thanh vien khong hop le' });
+      }
+
+      const currentUser = await User.findById(currentUserId).select('friends').lean();
+      if (!currentUser) {
+        return res.status(404).json({ error: 'Nguoi dung khong ton tai' });
+      }
+
+      const friendIdSet = new Set(currentUser.friends.map((id) => id.toString()));
+      const invalidFriendIds = uniqueMemberIds.filter((id) => !friendIdSet.has(id));
+      if (invalidFriendIds.length > 0) {
+        return res.status(403).json({ error: 'Chi co the tao nhom voi ban be cua ban' });
+      }
+
+      const memberUsers = await User.find({ _id: { $in: uniqueMemberIds } }).select('_id').lean();
+      if (memberUsers.length !== uniqueMemberIds.length) {
+        return res.status(400).json({ error: 'Mot so thanh vien khong ton tai' });
+      }
+
+      const conversation = await Conversation.create({
+        type: 'group',
+        title: groupTitle,
+        avatar: typeof avatar === 'string' ? avatar.trim() : '',
+        members: [
+          { user: currentUserId, role: 'owner' },
+          ...uniqueMemberIds.map((memberId) => ({ user: memberId, role: 'member' })),
+        ],
+        createdBy: currentUserId,
+      });
+
+      const populatedConversation = await Conversation.findById(conversation._id)
+        .populate('members.user', 'username email avatar isOnline')
+        .populate('lastMessage')
+        .populate({
+          path: 'pinnedMessage',
+          populate: { path: 'sender', select: 'username avatar' },
+        })
+        .populate({
+          path: 'pinnedMessages.message',
+          populate: { path: 'sender', select: 'username avatar' },
+        })
+        .populate('pinnedMessages.pinnedBy', 'username avatar')
+        .lean();
+
+      const formattedConversation = formatConversation(
+        populatedConversation,
+        currentUserId,
+        new Map(),
+      );
+
+      const io = req.app.get('io');
+      if (io) {
+        [currentUserId, ...uniqueMemberIds].forEach((memberId) => {
+          io.to(getUserRoomId(memberId)).emit('conversation_created', {
+            conversation: formattedConversation,
+          });
+        });
+      }
+
+      return res.status(201).json({ success: true, conversation: formattedConversation });
+    } catch (error) {
+      console.error('Loi tao nhom:', error);
+      return res.status(500).json({ error: 'Khong the tao nhom' });
+    }
+  },
+
   getConversations: async (req, res) => {
     try {
       const currentUserId = req.user.id;

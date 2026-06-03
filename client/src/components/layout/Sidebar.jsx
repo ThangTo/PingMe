@@ -47,11 +47,17 @@ const Sidebar = ({
   error = '',
   focusSearchSignal = 0,
   onOpenSettings,
+  onConversationCreated,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [friendRequests, setFriendRequests] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
+  const [isGroupComposerOpen, setIsGroupComposerOpen] = useState(false);
+  const [groupTitle, setGroupTitle] = useState('');
+  const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [createGroupError, setCreateGroupError] = useState('');
   const searchInputRef = useRef(null);
 
   const isDirectoryMode = activeTab === 'search' || activeTab === 'requests';
@@ -154,6 +160,58 @@ const Sidebar = ({
       .filter((conv) => conv.name?.toLowerCase().includes(normalizedQuery));
   }, [activeTab, conversations, searchQuery]);
 
+  const friendOptions = useMemo(
+    () => conversations.filter((conversation) => !conversation.isGroup && conversation.peerId),
+    [conversations],
+  );
+
+  const resetGroupComposer = () => {
+    setGroupTitle('');
+    setSelectedGroupMemberIds([]);
+    setCreateGroupError('');
+    setIsCreatingGroup(false);
+  };
+
+  const closeGroupComposer = () => {
+    setIsGroupComposerOpen(false);
+    resetGroupComposer();
+  };
+
+  const toggleGroupMember = (memberId) => {
+    setSelectedGroupMemberIds((prev) =>
+      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId],
+    );
+  };
+
+  const handleCreateGroup = async (event) => {
+    event.preventDefault();
+    const title = groupTitle.trim();
+
+    if (!title || selectedGroupMemberIds.length === 0) {
+      setCreateGroupError('Đặt tên nhóm và chọn ít nhất 1 thành viên.');
+      return;
+    }
+
+    try {
+      setIsCreatingGroup(true);
+      setCreateGroupError('');
+      const response = await api.post('/conversations/groups', {
+        title,
+        memberIds: selectedGroupMemberIds,
+      });
+
+      if (response.data.success) {
+        onConversationCreated?.(response.data.conversation);
+        closeGroupComposer();
+        setActiveTab('group');
+      }
+    } catch (error) {
+      setCreateGroupError(error.response?.data?.error || 'Không thể tạo nhóm.');
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
   const openDirectory = () => {
     setActiveTab('search');
     setSearchQuery('');
@@ -186,6 +244,14 @@ const Sidebar = ({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsGroupComposerOpen(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low active:scale-[0.98]"
+              title="Tạo nhóm"
+            >
+              <span className="material-symbols-outlined text-[22px]">group_add</span>
+            </button>
             <button
               type="button"
               onClick={openDirectory}
@@ -474,6 +540,140 @@ const Sidebar = ({
           </div>
         )}
       </div>
+
+      {isGroupComposerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-[#1f1d1a]/35 backdrop-blur-[1px] md:items-center md:justify-center"
+          onClick={closeGroupComposer}
+        >
+          <form
+            onSubmit={handleCreateGroup}
+            className="w-full rounded-t-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-[0_24px_70px_rgba(40,37,32,0.18)] md:max-w-[460px] md:rounded-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
+                  Tạo nhóm
+                </h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Chọn bạn bè để bắt đầu cuộc trò chuyện nhóm.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeGroupComposer}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                title="Đóng"
+              >
+                <span className="material-symbols-outlined text-[22px]">close</span>
+              </button>
+            </div>
+
+            <label className="mb-4 block">
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+                Tên nhóm
+              </span>
+              <input
+                value={groupTitle}
+                onChange={(event) => setGroupTitle(event.target.value)}
+                maxLength={80}
+                className="h-11 w-full rounded-lg border border-outline-variant bg-surface px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent"
+                placeholder="Ví dụ: Team Marketing"
+              />
+            </label>
+
+            <div className="mb-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+                  Thành viên
+                </span>
+                <span className="text-xs text-on-surface-variant">
+                  {selectedGroupMemberIds.length} đã chọn
+                </span>
+              </div>
+
+              <div className="max-h-[320px] overflow-y-auto rounded-lg border border-outline-variant bg-surface">
+                {friendOptions.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-on-surface-variant">
+                    Kết bạn trước khi tạo nhóm.
+                  </div>
+                ) : (
+                  friendOptions.map((friend) => {
+                    const isSelected = selectedGroupMemberIds.includes(friend.peerId);
+
+                    return (
+                      <button
+                        key={friend.peerId}
+                        type="button"
+                        onClick={() => toggleGroupMember(friend.peerId)}
+                        className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-container-low"
+                      >
+                        <div className="relative h-10 w-10 shrink-0">
+                          {friend.avatar ? (
+                            <img
+                              src={friend.avatar}
+                              alt={friend.name}
+                              className="h-full w-full rounded-full border border-outline-variant object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-xs font-semibold text-on-surface">
+                              {getInitials(friend.name)}
+                            </div>
+                          )}
+                          {friend.isOnline && (
+                            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-secondary" />
+                          )}
+                        </div>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-on-surface">
+                            {friend.name}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+                            {friend.isOnline ? 'Đang online' : 'Ngoại tuyến'}
+                          </span>
+                        </span>
+                        <span
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                            isSelected
+                              ? 'border-accent bg-accent text-white'
+                              : 'border-outline-variant text-transparent'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">check</span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {createGroupError && (
+              <p className="mb-3 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+                {createGroupError}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={closeGroupComposer}
+                className="h-11 flex-1 rounded-lg border border-outline-variant text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={isCreatingGroup || !groupTitle.trim() || selectedGroupMemberIds.length === 0}
+                className="h-11 flex-1 rounded-lg bg-primary text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="grid h-[72px] grid-cols-3 border-t border-outline-variant bg-surface md:hidden">
         {[
