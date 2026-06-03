@@ -37,6 +37,26 @@ const memberSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const pinnedMessageSchema = new mongoose.Schema(
+  {
+    message: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      required: true,
+    },
+    pinnedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    pinnedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false },
+);
+
 const conversationSchema = new mongoose.Schema(
   {
     type: {
@@ -74,6 +94,10 @@ const conversationSchema = new mongoose.Schema(
       ref: 'Message',
       default: null,
     },
+    pinnedMessages: {
+      type: [pinnedMessageSchema],
+      default: [],
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -88,6 +112,7 @@ conversationSchema.index(
   { unique: true, partialFilterExpression: { directKey: { $type: 'string' } } },
 );
 conversationSchema.index({ 'members.user': 1, updatedAt: -1 });
+conversationSchema.index({ 'pinnedMessages.message': 1 });
 
 conversationSchema.methods.isMember = function (userId) {
   const userIdString = userId?.toString();

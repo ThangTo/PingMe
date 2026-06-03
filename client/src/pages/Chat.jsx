@@ -39,6 +39,31 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
   };
 };
 
+const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatUser) => ({
+  id: msg._id,
+  conversationId: msg.conversation || selectedConversationId,
+  senderId: msg.sender._id || msg.sender,
+  content: msg.content,
+  timestamp: msg.createdAt,
+  status: msg.status,
+  reactions: msg.reactions || [],
+  attachment: msg.attachment || null,
+  isEdited: msg.isEdited || false,
+  editedAt: msg.editedAt || null,
+  isDeleted: msg.isDeleted || false,
+  deletedAt: msg.deletedAt || null,
+  replyTo: normalizeReplyPreview(msg.replyTo, currentUser, currentChatUser),
+});
+
+const mergeMessagesById = (currentMessages, nextMessages) => {
+  const merged = new Map();
+  [...currentMessages, ...nextMessages].forEach((message) => {
+    if (message?.id) merged.set(message.id, message);
+  });
+
+  return [...merged.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+};
+
 const Chat = () => {
   const { user } = useAuth();
   const { isConnected } = useSocket();
@@ -56,11 +81,27 @@ const Chat = () => {
   const [messagesError, setMessagesError] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
   const [replyingMessage, setReplyingMessage] = useState(null);
+  const [jumpToMessageSignal, setJumpToMessageSignal] = useState(null);
+  const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
   const messagesRef = useRef(messages);
+  const conversationsRef = useRef(conversations);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!pendingJumpMessageId) return;
+    const targetExists = messages.some((message) => message.id === pendingJumpMessageId);
+    if (!targetExists) return;
+
+    setJumpToMessageSignal({ messageId: pendingJumpMessageId, nonce: Date.now() });
+    setPendingJumpMessageId(null);
+  }, [messages, pendingJumpMessageId]);
 
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
 
@@ -105,21 +146,30 @@ const Chat = () => {
       setFriendsError('');
       const response = await api.get('/conversations');
       if (response.data.success) {
-        const formattedFriends = response.data.conversations.map((conversation) => ({
-          id: conversation._id,
-          peerId: conversation.peerId || null,
-          type: conversation.type || 'direct',
-          name: conversation.name,
-          avatar: conversation.avatar,
-          isOnline: conversation.peerId
-            ? onlineUsers.includes(conversation.peerId)
-            : conversation.isOnline,
-          isGroup: conversation.type === 'group',
-          lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
-          lastMessageAt: conversation.lastMessageAt || null,
-          unreadCount: conversation.unreadCount || 0,
-          pinnedMessage: conversation.pinnedMessage || null,
-        }));
+        const formattedFriends = response.data.conversations.map((conversation) => {
+          const pinnedMessages = conversation.pinnedMessages || [];
+          const latestPinnedMessage =
+            conversation.latestPinnedMessage || conversation.pinnedMessage || pinnedMessages[0] || null;
+
+          return {
+            id: conversation._id,
+            peerId: conversation.peerId || null,
+            type: conversation.type || 'direct',
+            name: conversation.name,
+            avatar: conversation.avatar,
+            isOnline: conversation.peerId
+              ? onlineUsers.includes(conversation.peerId)
+              : conversation.isOnline,
+            isGroup: conversation.type === 'group',
+            lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
+            lastMessageAt: conversation.lastMessageAt || null,
+            unreadCount: conversation.unreadCount || 0,
+            pinnedMessages,
+            pinnedMessageCount: conversation.pinnedMessageCount ?? pinnedMessages.length,
+            latestPinnedMessage,
+            pinnedMessage: latestPinnedMessage,
+          };
+        });
         setConversations(formattedFriends);
       }
     } catch (error) {
@@ -179,21 +229,9 @@ const Chat = () => {
         setMessagesError('');
         const response = await api.get(`/messages/conversation/${selectedConversationId}`);
         if (response.data.success) {
-          const normalizedMessages = response.data.messages.map((msg) => ({
-            id: msg._id,
-            conversationId: msg.conversation || selectedConversationId,
-            senderId: msg.sender._id || msg.sender,
-            content: msg.content,
-            timestamp: msg.createdAt,
-            status: msg.status,
-            reactions: msg.reactions || [],
-            attachment: msg.attachment || null,
-            isEdited: msg.isEdited || false,
-            editedAt: msg.editedAt || null,
-            isDeleted: msg.isDeleted || false,
-            deletedAt: msg.deletedAt || null,
-            replyTo: normalizeReplyPreview(msg.replyTo, user, null),
-          }));
+          const normalizedMessages = response.data.messages.map((msg) =>
+            normalizeMessage(msg, selectedConversationId, user, null),
+          );
           setMessages(normalizedMessages);
 
           const unreadMessageIds = normalizedMessages
@@ -256,7 +294,7 @@ const Chat = () => {
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
-      const fallbackConversationId = conversations.find((conv) => conv.peerId === data.senderId)?.id;
+      const fallbackConversationId = conversationsRef.current.find((conv) => conv.peerId === data.senderId)?.id;
       const eventConversationId = data.conversationId || fallbackConversationId || data.senderId;
       const isCurrentConversation = eventConversationId === selectedConversationId;
       const shouldMarkRead = isCurrentConversation && document.hasFocus();
@@ -371,12 +409,66 @@ const Chat = () => {
 
     socket.on('message_was_delivered', handleMessageWasDelivered);
 
+    const applyPinnedMessagesState = (data) => {
+      const pinnedMessages = data.pinnedMessages || (data.pinnedMessage ? [data.pinnedMessage] : []);
+      const latestPinnedMessage =
+        data.latestPinnedMessage || data.pinnedMessage || pinnedMessages[0] || null;
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === data.conversationId
+            ? {
+                ...conv,
+                pinnedMessages,
+                pinnedMessageCount: data.pinnedMessageCount ?? pinnedMessages.length,
+                latestPinnedMessage,
+                pinnedMessage: latestPinnedMessage,
+              }
+            : conv,
+        ),
+      );
+    };
+
+    const handlePinnedMessagesUpdated = (data) => {
+      applyPinnedMessagesState(data);
+    };
+
+    const handleMessagePinned = (data) => {
+      applyPinnedMessagesState(data);
+    };
+
+    const handleMessageUnpinned = (data) => {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === data.conversationId
+            ? {
+                ...conv,
+                pinnedMessages: [],
+                pinnedMessageCount: 0,
+                latestPinnedMessage: null,
+                pinnedMessage: null,
+              }
+            : conv,
+        ),
+      );
+    };
+
+    const handleMessagePinFailed = (data) => {
+      console.error('Ghim tin nhắn thất bại:', data.error);
+      alert(data.error || 'Không thể ghim tin nhắn');
+    };
+
+    socket.on('pinned_messages_updated', handlePinnedMessagesUpdated);
+    socket.on('message_pinned', handleMessagePinned);
+    socket.on('message_unpinned', handleMessageUnpinned);
+    socket.on('message_pin_failed', handleMessagePinFailed);
+
     //Updated
     const handleMessageUpdated = (data) => {
       const fallbackPeerId = data.senderId === user?.id ? data.recipientId : data.senderId;
       const conversationId =
         data.conversationId ||
-        conversations.find((conv) => conv.peerId === fallbackPeerId)?.id ||
+        conversationsRef.current.find((conv) => conv.peerId === fallbackPeerId)?.id ||
         fallbackPeerId;
 
       setMessages((prev) =>
@@ -416,11 +508,29 @@ const Chat = () => {
       );
 
       setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === conversationId
-            ? { ...conv, lastMessage: data.content, lastMessageAt: data.updatedAt }
-            : conv,
-        ),
+        prev.map((conv) => {
+          if (conv.id !== conversationId) return conv;
+
+          const pinnedMessages = (conv.pinnedMessages || []).map((pinnedMessage) =>
+            pinnedMessage.id === data.messageId
+              ? { ...pinnedMessage, content: data.content, isDeleted: false }
+              : pinnedMessage,
+          );
+          const latestPinnedMessage =
+            pinnedMessages[0] ||
+            (conv.latestPinnedMessage?.id === data.messageId
+              ? { ...conv.latestPinnedMessage, content: data.content, isDeleted: false }
+              : conv.latestPinnedMessage || null);
+
+          return {
+            ...conv,
+            lastMessage: data.content,
+            lastMessageAt: data.updatedAt,
+            pinnedMessages,
+            latestPinnedMessage,
+            pinnedMessage: latestPinnedMessage,
+          };
+        }),
       );
     };
 
@@ -433,7 +543,7 @@ const Chat = () => {
       const fallbackPeerId = data.senderId === user?.id ? data.recipientId : data.senderId;
       const conversationId =
         data.conversationId ||
-        conversations.find((conv) => conv.peerId === fallbackPeerId)?.id ||
+        conversationsRef.current.find((conv) => conv.peerId === fallbackPeerId)?.id ||
         fallbackPeerId;
       const lastMessage = data.conversationLastMessage;
       const shouldReduceUnread =
@@ -524,12 +634,16 @@ const Chat = () => {
       socket.off('reaction_removed', handleRemoveReaction);
       socket.off('message_sent', handleMessageSent);
       socket.off('message_was_delivered', handleMessageWasDelivered);
+      socket.off('pinned_messages_updated', handlePinnedMessagesUpdated);
+      socket.off('message_pinned', handleMessagePinned);
+      socket.off('message_unpinned', handleMessageUnpinned);
+      socket.off('message_pin_failed', handleMessagePinFailed);
       socket.off('message_updated', handleMessageUpdated);
       socket.off('message_edit_failed', handleMessageEditFailed);
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('message_delete_failed', handleMessageDeleteFailed);
     };
-  }, [selectedConversationId, currentChatUser?.peerId, conversations, user, fetchFriends]);
+  }, [selectedConversationId, currentChatUser?.peerId, user, fetchFriends]);
 
   const handleTypingStart = () => {
     if (selectedConversationId && currentChatUser?.peerId && user) {
@@ -596,6 +710,52 @@ const Chat = () => {
       messageId,
       emoji,
     });
+  };
+
+  const handlePinMessage = (message) => {
+    if (!selectedConversationId || !message || message.isDeleted || message.status === 'sending') return;
+
+    socket.emit('pin_message', {
+      conversationId: selectedConversationId,
+      messageId: message.id,
+    });
+  };
+
+  const handleUnpinPinnedMessage = (pinnedMessage) => {
+    if (!selectedConversationId || !pinnedMessage?.id) return;
+
+    socket.emit('unpin_message', {
+      conversationId: selectedConversationId,
+      messageId: pinnedMessage.id,
+    });
+  };
+
+  const handleJumpToPinnedMessage = async (pinnedMessage) => {
+    if (!selectedConversationId || !pinnedMessage?.id) return;
+
+    const messageId = pinnedMessage.id;
+    const hasMessage = messagesRef.current.some((message) => message.id === messageId);
+
+    if (!hasMessage) {
+      try {
+        const response = await api.get(`/messages/conversation/${selectedConversationId}`, {
+          params: { targetMessageId: messageId },
+        });
+
+        if (response.data.success) {
+          const normalizedMessages = response.data.messages.map((msg) =>
+            normalizeMessage(msg, selectedConversationId, user, currentChatUser),
+          );
+          setMessages((prev) => mergeMessagesById(prev, normalizedMessages));
+        }
+      } catch (error) {
+        console.error('Không thể tải tin nhắn đã ghim:', error);
+        alert('Không thể tải tin nhắn đã ghim');
+        return;
+      }
+    }
+
+    setPendingJumpMessageId(messageId);
   };
 
   const handleSelectConversation = (conversationId) => {
@@ -732,6 +892,10 @@ const Chat = () => {
                     replyingMessage={replyingMessage}
                     onStartEditMessage={handleStartEditMessage}
                     onStartReplyMessage={handleStartReplyMessage}
+                    onPinMessage={handlePinMessage}
+                    onUnpinMessage={handleUnpinPinnedMessage}
+                    onJumpToPinnedMessage={handleJumpToPinnedMessage}
+                    jumpToMessageSignal={jumpToMessageSignal}
                     onEditMessage={handleEditMessage}
                     onCancelEditMessage={handleCancelEditMessage}
                     onCancelReplyMessage={handleCancelReplyMessage}

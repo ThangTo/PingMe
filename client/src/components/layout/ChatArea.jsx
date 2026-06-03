@@ -1,7 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './Header';
 import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
+
+const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
+
+const getPinnedPreviewText = (message) => {
+  if (!message) return '';
+  if (message.isDeleted) return REVOKED_MESSAGE_TEXT;
+  return message.content || message.attachment?.filename || 'Tệp đính kèm';
+};
+
+const PinGlyph = ({ className = '' }) => (
+  <span
+    className={`material-symbols-outlined -rotate-45 ${className}`}
+    style={{ fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }}
+  >
+    push_pin
+  </span>
+);
 
 const ChatArea = ({
   currentUser,
@@ -19,6 +36,10 @@ const ChatArea = ({
   replyingMessage,
   onStartEditMessage,
   onStartReplyMessage,
+  onPinMessage,
+  onUnpinMessage,
+  onJumpToPinnedMessage,
+  jumpToMessageSignal,
   onEditMessage,
   onCancelEditMessage,
   onCancelReplyMessage,
@@ -28,6 +49,16 @@ const ChatArea = ({
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isPinnedOpen, setIsPinnedOpen] = useState(false);
+  const [activePinnedActionId, setActivePinnedActionId] = useState(null);
+  const pinnedPanelRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+
+  const pinnedMessages = currentUser?.pinnedMessages || (currentUser?.pinnedMessage ? [currentUser.pinnedMessage] : []);
+  const latestPinnedMessage =
+    currentUser?.latestPinnedMessage || currentUser?.pinnedMessage || pinnedMessages[0] || null;
+  const pinnedMessageCount = currentUser?.pinnedMessageCount ?? pinnedMessages.length;
+  const pinnedMessageIds = pinnedMessages.map((message) => message.id).filter(Boolean);
 
   const searchMatchCount = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -40,6 +71,59 @@ const ChatArea = ({
     }).length;
   }, [messages, searchQuery]);
 
+  useEffect(() => {
+    if (!isPinnedOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (pinnedPanelRef.current?.contains(event.target)) return;
+      setIsPinnedOpen(false);
+      setActivePinnedActionId(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isPinnedOpen]);
+
+  useEffect(() => {
+    return () => clearTimeout(longPressTimerRef.current);
+  }, []);
+
+  const closePinnedMenu = () => {
+    setIsPinnedOpen(false);
+    setActivePinnedActionId(null);
+  };
+
+  const handlePinnedSelect = (message) => {
+    setSearchQuery('');
+    setIsSearchOpen(false);
+    closePinnedMenu();
+    onJumpToPinnedMessage?.(message);
+  };
+
+  const openPinnedAction = (event, message) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActivePinnedActionId(message.id);
+  };
+
+  const handlePinnedTouchStart = (message) => {
+    clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      setActivePinnedActionId(message.id);
+    }, 520);
+  };
+
+  const handlePinnedTouchEnd = () => {
+    clearTimeout(longPressTimerRef.current);
+  };
+
+  const handleConfirmUnpin = (message) => {
+    const confirmed = window.confirm('Bỏ ghim tin nhắn này?');
+    if (!confirmed) return;
+    onUnpinMessage?.(message);
+    closePinnedMenu();
+  };
+
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-surface">
       {currentUser && (
@@ -49,6 +133,98 @@ const ChatArea = ({
           onToggleDetails={onToggleDetails}
           onToggleSearch={() => setIsSearchOpen((value) => !value)}
         />
+      )}
+
+      {latestPinnedMessage && (
+        <div ref={pinnedPanelRef} className="relative shrink-0 border-b border-outline-variant">
+          <button
+            type="button"
+            onClick={() => {
+              setIsPinnedOpen((value) => !value);
+              setActivePinnedActionId(null);
+            }}
+            className="flex w-full items-center gap-3 bg-surface-container-lowest px-4 py-2.5 text-left transition-colors hover:bg-surface-container-low md:px-7"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
+              <PinGlyph className="text-[18px]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+                  Tin nhắn đã ghim
+                </p>
+                {pinnedMessageCount > 1 && (
+                  <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[11px] font-semibold text-on-surface">
+                    {pinnedMessageCount}
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-sm text-on-surface">
+                {latestPinnedMessage.senderName ? `${latestPinnedMessage.senderName}: ` : ''}
+                {getPinnedPreviewText(latestPinnedMessage)}
+              </p>
+            </div>
+            <span className="material-symbols-outlined shrink-0 text-[22px] text-on-surface-variant">
+              {isPinnedOpen ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+
+          {isPinnedOpen && (
+            <div className="absolute left-4 right-4 top-full z-30 mt-2 max-h-[min(420px,55vh)] overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-2 shadow-[0_18px_48px_rgba(40,37,32,0.16)] md:left-7 md:right-auto md:w-[460px]">
+              <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+                {pinnedMessageCount} tin nhắn đã ghim
+              </div>
+
+              <div className="space-y-1">
+                {pinnedMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className="relative rounded-lg"
+                    onContextMenu={(event) => openPinnedAction(event, message)}
+                    onTouchStart={() => handlePinnedTouchStart(message)}
+                    onTouchEnd={handlePinnedTouchEnd}
+                    onTouchCancel={handlePinnedTouchEnd}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activePinnedActionId === message.id) return;
+                        handlePinnedSelect(message);
+                      }}
+                      className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-surface-container-low"
+                    >
+                      <PinGlyph className="mt-0.5 text-[16px] text-on-surface-variant" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-medium text-on-surface-variant">
+                          {message.senderName || 'Tin nhắn'}
+                        </span>
+                        <span className="block truncate text-sm text-on-surface">
+                          {getPinnedPreviewText(message)}
+                        </span>
+                      </span>
+                    </button>
+
+                    {activePinnedActionId === message.id && (
+                      <div className="mx-3 mb-2 overflow-hidden rounded-lg border border-outline-variant bg-surface shadow-[0_10px_28px_rgba(40,37,32,0.12)]">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleConfirmUnpin(message);
+                          }}
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-error transition-colors hover:bg-error-container"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                          <span>Bỏ ghim</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {isSearchOpen && (
@@ -91,9 +267,12 @@ const ChatArea = ({
           isLoading={isLoading}
           error={error}
           searchQuery={searchQuery}
+          pinnedMessageIds={pinnedMessageIds}
+          jumpToMessageSignal={jumpToMessageSignal}
           onEditMessage={onStartEditMessage}
           onDeleteMessage={onDeleteMessage}
           onReplyMessage={onStartReplyMessage}
+          onPinMessage={onPinMessage}
         />
       </div>
 

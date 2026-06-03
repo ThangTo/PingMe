@@ -10,6 +10,15 @@ const getReplyPreviewText = (replyTo) => {
   return replyTo.content || replyTo.attachment?.filename || 'Tệp đính kèm';
 };
 
+const PinGlyph = ({ className = '' }) => (
+  <span
+    className={`material-symbols-outlined -rotate-45 ${className}`}
+    style={{ fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }}
+  >
+    push_pin
+  </span>
+);
+
 const MessageBubble = ({
   message,
   isOwn = false,
@@ -18,7 +27,9 @@ const MessageBubble = ({
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
+  onPinMessage,
   onJumpToMessage,
+  isPinned = false,
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -141,6 +152,16 @@ const MessageBubble = ({
       },
     },
     { key: 'copy', label: 'Sao chép', icon: 'content_copy', onClick: handleCopy },
+    {
+      key: 'pin',
+      label: 'Ghim',
+      icon: 'push_pin',
+      pinIcon: true,
+      onClick: () => {
+        onPinMessage?.(message);
+        closeMenus();
+      },
+    },
     ...(isOwn && !isRevoked
       ? [
           {
@@ -225,6 +246,17 @@ const MessageBubble = ({
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
           >
+            {isPinned && !isRevoked && (
+              <span
+                className={`absolute -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d7c7b5] bg-accent-soft px-1 text-on-surface shadow-[0_4px_12px_rgba(40,37,32,0.1)] ${
+                  isOwn ? 'right-0.5' : 'left-0.5'
+                }`}
+                title="Tin nhắn đã ghim"
+              >
+                <PinGlyph className="text-[13px]" />
+              </span>
+            )}
+
             {message.replyTo && !isRevoked && (
               <button
                 type="button"
@@ -338,7 +370,18 @@ const MessageBubble = ({
                       item.danger ? 'text-error' : 'text-on-surface'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                    <span
+                      className={`material-symbols-outlined text-[20px] ${
+                        item.pinIcon ? '-rotate-45' : ''
+                      }`}
+                      style={
+                        item.pinIcon
+                          ? { fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }
+                          : undefined
+                      }
+                    >
+                      {item.icon}
+                    </span>
                     <span>{item.label}</span>
                   </button>
                 ))}
@@ -403,7 +446,18 @@ const MessageBubble = ({
                     item.danger ? 'text-error' : 'text-on-surface'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                  <span
+                    className={`material-symbols-outlined text-[22px] ${
+                      item.pinIcon ? '-rotate-45' : ''
+                    }`}
+                    style={
+                      item.pinIcon
+                        ? { fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }
+                        : undefined
+                    }
+                  >
+                    {item.icon}
+                  </span>
                   <span>{item.label}</span>
                 </button>
               ))}

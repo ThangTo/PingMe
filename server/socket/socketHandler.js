@@ -109,6 +109,109 @@ const formatReplyPreview = (message) => {
   };
 };
 
+const formatPinnedMessage = (message) => {
+  if (!message) return null;
+
+  return {
+    id: message.id || message._id?.toString(),
+    senderId: message.sender?._id?.toString() || message.sender?.toString(),
+    senderName: message.sender?.username || '',
+    content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    attachment: message.isDeleted ? null : message.attachment || null,
+    isDeleted: Boolean(message.isDeleted),
+    timestamp: message.createdAt,
+  };
+};
+
+const formatPinnedEntry = (entry) => {
+  if (!entry?.message) return null;
+  const formattedMessage = formatPinnedMessage(entry.message);
+  if (!formattedMessage) return null;
+
+  return {
+    ...formattedMessage,
+    pinnedBy: toIdString(entry.pinnedBy),
+    pinnedByName: entry.pinnedBy?.username || '',
+    pinnedAt: entry.pinnedAt || entry.message.createdAt,
+  };
+};
+
+const getPinnedMessagesState = async (conversationId) => {
+  const conversation = await Conversation.findById(conversationId)
+    .populate({
+      path: 'pinnedMessages.message',
+      populate: { path: 'sender', select: 'username avatar' },
+    })
+    .populate('pinnedMessages.pinnedBy', 'username avatar')
+    .populate({
+      path: 'pinnedMessage',
+      populate: { path: 'sender', select: 'username avatar' },
+    });
+
+  if (!conversation) return null;
+
+  const pinnedMessages = (conversation.pinnedMessages || [])
+    .map(formatPinnedEntry)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.pinnedAt || 0) - new Date(a.pinnedAt || 0));
+
+  if (pinnedMessages.length === 0 && conversation.pinnedMessage) {
+    const legacyPinnedMessage = formatPinnedMessage(conversation.pinnedMessage);
+    if (legacyPinnedMessage) {
+      pinnedMessages.push({
+        ...legacyPinnedMessage,
+        pinnedBy: null,
+        pinnedByName: '',
+        pinnedAt: conversation.updatedAt,
+      });
+    }
+  }
+
+  return {
+    conversationId: conversation._id.toString(),
+    pinnedMessages,
+    pinnedMessageCount: pinnedMessages.length,
+    latestPinnedMessage: pinnedMessages[0] || null,
+    pinnedMessage: pinnedMessages[0] || null,
+  };
+};
+
+const removePinnedMessageFromConversation = (conversation, messageId) => {
+  const messageIdString = messageId?.toString();
+  if (!messageIdString) return false;
+
+  const initialCount = conversation.pinnedMessages?.length || 0;
+  conversation.pinnedMessages = (conversation.pinnedMessages || []).filter(
+    (entry) => entry.message?.toString() !== messageIdString,
+  );
+
+  const removedLegacyPin = conversation.pinnedMessage?.toString() === messageIdString;
+  if (removedLegacyPin) {
+    conversation.pinnedMessage = null;
+  }
+
+  return initialCount !== conversation.pinnedMessages.length || removedLegacyPin;
+};
+
+const migrateLegacyPinnedMessage = (conversation, actorId) => {
+  if (!conversation?.pinnedMessage) return;
+
+  const legacyMessageId = conversation.pinnedMessage.toString();
+  const alreadyInList = (conversation.pinnedMessages || []).some(
+    (entry) => entry.message?.toString() === legacyMessageId,
+  );
+
+  if (!alreadyInList) {
+    conversation.pinnedMessages.push({
+      message: conversation.pinnedMessage,
+      pinnedBy: actorId,
+      pinnedAt: conversation.updatedAt || new Date(),
+    });
+  }
+
+  conversation.pinnedMessage = null;
+};
+
 const socketHandler = (io) => {
   io.use((socket, next) => {
     try {
@@ -522,6 +625,15 @@ const socketHandler = (io) => {
         message.deletedAt = deletedAt;
         await message.save();
 
+        let shouldUpdatePinnedMessages = false;
+        if (conversationId) {
+          const conversation = await Conversation.findById(conversationId);
+          if (conversation && removePinnedMessageFromConversation(conversation, message.id)) {
+            await conversation.save();
+            shouldUpdatePinnedMessages = true;
+          }
+        }
+
         const conversationLastMessageQuery = conversationId
           ? { conversation: conversationId }
           : {
@@ -559,15 +671,128 @@ const socketHandler = (io) => {
                   : conversationLastMessage.attachment,
                 isDeleted: conversationLastMessage.isDeleted,
                 timestamp: conversationLastMessage.createdAt,
-              }
+            }
             : null,
         });
+
+        if (shouldUpdatePinnedMessages) {
+          const pinnedState = await getPinnedMessagesState(conversationId);
+          if (pinnedState) {
+            emitToUsers(io, participantIds, 'pinned_messages_updated', {
+              ...pinnedState,
+              action: 'unpin',
+              messageId: message.id,
+            });
+          }
+        }
       } catch (error) {
         console.error('Lỗi delete_message:', error);
         socket.emit('message_delete_failed', {
           messageId: data?.messageId,
           error: 'Không thể thu hồi tin nhắn',
         });
+      }
+    });
+
+    socket.on('pin_message', async (data) => {
+      try {
+        const { conversationId, messageId } = data;
+        const userId = socket.userId;
+
+        if (
+          !mongoose.Types.ObjectId.isValid(conversationId) ||
+          !mongoose.Types.ObjectId.isValid(messageId)
+        ) {
+          socket.emit('message_pin_failed', { messageId, error: 'Dữ liệu ghim không hợp lệ' });
+          return;
+        }
+
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation || !isConversationMember(conversation, userId)) {
+          socket.emit('message_pin_failed', {
+            messageId,
+            error: 'Bạn không thuộc cuộc trò chuyện này',
+          });
+          return;
+        }
+
+        const message = await Message.findOne({
+          _id: messageId,
+          conversation: conversation._id,
+          isDeleted: false,
+        }).populate('sender', 'username avatar');
+
+        if (!message) {
+          socket.emit('message_pin_failed', {
+            messageId,
+            error: 'Tin nhắn không tồn tại trong cuộc trò chuyện này',
+          });
+          return;
+        }
+
+        migrateLegacyPinnedMessage(conversation, userId);
+
+        const alreadyPinned = (conversation.pinnedMessages || []).some(
+          (entry) => entry.message?.toString() === message.id,
+        );
+
+        if (!alreadyPinned) {
+          conversation.pinnedMessages.push({
+            message: message._id,
+            pinnedBy: userId,
+            pinnedAt: new Date(),
+          });
+        }
+
+        await conversation.save();
+
+        const pinnedState = await getPinnedMessagesState(conversation._id);
+        emitToUsers(io, getConversationMemberIds(conversation), 'pinned_messages_updated', {
+          ...pinnedState,
+          action: 'pin',
+          messageId: message.id,
+        });
+      } catch (error) {
+        console.error('Lỗi pin_message:', error);
+        socket.emit('message_pin_failed', {
+          messageId: data?.messageId,
+          error: 'Không thể ghim tin nhắn',
+        });
+      }
+    });
+
+    socket.on('unpin_message', async (data) => {
+      try {
+        const { conversationId, messageId } = data;
+        const userId = socket.userId;
+
+        if (
+          !mongoose.Types.ObjectId.isValid(conversationId) ||
+          !mongoose.Types.ObjectId.isValid(messageId)
+        ) {
+          socket.emit('message_pin_failed', { messageId, error: 'Dữ liệu bỏ ghim không hợp lệ' });
+          return;
+        }
+
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation || !isConversationMember(conversation, userId)) {
+          socket.emit('message_pin_failed', { error: 'Bạn không thuộc cuộc trò chuyện này' });
+          return;
+        }
+
+        migrateLegacyPinnedMessage(conversation, userId);
+        removePinnedMessageFromConversation(conversation, messageId);
+        await conversation.save();
+
+        const pinnedState = await getPinnedMessagesState(conversation._id);
+        emitToUsers(io, getConversationMemberIds(conversation), 'pinned_messages_updated', {
+          ...pinnedState,
+          action: 'unpin',
+          messageId,
+        });
+      } catch (error) {
+        console.error('Lỗi unpin_message:', error);
+        socket.emit('message_pin_failed', { error: 'Không thể bỏ ghim tin nhắn' });
       }
     });
 

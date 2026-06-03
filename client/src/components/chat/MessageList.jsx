@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 
 const messageMatchesSearch = (message, query) => {
@@ -17,9 +17,12 @@ const MessageList = ({
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
+  onPinMessage,
   isLoading = false,
   error = '',
   searchQuery = '',
+  pinnedMessageIds = [],
+  jumpToMessageSignal,
 }) => {
   const messagesEndRef = useRef(null);
   const messageRefs = useRef(new Map());
@@ -39,7 +42,7 @@ const MessageList = ({
     };
   }, []);
 
-  const handleJumpToMessage = (messageId) => {
+  const handleJumpToMessage = useCallback((messageId) => {
     const target = messageRefs.current.get(messageId);
     if (!target) return;
 
@@ -50,7 +53,16 @@ const MessageList = ({
     highlightTimeoutRef.current = setTimeout(() => {
       setHighlightedMessageId(null);
     }, 1400);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!jumpToMessageSignal?.messageId) return;
+    const frameId = requestAnimationFrame(() => {
+      handleJumpToMessage(jumpToMessageSignal.messageId);
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [handleJumpToMessage, jumpToMessageSignal]);
 
   if (isLoading) {
     return (
@@ -138,6 +150,8 @@ const MessageList = ({
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
+              onPinMessage={onPinMessage}
+              isPinned={pinnedMessageIds.includes(message.id)}
               onJumpToMessage={handleJumpToMessage}
             />
           </div>

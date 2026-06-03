@@ -116,14 +116,13 @@ Mục tiêu: chat 1-1 nhanh, đúng status, đúng sync, refresh không mất st
 | 3.9 Multi-tab presence | DONE | `userId -> Set(socketId)` |
 | 3.10 Message edit/revoke | DONE | Edit message, thu hồi message cho cả hai bên |
 | 3.11 Reply basics | DONE | Reply to message, scroll to original |
-| 3.12 Pin message | PLANNED | Pin message trong chat 1-1 |
+| 3.12 Pin message | DONE | Nhiều tin ghim, dropdown, jump/highlight, bỏ ghim có confirm |
 
 Next actions:
 
 - Test migration `Conversation` với dữ liệu cũ và chạy `npm run backfill:conversations` nếu cần migrate toàn bộ DB.
-- Làm pin message trong chat 1-1.
-- Pin cần cập nhật realtime cho cả hai user trong conversation.
-- Sau khi pin xong, cân nhắc chuyển sang album/multiple images hoặc group chat MVP.
+- Test nhiều pinned messages: dropdown, số lượng, jump/highlight, refresh, revoke message đang ghim.
+- Sau khi pin ổn, cân nhắc chuyển sang album/multiple images hoặc group chat MVP.
 
 ## Pipeline 4 - Media, Files, Reactions
 

@@ -31,11 +31,40 @@ const formatPinnedMessage = (message) => {
   };
 };
 
+const formatPinnedEntry = (entry) => {
+  if (!entry?.message) return null;
+  const formattedMessage = formatPinnedMessage(entry.message);
+  if (!formattedMessage) return null;
+
+  return {
+    ...formattedMessage,
+    pinnedBy: toIdString(entry.pinnedBy),
+    pinnedByName: entry.pinnedBy?.username || '',
+    pinnedAt: entry.pinnedAt || entry.message.createdAt,
+  };
+};
+
+const getPinnedMessages = (conversation) => {
+  const pinnedMessages = (conversation.pinnedMessages || [])
+    .map(formatPinnedEntry)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.pinnedAt || 0) - new Date(a.pinnedAt || 0));
+
+  if (pinnedMessages.length > 0) return pinnedMessages;
+
+  const legacyPinnedMessage = formatPinnedMessage(conversation.pinnedMessage);
+  return legacyPinnedMessage
+    ? [{ ...legacyPinnedMessage, pinnedBy: null, pinnedByName: '', pinnedAt: conversation.updatedAt }]
+    : [];
+};
+
 const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
   const peerMember = getPeerMember(conversation, currentUserId);
   const peer = peerMember?.user;
   const lastMessage = conversation.lastMessage;
   const conversationId = conversation._id.toString();
+  const pinnedMessages = getPinnedMessages(conversation);
+  const latestPinnedMessage = pinnedMessages[0] || null;
 
   return {
     _id: conversation._id,
@@ -47,7 +76,10 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
     lastMessage: getMessagePreview(lastMessage),
     lastMessageAt: lastMessage?.createdAt || conversation.updatedAt || conversation.createdAt,
     unreadCount: unreadCountByConversation.get(conversationId) || 0,
-    pinnedMessage: formatPinnedMessage(conversation.pinnedMessage),
+    pinnedMessage: latestPinnedMessage,
+    latestPinnedMessage,
+    pinnedMessages,
+    pinnedMessageCount: pinnedMessages.length,
   };
 };
 
@@ -74,6 +106,11 @@ const conversationController = {
           path: 'pinnedMessage',
           populate: { path: 'sender', select: 'username avatar' },
         })
+        .populate({
+          path: 'pinnedMessages.message',
+          populate: { path: 'sender', select: 'username avatar' },
+        })
+        .populate('pinnedMessages.pinnedBy', 'username avatar')
         .sort({ updatedAt: -1 })
         .lean();
 

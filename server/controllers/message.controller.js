@@ -7,11 +7,51 @@ import {
   isConversationMember,
 } from '../services/conversation.service.js';
 
+const populateMessageQuery = (query) =>
+  query
+    .populate('sender', 'username avatar')
+    .populate('recipient', 'username avatar')
+    .populate({
+      path: 'replyTo',
+      select: 'content attachment sender isDeleted',
+      populate: { path: 'sender', select: 'username avatar' },
+    });
+
+const getMessageWindowAroundTarget = async (conversationId, targetMessageId) => {
+  const targetMessage = await Message.findOne({
+    _id: targetMessageId,
+    conversation: conversationId,
+  }).select('createdAt');
+
+  if (!targetMessage) return null;
+
+  const beforeAndTarget = await populateMessageQuery(
+    Message.find({
+      conversation: conversationId,
+      createdAt: { $lte: targetMessage.createdAt },
+    })
+      .sort({ createdAt: -1 })
+      .limit(25),
+  );
+
+  const after = await populateMessageQuery(
+    Message.find({
+      conversation: conversationId,
+      createdAt: { $gt: targetMessage.createdAt },
+    })
+      .sort({ createdAt: 1 })
+      .limit(25),
+  );
+
+  return [...beforeAndTarget.reverse(), ...after];
+};
+
 const messageController = {
   // Lấy lịch sử tin nhắn theo conversationId
   getConversationMessages: async (req, res) => {
     try {
       const { conversationId } = req.params;
+      const { targetMessageId } = req.query;
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
@@ -32,7 +72,20 @@ const messageController = {
       }
 
       await attachLegacyDirectMessages(conversation);
-      const messages = await Message.getConversationById(conversation._id);
+      let messages;
+      if (targetMessageId) {
+        if (!mongoose.Types.ObjectId.isValid(targetMessageId)) {
+          return res.status(400).json({ error: 'targetMessageId không hợp lệ' });
+        }
+
+        messages = await getMessageWindowAroundTarget(conversation._id, targetMessageId);
+        if (!messages) {
+          return res.status(404).json({ error: 'Tin nhắn cần nhảy tới không tồn tại' });
+        }
+      } else {
+        messages = await Message.getConversationById(conversation._id);
+        messages = messages.reverse();
+      }
 
       res.status(200).json({
         success: true,
@@ -41,7 +94,8 @@ const messageController = {
           type: conversation.type,
           pinnedMessage: conversation.pinnedMessage,
         },
-        messages: messages.reverse(),
+        messages,
+        targetMessageId: targetMessageId || null,
       });
     } catch (error) {
       console.error('Lỗi lấy tin nhắn theo conversation:', error);
