@@ -14,6 +14,7 @@ const uploadSingleFile = (req, res, next) => {
   });
 };
 
+router.get('/conversation/:conversationId', authMiddleware, messageController.getConversationMessages);
 router.get('/:userId', authMiddleware, messageController.getMessages);
 router.post('/upload', authMiddleware, uploadSingleFile, messageController.uploadFile);
 

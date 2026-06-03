@@ -19,6 +19,13 @@ const messageSchema = new mongoose.Schema(
       default: null,
     },
 
+    conversation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Conversation',
+      default: null,
+      index: true,
+    },
+
     // Nội dung tin nhắn
     content: {
       type: String,
@@ -111,6 +118,8 @@ const messageSchema = new mongoose.Schema(
 messageSchema.index({ sender: 1, recipient: 1 });
 messageSchema.index({ recipient: 1, sender: 1, status: 1 });
 messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
+messageSchema.index({ conversation: 1, createdAt: -1 });
+messageSchema.index({ conversation: 1, recipient: 1, status: 1 });
 messageSchema.index({ roomId: 1 });
 messageSchema.index({ createdAt: -1 }); // Sắp xếp theo thời gian mới nhất
 
@@ -122,6 +131,20 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
       { sender: user2Id, recipient: user1Id },
     ],
   })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('sender', 'username avatar')
+    .populate('recipient', 'username avatar')
+    .populate({
+      path: 'replyTo',
+      select: 'content attachment sender isDeleted',
+      populate: { path: 'sender', select: 'username avatar' },
+    });
+};
+
+// Static method: Lấy tin nhắn theo conversationId
+messageSchema.statics.getConversationById = function (conversationId, limit = 50) {
+  return this.find({ conversation: conversationId })
     .sort({ createdAt: -1 })
     .limit(limit)
     .populate('sender', 'username avatar')

@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import socketHandler from './socket/socketHandler.js';
 import authRoutes from './routers/auth.routes.js';
+import conversationRoutes from './routers/conversation.routes.js';
 import messageRoutes from './routers/message.routes.js';
 import userRoutes from './routers/user.routes.js';
 
@@ -51,6 +52,7 @@ socketHandler(io);
 
 // routes
 app.use('/api/auth', authRoutes);
+app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 

@@ -1,6 +1,54 @@
+import mongoose from 'mongoose';
+import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
+import {
+  attachLegacyDirectMessages,
+  getOrCreateDirectConversation,
+  isConversationMember,
+} from '../services/conversation.service.js';
 
 const messageController = {
+  // Lấy lịch sử tin nhắn theo conversationId
+  getConversationMessages: async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const currentUserId = req.user?.id;
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
+      }
+
+      if (!isConversationMember(conversation, currentUserId)) {
+        return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này' });
+      }
+
+      await attachLegacyDirectMessages(conversation);
+      const messages = await Message.getConversationById(conversation._id);
+
+      res.status(200).json({
+        success: true,
+        conversation: {
+          _id: conversation._id,
+          type: conversation.type,
+          pinnedMessage: conversation.pinnedMessage,
+        },
+        messages: messages.reverse(),
+      });
+    } catch (error) {
+      console.error('Lỗi lấy tin nhắn theo conversation:', error);
+      res.status(500).json({ error: 'Không thể lấy lịch sử tin nhắn' });
+    }
+  },
+
   // Lấy lịch sử tin nhắn giữa 2 người
   getMessages: async (req, res) => {
     try {
@@ -11,10 +59,13 @@ const messageController = {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const messages = await Message.getConversation(currentUserId, userId);
+      const conversation = await getOrCreateDirectConversation(currentUserId, userId);
+      await attachLegacyDirectMessages(conversation);
+      const messages = await Message.getConversationById(conversation._id);
 
       res.status(200).json({
         success: true,
+        conversationId: conversation._id,
         messages: messages.reverse(),
       });
     } catch (error) {

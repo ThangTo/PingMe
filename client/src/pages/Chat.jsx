@@ -62,6 +62,8 @@ const Chat = () => {
     messagesRef.current = messages;
   }, [messages]);
 
+  const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
+
   useEffect(() => {
     if (user && user.id && isConnected) {
       socket.emit('register_user');
@@ -101,16 +103,22 @@ const Chat = () => {
     try {
       if (conversations.length === 0) setIsFriendsLoading(true);
       setFriendsError('');
-      const response = await api.get('/users/friends');
+      const response = await api.get('/conversations');
       if (response.data.success) {
-        const formattedFriends = response.data.friends.map((u) => ({
-          id: u._id,
-          name: u.username,
-          avatar: u.avatar,
-          isOnline: onlineUsers.includes(u._id),
-          lastMessage: u.lastMessage || 'Bắt đầu trò chuyện',
-          lastMessageAt: u.lastMessageAt || null,
-          unreadCount: u.unreadCount || 0,
+        const formattedFriends = response.data.conversations.map((conversation) => ({
+          id: conversation._id,
+          peerId: conversation.peerId || null,
+          type: conversation.type || 'direct',
+          name: conversation.name,
+          avatar: conversation.avatar,
+          isOnline: conversation.peerId
+            ? onlineUsers.includes(conversation.peerId)
+            : conversation.isOnline,
+          isGroup: conversation.type === 'group',
+          lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
+          lastMessageAt: conversation.lastMessageAt || null,
+          unreadCount: conversation.unreadCount || 0,
+          pinnedMessage: conversation.pinnedMessage || null,
         }));
         setConversations(formattedFriends);
       }
@@ -125,14 +133,14 @@ const Chat = () => {
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
       const unreadMessages = messagesRef.current.filter(
-        (m) => m.senderId === selectedConversationId && !m.isDeleted && m.status !== 'read' && m.id,
+        (m) => m.senderId !== user.id && !m.isDeleted && m.status !== 'read' && m.id,
       );
 
       const messageIds = unreadMessages.map((m) => m.id);
 
       if (messageIds.length > 0) {
         socket.emit('mark_messages_read', {
-          senderId: selectedConversationId,
+          conversationId: selectedConversationId,
           messageIds,
         });
 
@@ -169,10 +177,11 @@ const Chat = () => {
       try {
         setIsMessagesLoading(true);
         setMessagesError('');
-        const response = await api.get(`/messages/${selectedConversationId}`);
+        const response = await api.get(`/messages/conversation/${selectedConversationId}`);
         if (response.data.success) {
           const normalizedMessages = response.data.messages.map((msg) => ({
             id: msg._id,
+            conversationId: msg.conversation || selectedConversationId,
             senderId: msg.sender._id || msg.sender,
             content: msg.content,
             timestamp: msg.createdAt,
@@ -188,12 +197,12 @@ const Chat = () => {
           setMessages(normalizedMessages);
 
           const unreadMessageIds = normalizedMessages
-            .filter((msg) => msg.senderId === selectedConversationId && !msg.isDeleted && msg.status !== 'read')
+            .filter((msg) => msg.senderId !== user.id && !msg.isDeleted && msg.status !== 'read')
             .map((msg) => msg.id);
 
           if (user && user.id && unreadMessageIds.length > 0 && document.hasFocus()) {
             socket.emit('mark_messages_read', {
-              senderId: selectedConversationId,
+              conversationId: selectedConversationId,
               messageIds: unreadMessageIds,
             });
             setMessages((prev) =>
@@ -220,10 +229,20 @@ const Chat = () => {
 
   useEffect(() => {
     const handleTyping = (data) => {
-      if (data.senderId === selectedConversationId) setIsTyping(true);
+      if (
+        data.conversationId === selectedConversationId ||
+        data.senderId === currentChatUser?.peerId
+      ) {
+        setIsTyping(true);
+      }
     };
     const handleStopTyping = (data) => {
-      if (data.senderId === selectedConversationId) setIsTyping(false);
+      if (
+        data.conversationId === selectedConversationId ||
+        data.senderId === currentChatUser?.peerId
+      ) {
+        setIsTyping(false);
+      }
     };
 
     socket.on('user_typing', handleTyping);
@@ -233,11 +252,13 @@ const Chat = () => {
       socket.off('user_typing', handleTyping);
       socket.off('user_stopped_typing', handleStopTyping);
     };
-  }, [selectedConversationId]);
+  }, [selectedConversationId, currentChatUser?.peerId]);
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
-      const isCurrentConversation = data.senderId === selectedConversationId;
+      const fallbackConversationId = conversations.find((conv) => conv.peerId === data.senderId)?.id;
+      const eventConversationId = data.conversationId || fallbackConversationId || data.senderId;
+      const isCurrentConversation = eventConversationId === selectedConversationId;
       const shouldMarkRead = isCurrentConversation && document.hasFocus();
 
       console.log('📨 Received message:', data);
@@ -249,7 +270,7 @@ const Chat = () => {
 
       if (shouldMarkRead && user?.id) {
         socket.emit('mark_messages_read', {
-          senderId: data.senderId,
+          conversationId: eventConversationId,
           messageIds: [data.id],
         });
       }
@@ -259,7 +280,7 @@ const Chat = () => {
       }
 
       setConversations((prev) => {
-        const targetConv = prev.find((c) => c.id === data.senderId);
+        const targetConv = prev.find((c) => c.id === eventConversationId);
         if (!targetConv) return prev;
         const updatedTarget = {
           ...targetConv,
@@ -267,7 +288,7 @@ const Chat = () => {
           lastMessageAt: data.timestamp,
           unreadCount: shouldMarkRead ? 0 : (targetConv.unreadCount || 0) + 1,
         };
-        const otherConvs = prev.filter((c) => c.id !== data.senderId);
+        const otherConvs = prev.filter((c) => c.id !== eventConversationId);
         return [updatedTarget, ...otherConvs];
       });
     };
@@ -284,7 +305,10 @@ const Chat = () => {
     const handleMessagesRead = (data) => {
       console.log('Người kia đã đọc tin nhắn:', data);
 
-      if (data.readerId === selectedConversationId) {
+      if (
+        data.conversationId === selectedConversationId ||
+        data.readerId === currentChatUser?.peerId
+      ) {
         setMessages((prev) =>
           prev.map((msg) =>
             data.messageIds?.includes(msg.id) && msg.senderId === user.id
@@ -349,7 +373,11 @@ const Chat = () => {
 
     //Updated
     const handleMessageUpdated = (data) => {
-      const conversationId = data.senderId === user?.id ? data.recipientId : data.senderId;
+      const fallbackPeerId = data.senderId === user?.id ? data.recipientId : data.senderId;
+      const conversationId =
+        data.conversationId ||
+        conversations.find((conv) => conv.peerId === fallbackPeerId)?.id ||
+        fallbackPeerId;
 
       setMessages((prev) =>
         prev.map((msg) => {
@@ -402,7 +430,11 @@ const Chat = () => {
     };
 
     const handleMessageDeleted = (data) => {
-      const conversationId = data.senderId === user?.id ? data.recipientId : data.senderId;
+      const fallbackPeerId = data.senderId === user?.id ? data.recipientId : data.senderId;
+      const conversationId =
+        data.conversationId ||
+        conversations.find((conv) => conv.peerId === fallbackPeerId)?.id ||
+        fallbackPeerId;
       const lastMessage = data.conversationLastMessage;
       const shouldReduceUnread =
         data.recipientId === user?.id &&
@@ -497,19 +529,23 @@ const Chat = () => {
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('message_delete_failed', handleMessageDeleteFailed);
     };
-  }, [selectedConversationId, user, fetchFriends]);
-
-  const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
+  }, [selectedConversationId, currentChatUser?.peerId, conversations, user, fetchFriends]);
 
   const handleTypingStart = () => {
-    if (selectedConversationId && user) {
-      socket.emit('typing', { receiverId: selectedConversationId });
+    if (selectedConversationId && currentChatUser?.peerId && user) {
+      socket.emit('typing', {
+        receiverId: currentChatUser.peerId,
+        conversationId: selectedConversationId,
+      });
     }
   };
 
   const handleTypingStop = () => {
-    if (selectedConversationId && user) {
-      socket.emit('stop_typing', { receiverId: selectedConversationId });
+    if (selectedConversationId && currentChatUser?.peerId && user) {
+      socket.emit('stop_typing', {
+        receiverId: currentChatUser.peerId,
+        conversationId: selectedConversationId,
+      });
     }
   };
 
@@ -520,7 +556,8 @@ const Chat = () => {
 
     const messageData = {
       tempId,
-      recipientId: selectedConversationId,
+      conversationId: selectedConversationId,
+      recipientId: currentChatUser?.peerId || null,
       content: content || (attachment ? attachment.filename : ''),
       attachment: attachment || null,
       replyToId: replyPreview?.id || null,
@@ -529,6 +566,7 @@ const Chat = () => {
 
     const newMessage = {
       id: tempId,
+      conversationId: selectedConversationId,
       senderId: user.id,
       content,
       timestamp: new Date().toISOString(),

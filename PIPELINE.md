@@ -111,7 +111,7 @@ Mục tiêu: chat 1-1 nhanh, đúng status, đúng sync, refresh không mất st
 | 3.4 Delivered receipt | DONE | `mark_message_delivered`, `message_was_delivered` |
 | 3.5 Read receipt by ids | DONE | `mark_messages_read` có `messageIds` |
 | 3.6 Unread count | DONE | Sidebar badge realtime + REST summary |
-| 3.7 Conversation summary | DONE | Friends API trả `lastMessage`, `lastMessageAt`, `unreadCount` |
+| 3.7 Conversation model + summary | DONE | `Conversation` model/API trả `lastMessage`, `lastMessageAt`, `unreadCount`, client dùng `conversationId` |
 | 3.8 Typing indicators | DONE | `typing`, `stop_typing` |
 | 3.9 Multi-tab presence | DONE | `userId -> Set(socketId)` |
 | 3.10 Message edit/revoke | DONE | Edit message, thu hồi message cho cả hai bên |
@@ -120,6 +120,7 @@ Mục tiêu: chat 1-1 nhanh, đúng status, đúng sync, refresh không mất st
 
 Next actions:
 
+- Test migration `Conversation` với dữ liệu cũ và chạy `npm run backfill:conversations` nếu cần migrate toàn bộ DB.
 - Làm pin message trong chat 1-1.
 - Pin cần cập nhật realtime cho cả hai user trong conversation.
 - Sau khi pin xong, cân nhắc chuyển sang album/multiple images hoặc group chat MVP.

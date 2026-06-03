@@ -1,7 +1,15 @@
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
+import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
+import {
+  getConversationMemberIds,
+  getOrCreateDirectConversation,
+  getPeerMember,
+  isConversationMember,
+  toIdString,
+} from '../services/conversation.service.js';
 
 /**
  * Socket.io Event Handler
@@ -45,6 +53,45 @@ const emitToUsers = (io, userIds, eventName, payload) => {
   uniqueUserIds.forEach((userId) => {
     emitToUser(io, userId, eventName, payload);
   });
+};
+
+const loadConversationForSend = async ({ conversationId, recipientId, senderId }) => {
+  if (conversationId) {
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      throw new Error('conversationId không hợp lệ');
+    }
+
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new Error('Cuộc trò chuyện không tồn tại');
+    }
+
+    if (!isConversationMember(conversation, senderId)) {
+      throw new Error('Bạn không thuộc cuộc trò chuyện này');
+    }
+
+    return conversation;
+  }
+
+  if (!recipientId || !mongoose.Types.ObjectId.isValid(recipientId)) {
+    throw new Error('recipientId không hợp lệ');
+  }
+
+  return getOrCreateDirectConversation(senderId, recipientId);
+};
+
+const getDirectRecipientId = (conversation, senderId, fallbackRecipientId) => {
+  if (conversation?.type !== 'direct') return fallbackRecipientId || null;
+  return toIdString(getPeerMember(conversation, senderId)?.user) || fallbackRecipientId || null;
+};
+
+const getMessageMemberIds = async (message) => {
+  if (message?.conversation) {
+    const conversation = await Conversation.findById(message.conversation).select('members');
+    if (conversation) return getConversationMemberIds(conversation);
+  }
+
+  return [message?.sender, message?.recipient].map((id) => id?.toString()).filter(Boolean);
 };
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
@@ -147,8 +194,16 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { tempId, recipientId, content, attachment, replyToId } = data;
+        const { tempId, conversationId, recipientId, content, attachment, replyToId } = data;
         const senderId = socket.userId;
+        const conversation = await loadConversationForSend({
+          conversationId,
+          recipientId,
+          senderId,
+        });
+        const resolvedConversationId = conversation._id.toString();
+        const resolvedRecipientId = getDirectRecipientId(conversation, senderId, recipientId);
+        const memberIds = getConversationMemberIds(conversation);
         let replyToMessage = null;
 
         if (replyToId) {
@@ -159,10 +214,7 @@ const socketHandler = (io) => {
 
           replyToMessage = await Message.findOne({
             _id: replyToId,
-            $or: [
-              { sender: senderId, recipient: recipientId },
-              { sender: recipientId, recipient: senderId },
-            ],
+            conversation: conversation._id,
           }).populate('sender', 'username avatar');
 
           if (!replyToMessage) {
@@ -175,7 +227,8 @@ const socketHandler = (io) => {
 
         const newMessage = await Message.create({
           sender: senderId,
-          recipient: recipientId,
+          recipient: resolvedRecipientId,
+          conversation: conversation._id,
           content: content,
           attachment: attachment || null,
           messageType: attachment?.type || 'text',
@@ -183,26 +236,35 @@ const socketHandler = (io) => {
           replyTo: replyToMessage?._id || null,
         });
 
+        conversation.lastMessage = newMessage._id;
+        await conversation.save();
+
         socket.emit('message_sent', {
           tempId,
           id: newMessage.id,
+          conversationId: resolvedConversationId,
+          recipientId: resolvedRecipientId,
           timestamp: newMessage.createdAt,
           status: newMessage.status,
           attachment: newMessage.attachment,
           replyTo: formatReplyPreview(replyToMessage),
         });
 
-        if (isUserOnline(recipientId)) {
-          emitToUser(io, recipientId, 'receive_message', {
-            id: newMessage.id,
-            senderId,
-            content,
-            attachment: newMessage.attachment,
-            timestamp: newMessage.createdAt,
-            status: newMessage.status,
-            replyTo: formatReplyPreview(replyToMessage),
+        memberIds
+          .filter((memberId) => memberId !== senderId)
+          .forEach((memberId) => {
+            emitToUser(io, memberId, 'receive_message', {
+              id: newMessage.id,
+              conversationId: resolvedConversationId,
+              senderId,
+              recipientId: resolvedRecipientId,
+              content,
+              attachment: newMessage.attachment,
+              timestamp: newMessage.createdAt,
+              status: newMessage.status,
+              replyTo: formatReplyPreview(replyToMessage),
+            });
           });
-        }
       } catch (error) {
         console.error('Lỗi khi gửi tin nhắn:', error);
         socket.emit('error', { message: 'Không thể gửi tin nhắn!' });
@@ -248,12 +310,12 @@ const socketHandler = (io) => {
      * Xử lý khi User A đang gõ tin nhắn cho User B
      */
     socket.on('typing', (data) => {
-      const { receiverId } = data;
+      const { receiverId, conversationId } = data;
       const senderId = socket.userId;
 
       if (isUserOnline(receiverId)) {
         // Chỉ gửi sự kiện 'user_typing' đến đúng người nhận
-        emitToUser(io, receiverId, 'user_typing', { senderId });
+        emitToUser(io, receiverId, 'user_typing', { senderId, conversationId });
       }
     });
 
@@ -262,40 +324,55 @@ const socketHandler = (io) => {
      * Xử lý khi User A dừng gõ
      */
     socket.on('stop_typing', (data) => {
-      const { receiverId } = data;
+      const { receiverId, conversationId } = data;
       const senderId = socket.userId;
 
       if (isUserOnline(receiverId)) {
-        emitToUser(io, receiverId, 'user_stopped_typing', { senderId });
+        emitToUser(io, receiverId, 'user_stopped_typing', { senderId, conversationId });
       }
     });
 
     socket.on('mark_messages_read', async (data) => {
-      const { senderId, messageIds } = data;
+      const { conversationId, senderId, messageIds } = data;
       const readerId = socket.userId;
 
       if (!Array.isArray(messageIds) || messageIds.length === 0) return;
 
       try {
-        const messagesToRead = await Message.find({
+        const readQuery = {
           _id: { $in: messageIds },
-          sender: senderId,
           recipient: readerId,
           isDeleted: false,
           status: { $ne: 'read' },
-        })
-          .select('_id sender')
+        };
+        let resolvedConversationId = null;
+
+        if (conversationId) {
+          if (!mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+          const conversation = await Conversation.findById(conversationId).select('members');
+          if (!conversation || !isConversationMember(conversation, readerId)) return;
+
+          readQuery.conversation = conversation._id;
+          resolvedConversationId = conversation._id.toString();
+        } else if (senderId) {
+          readQuery.sender = senderId;
+        } else {
+          return;
+        }
+
+        const messagesToRead = await Message.find(readQuery)
+          .select('_id sender conversation')
           .lean();
 
         if (messagesToRead.length === 0) return;
 
         const readableMessageIds = messagesToRead.map((message) => message._id);
-        const verifiedSenderId = messagesToRead[0].sender.toString();
+        const senderIds = [...new Set(messagesToRead.map((message) => message.sender.toString()))];
 
         await Message.updateMany(
           {
             _id: { $in: readableMessageIds },
-            sender: verifiedSenderId,
             recipient: readerId,
             isDeleted: false,
             status: { $ne: 'read' },
@@ -303,13 +380,14 @@ const socketHandler = (io) => {
           { $set: { status: 'read', readAt: new Date() } },
         );
 
-        if (isUserOnline(verifiedSenderId)) {
+        senderIds.forEach((verifiedSenderId) => {
           emitToUser(io, verifiedSenderId, 'messages_were_read', {
+            conversationId: resolvedConversationId,
             readerId,
             messageIds: readableMessageIds.map((id) => id.toString()),
             status: 'read',
           });
-        }
+        });
       } catch (error) {
         console.error('Lỗi khi đánh dấu đã đọc', error);
       }
@@ -327,14 +405,15 @@ const socketHandler = (io) => {
         const message = await Message.findById(messageId);
         if (!message || message.isDeleted) return;
 
-        const participantIds = [message.sender?.toString(), message.recipient?.toString()];
+        const participantIds = await getMessageMemberIds(message);
         if (!participantIds.includes(userId)) return;
 
         // Dùng method toggleReaction (toggle = thêm nếu chưa có, xóa nếu đã có)
         const updated = await message.toggleReaction(emoji, userId);
 
-        emitToUsers(io, [message.sender, message.recipient], 'reaction_added', {
+        emitToUsers(io, participantIds, 'reaction_added', {
           messageId,
+          conversationId: toIdString(message.conversation),
           reactions: updated.reactions,
         });
       } catch (error) {
@@ -377,13 +456,15 @@ const socketHandler = (io) => {
           return;
         }
 
+        const participantIds = await getMessageMemberIds(message);
         message.content = nextContent;
         message.isEdited = true;
         message.editedAt = new Date();
         await message.save();
 
-        emitToUsers(io, [message.sender, message.recipient], 'message_updated', {
+        emitToUsers(io, participantIds, 'message_updated', {
           messageId: message.id,
+          conversationId: toIdString(message.conversation),
           senderId: message.sender.toString(),
           recipientId: message.recipient?.toString(),
           content: message.content,
@@ -426,6 +507,8 @@ const socketHandler = (io) => {
 
         const senderId = message.sender.toString();
         const recipientId = message.recipient?.toString();
+        const conversationId = toIdString(message.conversation);
+        const participantIds = await getMessageMemberIds(message);
         const previousStatus = message.status;
         const deletedAt = new Date();
 
@@ -439,18 +522,23 @@ const socketHandler = (io) => {
         message.deletedAt = deletedAt;
         await message.save();
 
-        const conversationLastMessage = await Message.findOne({
-          $or: [
-            { sender: senderId, recipient: recipientId },
-            { sender: recipientId, recipient: senderId },
-          ],
-        })
+        const conversationLastMessageQuery = conversationId
+          ? { conversation: conversationId }
+          : {
+              $or: [
+                { sender: senderId, recipient: recipientId },
+                { sender: recipientId, recipient: senderId },
+              ],
+            };
+
+        const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
           .sort({ createdAt: -1 })
           .select('content attachment createdAt isDeleted')
           .lean();
 
-        emitToUsers(io, [message.sender, message.recipient], 'message_deleted', {
+        emitToUsers(io, participantIds, 'message_deleted', {
           messageId: message.id,
+          conversationId,
           senderId,
           recipientId,
           content: REVOKED_MESSAGE_TEXT,
@@ -497,7 +585,7 @@ const socketHandler = (io) => {
         const message = await Message.findById(messageId);
         if (!message || message.isDeleted) return;
 
-        const participantIds = [message.sender?.toString(), message.recipient?.toString()];
+        const participantIds = await getMessageMemberIds(message);
         if (!participantIds.includes(userId)) return;
 
         //Filter bỏ reaction của user với emoji đó
@@ -506,8 +594,9 @@ const socketHandler = (io) => {
         );
         await message.save();
 
-        emitToUsers(io, [message.sender, message.recipient], 'reaction_removed', {
+        emitToUsers(io, participantIds, 'reaction_removed', {
           messageId,
+          conversationId: toIdString(message.conversation),
           reactions: message.reactions,
         });
       } catch (error) {
@@ -538,6 +627,7 @@ const socketHandler = (io) => {
         if (isUserOnline(senderId)) {
           emitToUser(io, senderId, 'message_was_delivered', {
             messageId: message.id,
+            conversationId: toIdString(message.conversation),
             receiverId,
             status: 'delivered',
           });
