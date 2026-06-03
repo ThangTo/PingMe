@@ -11,6 +11,14 @@ const tabs = [
 
 const urlRegex = /(https?:\/\/[^\s]+)/g;
 
+const getMessageAttachments = (message = {}) => {
+  if (message.isDeleted) return [];
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    return message.attachments;
+  }
+  return message.attachment ? [message.attachment] : [];
+};
+
 const formatFileSize = (size) => {
   if (!size) return '';
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
@@ -44,12 +52,15 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
   const media = useMemo(
     () =>
       messages
-        .filter((message) => !message.isDeleted && message.attachment?.type === 'image')
-        .map((message) => ({
-          id: message.id,
-          url: message.attachment.url,
-          filename: message.attachment.filename,
-        }))
+        .flatMap((message) =>
+          getMessageAttachments(message)
+            .filter((attachment) => attachment.type === 'image')
+            .map((attachment, index) => ({
+              id: `${message.id}-${index}`,
+              url: attachment.url,
+              filename: attachment.filename,
+            })),
+        )
         .reverse(),
     [messages],
   );
@@ -57,14 +68,17 @@ const ChatDetailsPanel = ({ user, messages = [], onClose }) => {
   const files = useMemo(
     () =>
       messages
-        .filter((message) => !message.isDeleted && message.attachment?.type === 'file')
-        .map((message) => ({
-          id: message.id,
-          url: message.attachment.url,
-          filename: message.attachment.filename,
-          size: message.attachment.size,
-          timestamp: message.timestamp,
-        }))
+        .flatMap((message) =>
+          getMessageAttachments(message)
+            .filter((attachment) => attachment.type !== 'image')
+            .map((attachment, index) => ({
+              id: `${message.id}-${index}`,
+              url: attachment.url,
+              filename: attachment.filename,
+              size: attachment.size,
+              timestamp: message.timestamp,
+            })),
+        )
         .reverse(),
     [messages],
   );

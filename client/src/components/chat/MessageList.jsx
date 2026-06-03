@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 
+const getMessageAttachments = (message = {}) => {
+  if (message.isDeleted) return [];
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    return message.attachments;
+  }
+  return message.attachment ? [message.attachment] : [];
+};
+
 const messageMatchesSearch = (message, query) => {
   if (!query) return true;
   const normalizedQuery = query.toLowerCase();
   const content = message.isDeleted ? 'Tin nhắn này đã được thu hồi' : message.content || '';
-  const filename = message.isDeleted ? '' : message.attachment?.filename || '';
-  return `${content} ${filename}`.toLowerCase().includes(normalizedQuery);
+  const filenames = getMessageAttachments(message)
+    .map((attachment) => attachment.filename || '')
+    .join(' ');
+  return `${content} ${filenames}`.toLowerCase().includes(normalizedQuery);
 };
 
 const MessageList = ({

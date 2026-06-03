@@ -13,9 +13,28 @@ const populateMessageQuery = (query) =>
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment sender isDeleted',
+      select: 'content attachment attachments sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
+
+const getUploadedFiles = (req) => {
+  if (req.file) return [req.file];
+
+  const filesFromFields = req.files || {};
+  return Object.values(filesFromFields).flat();
+};
+
+const formatUploadedFile = (req, file) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const fileUrl = `${baseUrl}/uploads/${file.filename}`;
+
+  return {
+    url: fileUrl,
+    filename: file.originalname,
+    size: file.size,
+    type: file.mimetype,
+  };
+};
 
 const getMessageWindowAroundTarget = async (conversationId, targetMessageId) => {
   const targetMessage = await Message.findOne({
@@ -131,21 +150,18 @@ const messageController = {
   // Upload file đính kèm
   uploadFile: async (req, res) => {
     try {
-      if (!req.file) {
+      const uploadedFiles = getUploadedFiles(req);
+
+      if (uploadedFiles.length === 0) {
         return res.status(400).json({ error: 'Không có file được tải lên' });
       }
 
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      const files = uploadedFiles.map((file) => formatUploadedFile(req, file));
 
       res.status(200).json({
         success: true,
-        file: {
-          url: fileUrl,
-          filename: req.file.originalname,
-          size: req.file.size,
-          type: req.file.mimetype,
-        },
+        file: files[0],
+        files,
       });
     } catch (error) {
       console.error('Lỗi upload file:', error);

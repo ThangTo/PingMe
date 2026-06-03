@@ -4,10 +4,31 @@ import EmojiPicker from './EmojiPicker';
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
+const getMessageAttachments = (message = {}) => {
+  if (message.isDeleted) return [];
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    return message.attachments;
+  }
+  return message.attachment ? [message.attachment] : [];
+};
+
 const getReplyPreviewText = (replyTo) => {
   if (!replyTo) return '';
   if (replyTo.isDeleted) return REVOKED_MESSAGE_TEXT;
-  return replyTo.content || replyTo.attachment?.filename || 'Tệp đính kèm';
+
+  const attachments = getMessageAttachments(replyTo);
+  if (replyTo.content) return replyTo.content;
+  if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
+  if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
+    return `${attachments.length} ảnh`;
+  }
+  if (attachments.length > 1) return `${attachments.length} tệp đính kèm`;
+  return 'Tệp đính kèm';
+};
+
+const formatFileSize = (size = 0) => {
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const PinGlyph = ({ className = '' }) => (
@@ -33,8 +54,9 @@ const MessageBubble = ({
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const longPressTimer = useRef(null);
+  const lightboxTouchStartX = useRef(null);
   const messageRef = useRef(null);
   const pickerRef = useRef(null);
   const actionsRef = useRef(null);
@@ -42,14 +64,61 @@ const MessageBubble = ({
 
   const isRevoked = Boolean(message.isDeleted);
   const canReact = Boolean(message.id) && !isRevoked && message.status !== 'sending';
+  const attachments = getMessageAttachments(message);
+  const imageAttachments = attachments.filter((attachment) => attachment.type === 'image');
+  const fileAttachments = attachments.filter((attachment) => attachment.type !== 'image');
+  const hasAttachments = attachments.length > 0;
+  const activeLightboxImage =
+    lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
     return new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const openLightbox = (index) => {
+    setLightboxIndex(index);
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+    lightboxTouchStartX.current = null;
+  };
+
+  const showPrevImage = (event) => {
+    event?.stopPropagation();
+    setLightboxIndex((current) => {
+      if (current === null || imageAttachments.length === 0) return current;
+      return current === 0 ? imageAttachments.length - 1 : current - 1;
+    });
+  };
+
+  const showNextImage = (event) => {
+    event?.stopPropagation();
+    setLightboxIndex((current) => {
+      if (current === null || imageAttachments.length === 0) return current;
+      return current === imageAttachments.length - 1 ? 0 : current + 1;
+    });
+  };
+
+  const handleLightboxTouchStart = (event) => {
+    lightboxTouchStartX.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handleLightboxTouchEnd = (event) => {
+    if (lightboxTouchStartX.current === null) return;
+
+    const touchEndX = event.changedTouches[0]?.clientX ?? lightboxTouchStartX.current;
+    const deltaX = touchEndX - lightboxTouchStartX.current;
+    lightboxTouchStartX.current = null;
+
+    if (Math.abs(deltaX) < 48 || imageAttachments.length <= 1) return;
+    if (deltaX < 0) showNextImage(event);
+    else showPrevImage(event);
+  };
+
   useEffect(() => {
-    if (!showPicker) return;
+    if (!showPicker) return undefined;
 
     const handlePointerDown = (event) => {
       if (
@@ -82,10 +151,39 @@ const MessageBubble = ({
   }, [showPicker]);
 
   useEffect(() => {
+    if (lightboxIndex === null) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setLightboxIndex(null);
+        return;
+      }
+
+      if (imageAttachments.length <= 1) return;
+
+      if (event.key === 'ArrowLeft') {
+        setLightboxIndex((current) => {
+          if (current === null) return current;
+          return current === 0 ? imageAttachments.length - 1 : current - 1;
+        });
+      }
+
+      if (event.key === 'ArrowRight') {
+        setLightboxIndex((current) => {
+          if (current === null) return current;
+          return current === imageAttachments.length - 1 ? 0 : current + 1;
+        });
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, imageAttachments.length]);
+
+  useEffect(() => {
     return () => clearTimeout(longPressTimer.current);
   }, []);
 
-  // Gom reactions theo emoji
   const reactionGroups = (isRevoked ? [] : message.reactions || []).reduce((acc, r) => {
     if (!acc[r.emoji]) acc[r.emoji] = { emoji: r.emoji, count: 0, users: [] };
     acc[r.emoji].count++;
@@ -95,9 +193,13 @@ const MessageBubble = ({
 
   const reactionsList = Object.values(reactionGroups);
 
-  const handleEmojiSelect = (emoji) => {
+  const closeMenus = () => {
     setShowPicker(false);
     setShowActions(false);
+  };
+
+  const handleEmojiSelect = (emoji) => {
+    closeMenus();
     if (onReaction) onReaction(message.id, emoji);
   };
 
@@ -127,11 +229,6 @@ const MessageBubble = ({
 
   const handleTouchEnd = () => {
     clearTimeout(longPressTimer.current);
-  };
-
-  const closeMenus = () => {
-    setShowPicker(false);
-    setShowActions(false);
   };
 
   const handleCopy = async () => {
@@ -194,31 +291,86 @@ const MessageBubble = ({
 
   return (
     <>
-      {/* Lightbox */}
-      {lightboxSrc && (
+      {activeLightboxImage && (
         <div
-          className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#111111]/92"
-          onClick={() => setLightboxSrc(null)}
+          className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#111111]/92 px-4 py-6"
+          onClick={closeLightbox}
+          onTouchStart={handleLightboxTouchStart}
+          onTouchEnd={handleLightboxTouchEnd}
         >
           <button
+            type="button"
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
-            onClick={() => setLightboxSrc(null)}
+            onClick={closeLightbox}
           >
             <span className="material-symbols-outlined text-2xl">close</span>
           </button>
+
+          {imageAttachments.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 md:flex"
+                onClick={showPrevImage}
+                title="Ảnh trước"
+              >
+                <span className="material-symbols-outlined text-[28px]">chevron_left</span>
+              </button>
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 md:flex"
+                onClick={showNextImage}
+                title="Ảnh sau"
+              >
+                <span className="material-symbols-outlined text-[28px]">chevron_right</span>
+              </button>
+            </>
+          )}
+
           <img
-            src={lightboxSrc}
-            alt="Ảnh trong tin nhắn"
-            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
-            onClick={(e) => e.stopPropagation()}
+            src={activeLightboxImage.url}
+            alt={activeLightboxImage.filename || 'Ảnh trong tin nhắn'}
+            className="max-h-[84vh] max-w-[92vw] rounded-lg object-contain"
+            onClick={(event) => event.stopPropagation()}
           />
+
+          {imageAttachments.length > 1 && (
+            <div
+              className="absolute inset-x-4 bottom-4 flex flex-col items-center gap-3"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                {(lightboxIndex || 0) + 1} / {imageAttachments.length}
+              </div>
+              <div className="no-scrollbar flex max-w-full gap-2 overflow-x-auto">
+                {imageAttachments.map((attachment, index) => (
+                  <button
+                    key={`${attachment.url}-${index}`}
+                    type="button"
+                    onClick={() => setLightboxIndex(index)}
+                    className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border transition ${
+                      index === lightboxIndex
+                        ? 'border-white opacity-100'
+                        : 'border-white/20 opacity-55 hover:opacity-85'
+                    }`}
+                  >
+                    <img
+                      src={attachment.url}
+                      alt={attachment.filename || 'Ảnh trong album'}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       <div
         className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
       >
-        {/* Avatar */}
         <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
             <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
@@ -227,11 +379,9 @@ const MessageBubble = ({
           )}
         </div>
 
-        {/* Bubble column */}
         <div
           className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}
         >
-          {/* Sender name */}
           {!isOwn && showAvatar && message.senderName && (
             <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
               {message.senderName}
@@ -278,7 +428,6 @@ const MessageBubble = ({
               </button>
             )}
 
-            {/* Nội dung: image / file / text */}
             {isRevoked ? (
               <div
                 className={`inline-flex items-center gap-2 rounded-lg border border-dashed border-outline-variant bg-surface-container-low px-4 py-2.5 text-[14px] italic text-on-surface-variant shadow-[0_2px_10px_rgba(40,37,32,0.02)] ${
@@ -286,46 +435,164 @@ const MessageBubble = ({
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">block</span>
-                <span>Tin nhắn này đã được thu hồi</span>
+                <span>{REVOKED_MESSAGE_TEXT}</span>
               </div>
-            ) : message.attachment?.type === 'image' ? (
-              <img
-                src={message.attachment.url}
-                alt={message.attachment.filename || 'Ảnh trong tin nhắn'}
-                className="max-h-[360px] w-[min(520px,72vw)] cursor-pointer rounded-lg border border-outline-variant object-cover shadow-[0_2px_12px_rgba(40,37,32,0.05)] transition-opacity hover:opacity-90"
-                onClick={() => setLightboxSrc(message.attachment.url)}
-              />
-            ) : message.attachment?.type === 'file' ? (
-              <a
-                href={message.attachment.url}
-                download={message.attachment.filename}
-                className="flex min-w-[240px] max-w-[360px] items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)] transition-colors hover:bg-surface-container-low"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <span className="material-symbols-outlined shrink-0 text-3xl text-on-surface">
-                  description
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-on-surface">
-                    {message.attachment.filename}
-                  </p>
-                  <p className="text-[11px] text-on-surface-variant">
-                    {Math.round(message.attachment.size / 1024)} KB
-                  </p>
-                </div>
-                <span className="material-symbols-outlined shrink-0 text-xl text-on-surface-variant">
-                  download
-                </span>
-              </a>
             ) : (
               <div
-                className={`rounded-lg px-4 py-2.5 text-[15px] leading-relaxed break-words shadow-[0_2px_10px_rgba(40,37,32,0.03)] ${
-                  isOwn
-                    ? 'border border-[#ded1c1] bg-accent-soft text-on-surface'
-                    : 'border border-outline-variant bg-surface-container-lowest text-on-surface'
-                }`}
+                className={`flex max-w-[min(540px,74vw)] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}
               >
-                <span className="whitespace-pre-wrap">{message.content}</span>
+                {imageAttachments.length > 0 && (
+                  <>
+                    <div className="md:hidden">
+                      {imageAttachments.length === 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => openLightbox(0)}
+                          className="block w-[min(330px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-[0_2px_12px_rgba(40,37,32,0.05)] transition-opacity hover:opacity-90"
+                        >
+                          <img
+                            src={imageAttachments[0].url}
+                            alt={imageAttachments[0].filename || 'Ảnh trong tin nhắn'}
+                            className="max-h-[360px] w-full object-cover"
+                            loading="lazy"
+                          />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openLightbox(0)}
+                          className="relative h-[270px] w-[min(350px,74vw)] overflow-visible px-2 py-3"
+                        >
+                          {imageAttachments[3] && (
+                            <span className="absolute left-0 top-11 h-[204px] w-[72%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low opacity-65 shadow-[0_8px_22px_rgba(40,37,32,0.1)] -rotate-6">
+                              <img
+                                src={imageAttachments[3].url}
+                                alt=""
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            </span>
+                          )}
+                          {imageAttachments[2] && (
+                            <span className="absolute right-0 top-8 h-[214px] w-[74%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low opacity-75 shadow-[0_8px_22px_rgba(40,37,32,0.12)] rotate-6">
+                              <img
+                                src={imageAttachments[2].url}
+                                alt=""
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            </span>
+                          )}
+                          <span className="absolute left-7 top-5 h-[222px] w-[76%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest opacity-90 shadow-[0_8px_22px_rgba(40,37,32,0.12)] -rotate-3">
+                            <img
+                              src={imageAttachments[1]?.url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          </span>
+                          <span className="relative z-20 mx-auto block h-[230px] w-[82%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-[0_12px_30px_rgba(40,37,32,0.18)] rotate-1">
+                            <img
+                              src={imageAttachments[0].url}
+                              alt={imageAttachments[0].filename || 'Ảnh trong tin nhắn'}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          </span>
+                          <span className="absolute right-2 top-2 z-30 rounded-full border border-white/25 bg-[#1f1d1a]/70 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_4px_14px_rgba(0,0,0,0.2)]">
+                            1 / {imageAttachments.length}
+                          </span>
+                          <span className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1 text-[11px] font-semibold text-on-surface shadow-[0_6px_18px_rgba(40,37,32,0.12)]">
+                            {imageAttachments.length} ảnh
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div
+                      className={`hidden overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-[0_2px_12px_rgba(40,37,32,0.05)] md:grid ${
+                        imageAttachments.length === 1
+                          ? 'w-[min(520px,72vw)] grid-cols-1'
+                          : 'w-[min(520px,72vw)] grid-cols-2 gap-1 p-1'
+                      }`}
+                    >
+                      {imageAttachments.slice(0, 4).map((attachment, index) => {
+                        const remainingCount = imageAttachments.length - 4;
+                        const showOverlay = index === 3 && remainingCount > 0;
+
+                        return (
+                          <button
+                            key={`${attachment.url}-${index}`}
+                            type="button"
+                            onClick={() => openLightbox(showOverlay ? 4 : index)}
+                            className={`relative block overflow-hidden bg-surface-container-low transition-opacity hover:opacity-90 ${
+                              imageAttachments.length === 1 ? '' : 'rounded-md'
+                            }`}
+                          >
+                            <img
+                              src={attachment.url}
+                              alt={attachment.filename || 'Ảnh trong tin nhắn'}
+                              className={`w-full cursor-pointer object-cover ${
+                                imageAttachments.length === 1
+                                  ? 'max-h-[360px]'
+                                  : imageAttachments.length === 2
+                                    ? 'aspect-square'
+                                    : 'aspect-[4/3]'
+                              }`}
+                              loading="lazy"
+                            />
+                            {showOverlay && (
+                              <span className="absolute inset-0 flex items-center justify-center bg-[#1f1d1a]/55 text-lg font-semibold text-white">
+                                +{remainingCount}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {fileAttachments.length > 0 && (
+                  <div className="flex w-[min(420px,74vw)] flex-col gap-2">
+                    {fileAttachments.map((attachment, index) => (
+                      <a
+                        key={`${attachment.url}-${index}`}
+                        href={attachment.url}
+                        download={attachment.filename}
+                        className="flex min-w-[240px] items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)] transition-colors hover:bg-surface-container-low"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <span className="material-symbols-outlined shrink-0 text-3xl text-on-surface">
+                          description
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate text-sm font-medium text-on-surface">
+                            {attachment.filename}
+                          </p>
+                          <p className="text-[11px] text-on-surface-variant">
+                            {formatFileSize(attachment.size)}
+                          </p>
+                        </div>
+                        <span className="material-symbols-outlined shrink-0 text-xl text-on-surface-variant">
+                          download
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {message.content || !hasAttachments ? (
+                  <div
+                    className={`rounded-lg px-4 py-2.5 text-[15px] leading-relaxed break-words shadow-[0_2px_10px_rgba(40,37,32,0.03)] ${
+                      isOwn
+                        ? 'border border-[#ded1c1] bg-accent-soft text-on-surface'
+                        : 'border border-outline-variant bg-surface-container-lowest text-on-surface'
+                    } ${hasAttachments ? 'max-w-[min(520px,72vw)]' : ''}`}
+                  >
+                    <span className="whitespace-pre-wrap">{message.content}</span>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -389,7 +656,6 @@ const MessageBubble = ({
             )}
           </div>
 
-          {/* Reactions */}
           {reactionsList.length > 0 && (
             <div className="mt-0.5 flex flex-wrap gap-1">
               {reactionsList.map(({ emoji, count }) => (
@@ -403,7 +669,6 @@ const MessageBubble = ({
             </div>
           )}
 
-          {/* Timestamp + status */}
           <span className={`px-1 text-[11px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
             {formatTime(message.timestamp)}
             {!isRevoked && message.isEdited && <span className="ml-1">Đã sửa</span>}

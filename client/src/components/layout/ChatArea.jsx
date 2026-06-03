@@ -5,10 +5,26 @@ import MessageInput from '../chat/MessageInput';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
+const getMessageAttachments = (message = {}) => {
+  if (message.isDeleted) return [];
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    return message.attachments;
+  }
+  return message.attachment ? [message.attachment] : [];
+};
+
 const getPinnedPreviewText = (message) => {
   if (!message) return '';
   if (message.isDeleted) return REVOKED_MESSAGE_TEXT;
-  return message.content || message.attachment?.filename || 'Tệp đính kèm';
+
+  const attachments = getMessageAttachments(message);
+  if (message.content) return message.content;
+  if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
+  if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
+    return `${attachments.length} ảnh`;
+  }
+  if (attachments.length > 1) return `${attachments.length} tệp đính kèm`;
+  return 'Tệp đính kèm';
 };
 
 const PinGlyph = ({ className = '' }) => (
@@ -66,8 +82,10 @@ const ChatArea = ({
 
     return messages.filter((message) => {
       const content = message.isDeleted ? 'Tin nhắn này đã được thu hồi' : message.content || '';
-      const filename = message.isDeleted ? '' : message.attachment?.filename || '';
-      return `${content} ${filename}`.toLowerCase().includes(query);
+      const filenames = getMessageAttachments(message)
+        .map((attachment) => attachment.filename || '')
+        .join(' ');
+      return `${content} ${filenames}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
 

@@ -96,6 +96,21 @@ const getMessageMemberIds = async (message) => {
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
+const normalizeAttachmentList = ({ attachment, attachments }) => {
+  const list = Array.isArray(attachments) ? attachments.filter((item) => item?.url) : [];
+  if (list.length > 0) return list;
+  return attachment?.url ? [attachment] : [];
+};
+
+const getPrimaryAttachment = (attachment, attachments) =>
+  attachment?.url ? attachment : normalizeAttachmentList({ attachment, attachments })[0] || null;
+
+const getMessageTypeFromAttachments = (attachments) => {
+  const firstAttachment = attachments[0];
+  if (!firstAttachment) return 'text';
+  return firstAttachment.type === 'image' ? 'image' : 'file';
+};
+
 const formatReplyPreview = (message) => {
   if (!message) return null;
 
@@ -105,6 +120,12 @@ const formatReplyPreview = (message) => {
     senderName: message.sender?.username || '',
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     attachment: message.isDeleted ? null : message.attachment || null,
+    attachments: message.isDeleted
+      ? []
+      : normalizeAttachmentList({
+          attachment: message.attachment,
+          attachments: message.attachments,
+        }),
     isDeleted: Boolean(message.isDeleted),
   };
 };
@@ -118,6 +139,12 @@ const formatPinnedMessage = (message) => {
     senderName: message.sender?.username || '',
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     attachment: message.isDeleted ? null : message.attachment || null,
+    attachments: message.isDeleted
+      ? []
+      : normalizeAttachmentList({
+          attachment: message.attachment,
+          attachments: message.attachments,
+        }),
     isDeleted: Boolean(message.isDeleted),
     timestamp: message.createdAt,
   };
@@ -297,8 +324,18 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { tempId, conversationId, recipientId, content, attachment, replyToId } = data;
+        const { tempId, conversationId, recipientId, content, attachment, attachments, replyToId } =
+          data;
         const senderId = socket.userId;
+        const cleanContent = typeof content === 'string' ? content.trim() : '';
+        const normalizedAttachments = normalizeAttachmentList({ attachment, attachments });
+        const primaryAttachment = getPrimaryAttachment(attachment, normalizedAttachments);
+
+        if (!cleanContent && normalizedAttachments.length === 0) {
+          socket.emit('error', { message: 'Nội dung tin nhắn không được rỗng' });
+          return;
+        }
+
         const conversation = await loadConversationForSend({
           conversationId,
           recipientId,
@@ -332,9 +369,10 @@ const socketHandler = (io) => {
           sender: senderId,
           recipient: resolvedRecipientId,
           conversation: conversation._id,
-          content: content,
-          attachment: attachment || null,
-          messageType: attachment?.type || 'text',
+          content: cleanContent,
+          attachment: primaryAttachment,
+          attachments: normalizedAttachments,
+          messageType: getMessageTypeFromAttachments(normalizedAttachments),
           status: 'sent',
           replyTo: replyToMessage?._id || null,
         });
@@ -350,6 +388,7 @@ const socketHandler = (io) => {
           timestamp: newMessage.createdAt,
           status: newMessage.status,
           attachment: newMessage.attachment,
+          attachments: newMessage.attachments || [],
           replyTo: formatReplyPreview(replyToMessage),
         });
 
@@ -361,8 +400,9 @@ const socketHandler = (io) => {
               conversationId: resolvedConversationId,
               senderId,
               recipientId: resolvedRecipientId,
-              content,
+              content: newMessage.content,
               attachment: newMessage.attachment,
+              attachments: newMessage.attachments || [],
               timestamp: newMessage.createdAt,
               status: newMessage.status,
               replyTo: formatReplyPreview(replyToMessage),
@@ -617,6 +657,7 @@ const socketHandler = (io) => {
 
         message.content = REVOKED_MESSAGE_TEXT;
         message.attachment = null;
+        message.attachments = [];
         message.messageType = 'text';
         message.reactions = [];
         message.isEdited = false;
@@ -645,7 +686,7 @@ const socketHandler = (io) => {
 
         const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
           .sort({ createdAt: -1 })
-          .select('content attachment createdAt isDeleted')
+          .select('content attachment attachments createdAt isDeleted')
           .lean();
 
         emitToUsers(io, participantIds, 'message_deleted', {
@@ -655,6 +696,7 @@ const socketHandler = (io) => {
           recipientId,
           content: REVOKED_MESSAGE_TEXT,
           attachment: null,
+          attachments: [],
           reactions: [],
           isDeleted: true,
           deletedAt: message.deletedAt,
@@ -669,6 +711,12 @@ const socketHandler = (io) => {
                 attachment: conversationLastMessage.isDeleted
                   ? null
                   : conversationLastMessage.attachment,
+                attachments: conversationLastMessage.isDeleted
+                  ? []
+                  : normalizeAttachmentList({
+                      attachment: conversationLastMessage.attachment,
+                      attachments: conversationLastMessage.attachments,
+                    }),
                 isDeleted: conversationLastMessage.isDeleted,
                 timestamp: conversationLastMessage.createdAt,
             }

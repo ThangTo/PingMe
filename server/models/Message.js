@@ -1,5 +1,19 @@
 import mongoose from 'mongoose';
 
+const attachmentSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['image', 'file'],
+    },
+    url: String,
+    filename: String,
+    size: Number,
+    mimeType: String,
+  },
+  { _id: false },
+);
+
 /**
  * Message Schema - Định nghĩa cấu trúc tin nhắn
  */
@@ -29,7 +43,7 @@ const messageSchema = new mongoose.Schema(
     // Nội dung tin nhắn
     content: {
       type: String,
-      required: [true, 'Message content is required'],
+      default: '',
       trim: true,
       maxlength: [5000, 'Message cannot exceed 5000 characters'],
     },
@@ -41,16 +55,13 @@ const messageSchema = new mongoose.Schema(
       default: 'text',
     },
 
-    // File đính kèm (nếu có)
-    attachment: {
-      type: {
-        type: String,
-        enum: ['image', 'file'],
-      },
-      url: String,
-      filename: String,
-      size: Number,
-      mimeType: String,
+    // File đính kèm cũ: giữ lại để tương thích dữ liệu đã có
+    attachment: attachmentSchema,
+
+    // Danh sách file/ảnh trong cùng một tin nhắn
+    attachments: {
+      type: [attachmentSchema],
+      default: [],
     },
 
     // Room ID (nếu là chat nhóm)
@@ -137,7 +148,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment sender isDeleted',
+      select: 'content attachment attachments sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -151,7 +162,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment sender isDeleted',
+      select: 'content attachment attachments sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -166,7 +177,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment sender isDeleted',
+      select: 'content attachment attachments sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

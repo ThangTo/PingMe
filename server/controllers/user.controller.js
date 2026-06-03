@@ -3,10 +3,24 @@ import bcrypt from 'bcrypt';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 
+const getMessageAttachments = (message) => {
+  if (!message || message.isDeleted) return [];
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    return message.attachments;
+  }
+  return message.attachment ? [message.attachment] : [];
+};
+
 const getMessagePreview = (message) => {
   if (!message) return 'Bắt đầu trò chuyện';
   if (message.isDeleted) return 'Tin nhắn này đã được thu hồi';
-  return message.content || message.attachment?.filename || 'Tệp đính kèm';
+  const attachments = getMessageAttachments(message);
+
+  if (message.content) return message.content;
+  if (attachments.length === 0) return 'Tin nhắn mới';
+  if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
+  if (attachments.every((attachment) => attachment.type === 'image')) return `${attachments.length} ảnh`;
+  return `${attachments.length} tệp đính kèm`;
 };
 
 const userController = {

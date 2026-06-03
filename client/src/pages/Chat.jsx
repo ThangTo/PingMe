@@ -16,8 +16,21 @@ import api from '../config/api';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
-const getMessagePreview = (content, attachment, isDeleted = false) =>
-  isDeleted ? REVOKED_MESSAGE_TEXT : content || attachment?.filename || (attachment ? 'Tệp đính kèm' : 'Tin nhắn mới');
+const getMessageAttachments = ({ attachment, attachments } = {}) => {
+  if (Array.isArray(attachments) && attachments.length > 0) return attachments;
+  return attachment ? [attachment] : [];
+};
+
+const getMessagePreview = (content, attachment, isDeleted = false, attachments = []) => {
+  if (isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (content) return content;
+
+  const messageAttachments = getMessageAttachments({ attachment, attachments });
+  if (messageAttachments.length === 0) return 'Tin nhắn mới';
+  if (messageAttachments.length === 1) return messageAttachments[0].filename || 'Tệp đính kèm';
+  if (messageAttachments.every((item) => item.type === 'image')) return `${messageAttachments.length} ảnh`;
+  return `${messageAttachments.length} tệp đính kèm`;
+};
 
 const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
   if (!message) return null;
@@ -35,6 +48,7 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     senderName,
     content: isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     attachment: isDeleted ? null : message.attachment || null,
+    attachments: isDeleted ? [] : getMessageAttachments(message),
     isDeleted,
   };
 };
@@ -48,6 +62,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   status: msg.status,
   reactions: msg.reactions || [],
   attachment: msg.attachment || null,
+  attachments: getMessageAttachments(msg),
   isEdited: msg.isEdited || false,
   editedAt: msg.editedAt || null,
   isDeleted: msg.isDeleted || false,
@@ -298,6 +313,12 @@ const Chat = () => {
       const eventConversationId = data.conversationId || fallbackConversationId || data.senderId;
       const isCurrentConversation = eventConversationId === selectedConversationId;
       const shouldMarkRead = isCurrentConversation && document.hasFocus();
+      const incomingAttachments = getMessageAttachments(data);
+      const incomingMessage = {
+        ...data,
+        attachment: data.attachment || incomingAttachments[0] || null,
+        attachments: incomingAttachments,
+      };
 
       console.log('📨 Received message:', data);
       if (user?.id && data.id && data.senderId) {
@@ -314,7 +335,10 @@ const Chat = () => {
       }
 
       if (isCurrentConversation) {
-        setMessages((prev) => [...prev, shouldMarkRead ? { ...data, status: 'read' } : data]);
+        setMessages((prev) => [
+          ...prev,
+          shouldMarkRead ? { ...incomingMessage, status: 'read' } : incomingMessage,
+        ]);
       }
 
       setConversations((prev) => {
@@ -322,7 +346,7 @@ const Chat = () => {
         if (!targetConv) return prev;
         const updatedTarget = {
           ...targetConv,
-          lastMessage: getMessagePreview(data.content, data.attachment),
+          lastMessage: getMessagePreview(data.content, data.attachment, false, incomingAttachments),
           lastMessageAt: data.timestamp,
           unreadCount: shouldMarkRead ? 0 : (targetConv.unreadCount || 0) + 1,
         };
@@ -379,6 +403,7 @@ const Chat = () => {
     socket.on('reaction_removed', handleRemoveReaction);
 
     const handleMessageSent = (data) => {
+      const savedAttachments = getMessageAttachments(data);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.tempId
@@ -387,7 +412,8 @@ const Chat = () => {
                 id: data.id,
                 timestamp: data.timestamp,
                 status: data.status,
-                attachment: data.attachment || msg.attachment,
+                attachment: data.attachment || savedAttachments[0] || msg.attachment,
+                attachments: savedAttachments.length > 0 ? savedAttachments : msg.attachments || [],
                 replyTo: data.replyTo || msg.replyTo || null,
               }
             : msg,
@@ -558,6 +584,7 @@ const Chat = () => {
               ...msg,
               content: data.content || REVOKED_MESSAGE_TEXT,
               attachment: null,
+              attachments: [],
               reactions: [],
               isEdited: false,
               editedAt: null,
@@ -573,6 +600,7 @@ const Chat = () => {
                 ...msg.replyTo,
                 content: REVOKED_MESSAGE_TEXT,
                 attachment: null,
+                attachments: [],
                 isDeleted: true,
               },
             };
@@ -589,6 +617,7 @@ const Chat = () => {
               ...prev,
               content: REVOKED_MESSAGE_TEXT,
               attachment: null,
+              attachments: [],
               isDeleted: true,
             }
           : prev,
@@ -604,6 +633,7 @@ const Chat = () => {
                       lastMessage.content,
                       lastMessage.attachment,
                       lastMessage.isDeleted,
+                      lastMessage.attachments,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -663,17 +693,23 @@ const Chat = () => {
     }
   };
 
-  const handleSendMessage = (content, attachment, replyTo = replyingMessage) => {
+  const handleSendMessage = (content, attachment, replyTo = replyingMessage, attachments = []) => {
     if (!selectedConversationId || !user) return;
     const tempId = crypto.randomUUID();
     const replyPreview = normalizeReplyPreview(replyTo, user, currentChatUser);
+    const cleanContent = typeof content === 'string' ? content.trim() : '';
+    const messageAttachments = getMessageAttachments({ attachment, attachments });
+    const primaryAttachment = attachment || messageAttachments[0] || null;
+
+    if (!cleanContent && messageAttachments.length === 0) return;
 
     const messageData = {
       tempId,
       conversationId: selectedConversationId,
       recipientId: currentChatUser?.peerId || null,
-      content: content || (attachment ? attachment.filename : ''),
-      attachment: attachment || null,
+      content: cleanContent,
+      attachment: primaryAttachment,
+      attachments: messageAttachments,
       replyToId: replyPreview?.id || null,
     };
     socket.emit('send_message', messageData);
@@ -682,10 +718,11 @@ const Chat = () => {
       id: tempId,
       conversationId: selectedConversationId,
       senderId: user.id,
-      content,
+      content: cleanContent,
       timestamp: new Date().toISOString(),
       status: 'sending',
-      attachment: attachment || null,
+      attachment: primaryAttachment,
+      attachments: messageAttachments,
       replyTo: replyPreview,
     };
     setMessages((prev) => [...prev, newMessage]);
@@ -696,7 +733,7 @@ const Chat = () => {
       if (!targetConv) return prev;
       const updatedTarget = {
         ...targetConv,
-        lastMessage: getMessagePreview(content, attachment),
+        lastMessage: getMessagePreview(cleanContent, primaryAttachment, false, messageAttachments),
         lastMessageAt: newMessage.timestamp,
       };
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
