@@ -46,6 +46,21 @@ const normalizeReadStates = (readStates = []) =>
     })
     .filter(Boolean);
 
+const normalizeMembers = (members = []) =>
+  members
+    .map((member) => {
+      const id = getIdString(member.id || member.userId || member.user);
+      if (!id) return null;
+
+      return {
+        id,
+        username: member.username || member.userName || member.user?.username || 'Người dùng',
+        avatar: member.avatar || member.user?.avatar || '',
+        role: member.role || 'member',
+      };
+    })
+    .filter(Boolean);
+
 const upsertReadState = (readStates = [], nextReadState) => {
   const normalizedNext = normalizeReadStates([nextReadState])[0];
   if (!normalizedNext) return readStates;
@@ -137,7 +152,7 @@ const formatConversationSummary = (conversation, onlineUsers = []) => {
       ? onlineUsers.includes(conversation.peerId)
       : Boolean(conversation.isOnline),
     isGroup,
-    members: conversation.members || [],
+    members: normalizeMembers(conversation.members),
     memberCount: conversation.memberCount || conversation.members?.length || 0,
     lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
     lastMessageAt: conversation.lastMessageAt || null,
@@ -274,7 +289,7 @@ const Chat = () => {
               ? onlineUsers.includes(conversation.peerId)
               : conversation.isOnline,
             isGroup: conversation.type === 'group',
-            members: conversation.members || [],
+            members: normalizeMembers(conversation.members),
             memberCount: conversation.memberCount || conversation.members?.length || 0,
             lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
             lastMessageAt: conversation.lastMessageAt || null,
@@ -324,6 +339,79 @@ const Chat = () => {
       return formattedConversation;
     },
     [onlineUsers],
+  );
+
+  const applyConversationMembersUpdate = useCallback(
+    (data) => {
+      const conversationId = data?.conversationId || data?.conversation?._id || data?.conversation?.id;
+      if (!conversationId) return;
+
+      const removedMemberIds = data.removedMemberIds || [];
+      const isCurrentUserRemoved = Boolean(user?.id && removedMemberIds.includes(user.id));
+      const nextMembers = data.members ? normalizeMembers(data.members) : null;
+      const nextReadStates = data.readStates ? normalizeReadStates(data.readStates) : null;
+
+      setConversations((prev) => {
+        if (isCurrentUserRemoved) {
+          return prev.filter((conv) => conv.id !== conversationId);
+        }
+
+        return prev.map((conv) => {
+          if (conv.id !== conversationId) return conv;
+
+          return {
+            ...conv,
+            members: nextMembers || conv.members,
+            memberCount: data.memberCount ?? nextMembers?.length ?? conv.memberCount,
+            readStates: nextReadStates || conv.readStates,
+          };
+        });
+      });
+
+      if (isCurrentUserRemoved && selectedConversationId === conversationId) {
+        setSelectedConversationId(null);
+        setShowDetails(false);
+        setMessages([]);
+        setEditingMessage(null);
+        setReplyingMessage(null);
+      }
+    },
+    [selectedConversationId, user?.id],
+  );
+
+  const handleAddGroupMembers = useCallback(
+    async (conversationId, memberIds) => {
+      const response = await api.post(`/conversations/${conversationId}/members`, { memberIds });
+      if (response.data.success) {
+        applyConversationMembersUpdate(response.data);
+      }
+      return response.data;
+    },
+    [applyConversationMembersUpdate],
+  );
+
+  const handleRemoveGroupMember = useCallback(
+    async (conversationId, memberId) => {
+      const response = await api.delete(`/conversations/${conversationId}/members/${memberId}`);
+      if (response.data.success) {
+        applyConversationMembersUpdate(response.data);
+      }
+      return response.data;
+    },
+    [applyConversationMembersUpdate],
+  );
+
+  const handleUpdateGroupMemberRole = useCallback(
+    async (conversationId, memberId, role) => {
+      const response = await api.patch(`/conversations/${conversationId}/members/${memberId}/role`, {
+        role,
+      });
+      if (response.data.success) {
+        applyConversationMembersUpdate(response.data);
+      }
+      return response.data;
+    },
+    [applyConversationMembersUpdate],
   );
 
   const markChatAsRead = useCallback(() => {
@@ -506,6 +594,12 @@ const Chat = () => {
     };
 
     socket.on('conversation_created', handleConversationCreated);
+
+    const handleConversationMembersUpdated = (data) => {
+      applyConversationMembersUpdate(data);
+    };
+
+    socket.on('conversation_members_updated', handleConversationMembersUpdated);
 
     const handleMessagesRead = (data) => {
       console.log('Người kia đã đọc tin nhắn:', data);
@@ -853,6 +947,7 @@ const Chat = () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('friend_request_accepted', handleFriendAccepted);
       socket.off('conversation_created', handleConversationCreated);
+      socket.off('conversation_members_updated', handleConversationMembersUpdated);
       socket.off('messages_were_read', handleMessagesRead);
       socket.off('conversation_read_state_updated', handleConversationReadStateUpdated);
       socket.off('reaction_added', handleAddReaction);
@@ -868,7 +963,14 @@ const Chat = () => {
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('message_delete_failed', handleMessageDeleteFailed);
     };
-  }, [selectedConversationId, currentChatUser?.peerId, user, fetchFriends, upsertConversation]);
+  }, [
+    selectedConversationId,
+    currentChatUser?.peerId,
+    user,
+    fetchFriends,
+    upsertConversation,
+    applyConversationMembersUpdate,
+  ]);
 
   const handleTypingStart = () => {
     if (selectedConversationId && currentChatUser?.isGroup && user) {
@@ -1160,6 +1262,13 @@ const Chat = () => {
                     <ChatDetailsPanel
                       user={currentChatUser}
                       messages={messages}
+                      currentUserId={user?.id}
+                      friendOptions={conversations.filter(
+                        (conversation) => !conversation.isGroup && conversation.peerId,
+                      )}
+                      onAddGroupMembers={handleAddGroupMembers}
+                      onRemoveGroupMember={handleRemoveGroupMember}
+                      onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
                       onClose={() => setShowDetails(false)}
                     />
                   )}

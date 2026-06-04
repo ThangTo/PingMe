@@ -4,7 +4,9 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
   attachLegacyDirectMessages,
+  getConversationMemberIds,
   getConversationMember,
+  getConversationRoomId,
   getUserRoomId,
   getMemberReadCutoff,
   getOrCreateDirectConversation,
@@ -140,6 +142,70 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
   };
 };
 
+const canManageGroupMembers = (role) => ['owner', 'admin'].includes(role);
+
+const canRemoveGroupMember = (actorRole, targetRole) => {
+  if (targetRole === 'owner') return false;
+  if (actorRole === 'owner') return true;
+  return actorRole === 'admin' && targetRole === 'member';
+};
+
+const populateConversationSummary = (conversationId) =>
+  Conversation.findById(conversationId)
+    .populate('members.user', 'username email avatar isOnline')
+    .populate('lastMessage')
+    .populate({
+      path: 'pinnedMessage',
+      populate: { path: 'sender', select: 'username avatar' },
+    })
+    .populate({
+      path: 'pinnedMessages.message',
+      populate: { path: 'sender', select: 'username avatar' },
+    })
+    .populate('pinnedMessages.pinnedBy', 'username avatar')
+    .lean();
+
+const buildMembersPayload = (conversation, action, actorId, extra = {}) => ({
+  conversationId: conversation._id.toString(),
+  action,
+  actorId,
+  members: formatConversationMembers(conversation),
+  memberCount: conversation.members?.length || 0,
+  readStates: formatReadStates(conversation),
+  ...extra,
+});
+
+const setUserConversationRoom = (io, userIds, conversationId, shouldJoin) => {
+  const targetUserIds = new Set(userIds.map((id) => id?.toString()).filter(Boolean));
+  const roomId = getConversationRoomId(conversationId);
+
+  io.sockets.sockets.forEach((socket) => {
+    const socketUserId = (socket.userId || socket.data?.userId)?.toString();
+    if (!targetUserIds.has(socketUserId)) return;
+
+    if (shouldJoin) socket.join(roomId);
+    else socket.leave(roomId);
+  });
+};
+
+const emitConversationMembersUpdated = ({ req, conversation, payload, addedMemberIds = [] }) => {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  io.to(getConversationRoomId(conversation._id)).emit('conversation_members_updated', payload);
+
+  addedMemberIds.forEach((memberId) => {
+    io.to(getUserRoomId(memberId)).emit('conversation_members_updated', payload);
+    io.to(getUserRoomId(memberId)).emit('conversation_created', {
+      conversation: formatConversation(conversation, memberId, new Map()),
+    });
+  });
+
+  if (addedMemberIds.length > 0) {
+    setUserConversationRoom(io, addedMemberIds, conversation._id, true);
+  }
+};
+
 const conversationController = {
   createGroup: async (req, res) => {
     try {
@@ -226,6 +292,231 @@ const conversationController = {
     } catch (error) {
       console.error('Loi tao nhom:', error);
       return res.status(500).json({ error: 'Khong the tao nhom' });
+    }
+  },
+
+  addGroupMembers: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId } = req.params;
+      const requestedMemberIds = Array.isArray(req.body.memberIds)
+        ? req.body.memberIds
+        : [req.body.memberId].filter(Boolean);
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
+      }
+
+      const uniqueMemberIds = [
+        ...new Set(requestedMemberIds.map((id) => id?.toString()).filter(Boolean)),
+      ].filter((id) => id !== currentUserId);
+
+      if (uniqueMemberIds.length === 0) {
+        return res.status(400).json({ error: 'Chọn ít nhất 1 thành viên mới' });
+      }
+
+      if (uniqueMemberIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+        return res.status(400).json({ error: 'Danh sách thành viên không hợp lệ' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation || conversation.type !== 'group') {
+        return res.status(404).json({ error: 'Nhóm không tồn tại' });
+      }
+
+      const actorMember = getConversationMember(conversation, currentUserId);
+      if (!actorMember || !canManageGroupMembers(actorMember.role)) {
+        return res.status(403).json({ error: 'Bạn không có quyền thêm thành viên' });
+      }
+
+      const existingMemberIdSet = new Set(getConversationMemberIds(conversation));
+      const memberIdsToAdd = uniqueMemberIds.filter((id) => !existingMemberIdSet.has(id));
+      if (memberIdsToAdd.length === 0) {
+        return res.status(400).json({ error: 'Các thành viên đã ở trong nhóm' });
+      }
+
+      const currentUser = await User.findById(currentUserId).select('friends').lean();
+      if (!currentUser) {
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      const friendIdSet = new Set(currentUser.friends.map((id) => id.toString()));
+      const nonFriendIds = memberIdsToAdd.filter((id) => !friendIdSet.has(id));
+      if (nonFriendIds.length > 0) {
+        return res.status(403).json({ error: 'Chỉ có thể thêm bạn bè vào nhóm' });
+      }
+
+      const memberUsers = await User.find({ _id: { $in: memberIdsToAdd } }).select('_id').lean();
+      if (memberUsers.length !== memberIdsToAdd.length) {
+        return res.status(400).json({ error: 'Một số thành viên không tồn tại' });
+      }
+
+      conversation.members.push(
+        ...memberIdsToAdd.map((memberId) => ({
+          user: memberId,
+          role: 'member',
+          joinedAt: new Date(),
+          lastReadAt: new Date(),
+        })),
+      );
+      await conversation.save();
+
+      const populatedConversation = await populateConversationSummary(conversation._id);
+      const payload = buildMembersPayload(populatedConversation, 'add', currentUserId, {
+        addedMemberIds: memberIdsToAdd,
+        removedMemberIds: [],
+      });
+
+      emitConversationMembersUpdated({
+        req,
+        conversation: populatedConversation,
+        payload,
+        addedMemberIds: memberIdsToAdd,
+      });
+
+      return res.status(200).json({
+        success: true,
+        conversation: formatConversation(populatedConversation, currentUserId, new Map()),
+        ...payload,
+      });
+    } catch (error) {
+      console.error('Lỗi thêm thành viên nhóm:', error);
+      return res.status(500).json({ error: 'Không thể thêm thành viên' });
+    }
+  },
+
+  removeGroupMember: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId, memberId } = req.params;
+
+      if (
+        !mongoose.Types.ObjectId.isValid(conversationId) ||
+        !mongoose.Types.ObjectId.isValid(memberId)
+      ) {
+        return res.status(400).json({ error: 'Dữ liệu thành viên không hợp lệ' });
+      }
+
+      if (memberId === currentUserId) {
+        return res.status(400).json({ error: 'Chưa hỗ trợ tự rời nhóm ở bước này' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation || conversation.type !== 'group') {
+        return res.status(404).json({ error: 'Nhóm không tồn tại' });
+      }
+
+      const actorMember = getConversationMember(conversation, currentUserId);
+      const targetMember = getConversationMember(conversation, memberId);
+
+      if (!actorMember || !canManageGroupMembers(actorMember.role)) {
+        return res.status(403).json({ error: 'Bạn không có quyền xóa thành viên' });
+      }
+
+      if (!targetMember) {
+        return res.status(404).json({ error: 'Thành viên không nằm trong nhóm' });
+      }
+
+      if (!canRemoveGroupMember(actorMember.role, targetMember.role)) {
+        return res.status(403).json({ error: 'Bạn không thể xóa thành viên này' });
+      }
+
+      conversation.members = conversation.members.filter(
+        (member) => toIdString(member.user) !== memberId,
+      );
+      await conversation.save();
+
+      const populatedConversation = await populateConversationSummary(conversation._id);
+      const payload = buildMembersPayload(populatedConversation, 'remove', currentUserId, {
+        addedMemberIds: [],
+        removedMemberIds: [memberId],
+      });
+
+      emitConversationMembersUpdated({
+        req,
+        conversation: populatedConversation,
+        payload,
+      });
+
+      const io = req.app.get('io');
+      if (io) {
+        io.to(getUserRoomId(memberId)).emit('conversation_members_updated', payload);
+        setUserConversationRoom(io, [memberId], populatedConversation._id, false);
+      }
+
+      return res.status(200).json({
+        success: true,
+        conversation: formatConversation(populatedConversation, currentUserId, new Map()),
+        ...payload,
+      });
+    } catch (error) {
+      console.error('Lỗi xóa thành viên nhóm:', error);
+      return res.status(500).json({ error: 'Không thể xóa thành viên' });
+    }
+  },
+
+  updateGroupMemberRole: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId, memberId } = req.params;
+      const { role } = req.body;
+
+      if (
+        !mongoose.Types.ObjectId.isValid(conversationId) ||
+        !mongoose.Types.ObjectId.isValid(memberId)
+      ) {
+        return res.status(400).json({ error: 'Dữ liệu thành viên không hợp lệ' });
+      }
+
+      if (!['admin', 'member'].includes(role)) {
+        return res.status(400).json({ error: 'Role chỉ có thể là admin hoặc member' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation || conversation.type !== 'group') {
+        return res.status(404).json({ error: 'Nhóm không tồn tại' });
+      }
+
+      const actorMember = getConversationMember(conversation, currentUserId);
+      const targetMember = getConversationMember(conversation, memberId);
+
+      if (!actorMember || actorMember.role !== 'owner') {
+        return res.status(403).json({ error: 'Chỉ chủ nhóm được đổi quyền thành viên' });
+      }
+
+      if (!targetMember) {
+        return res.status(404).json({ error: 'Thành viên không nằm trong nhóm' });
+      }
+
+      if (targetMember.role === 'owner') {
+        return res.status(403).json({ error: 'Không thể đổi quyền chủ nhóm' });
+      }
+
+      targetMember.role = role;
+      await conversation.save();
+
+      const populatedConversation = await populateConversationSummary(conversation._id);
+      const payload = buildMembersPayload(populatedConversation, 'role', currentUserId, {
+        targetMemberId: memberId,
+        role,
+        addedMemberIds: [],
+        removedMemberIds: [],
+      });
+
+      emitConversationMembersUpdated({
+        req,
+        conversation: populatedConversation,
+        payload,
+      });
+
+      return res.status(200).json({
+        success: true,
+        conversation: formatConversation(populatedConversation, currentUserId, new Map()),
+        ...payload,
+      });
+    } catch (error) {
+      console.error('Lỗi đổi quyền thành viên nhóm:', error);
+      return res.status(500).json({ error: 'Không thể đổi quyền thành viên' });
     }
   },
 

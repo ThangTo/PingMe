@@ -172,12 +172,12 @@ Mục tiêu: group chat cơ bản giống Telegram group nhỏ.
 | Stage | Status | Output |
 |---|---|---|
 | 6.1 Group schema | DONE | Dùng `Conversation` type `group`: title, avatar, members, role |
-| 6.2 Create group | IN_PROGRESS | Tạo nhóm từ danh sách friends, cần user test |
-| 6.3 Group message send/receive | IN_PROGRESS | Socket.IO room `conversation:<id>`, cần user test 2-3 account |
-| 6.4 Group history | IN_PROGRESS | REST fetch messages by conversation group, cần user test refresh |
-| 6.5 Add/remove members | PLANNED | Admin action có authorization |
-| 6.6 Role basics | PLANNED | owner/admin/member |
-| 6.7 Group unread count | PLANNED | unread theo group |
+| 6.2 Create group | DONE | Tạo nhóm từ danh sách friends |
+| 6.3 Group message send/receive | DONE | Socket.IO room `conversation:<id>` |
+| 6.4 Group history | DONE | REST fetch messages by conversation group |
+| 6.5 Add/remove members | DONE | Owner/admin thêm và xóa thành viên có authorization |
+| 6.6 Role basics | DONE | owner/admin/member, owner phong/gỡ admin |
+| 6.7 Group unread count | DONE | unread/read cursor theo từng member |
 | 6.8 Group media gallery | PLANNED | Gallery theo group |
 
 Realtime notes:

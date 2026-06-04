@@ -6,5 +6,16 @@ const router = Router();
 
 router.get('/', authMiddleware, conversationController.getConversations);
 router.post('/groups', authMiddleware, conversationController.createGroup);
+router.post('/:conversationId/members', authMiddleware, conversationController.addGroupMembers);
+router.patch(
+  '/:conversationId/members/:memberId/role',
+  authMiddleware,
+  conversationController.updateGroupMemberRole,
+);
+router.delete(
+  '/:conversationId/members/:memberId',
+  authMiddleware,
+  conversationController.removeGroupMember,
+);
 
 export default router;
