@@ -33,6 +33,7 @@ const MessageList = ({
   error = '',
   searchQuery = '',
   pinnedMessageIds = [],
+  readReceiptsByMessageId = {},
   jumpToMessageSignal,
 }) => {
   const messagesEndRef = useRef(null);
@@ -150,6 +151,7 @@ const MessageList = ({
         const prevMessage = visibleMessages[index - 1];
         const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
         const isActionMenuOpen = activeActionMessageId === message.id;
+        const readReceipts = readReceiptsByMessageId[message.id] || [];
 
         return (
           <div
@@ -170,6 +172,7 @@ const MessageList = ({
               isOwn={isOwn}
               showAvatar={showAvatar}
               reactionUsersById={reactionUsersById}
+              readReceipts={readReceipts}
               onReaction={onReaction}
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}

@@ -45,6 +45,21 @@ export const getOrCreateDirectConversation = async (userA, userB) => {
 export const getConversationMemberIds = (conversation) =>
   (conversation?.members || []).map((member) => toIdString(member.user)).filter(Boolean);
 
+export const getConversationMember = (conversation, userId) => {
+  const userIdString = toIdString(userId);
+  return (conversation?.members || []).find((member) => toIdString(member.user) === userIdString);
+};
+
+export const getMemberReadCutoff = (member) => {
+  const lastReadAt = member?.lastReadAt ? new Date(member.lastReadAt) : null;
+  if (lastReadAt && !Number.isNaN(lastReadAt.getTime())) return lastReadAt;
+
+  const joinedAt = member?.joinedAt ? new Date(member.joinedAt) : null;
+  if (joinedAt && !Number.isNaN(joinedAt.getTime())) return joinedAt;
+
+  return null;
+};
+
 export const getPeerMember = (conversation, currentUserId) => {
   const currentUserIdString = toIdString(currentUserId);
   return (conversation?.members || []).find(

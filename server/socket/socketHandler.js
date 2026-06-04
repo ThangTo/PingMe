@@ -5,7 +5,9 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
   getConversationRoomId,
+  getConversationMember,
   getConversationMemberIds,
+  getMemberReadCutoff,
   getOrCreateDirectConversation,
   getPeerMember,
   getUserRoomId,
@@ -251,6 +253,67 @@ const migrateLegacyPinnedMessage = (conversation, actorId) => {
   }
 
   conversation.pinnedMessage = null;
+};
+
+const getLatestMessageByCreatedAt = (messages) =>
+  [...messages].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
+
+const updateConversationMemberReadState = async (conversation, readerId, latestMessage) => {
+  if (!conversation || !latestMessage?.createdAt) return null;
+
+  const currentMember = getConversationMember(conversation, readerId);
+  const currentLastReadAt = currentMember?.lastReadAt ? new Date(currentMember.lastReadAt) : null;
+  const nextLastReadAt = new Date(latestMessage.createdAt);
+
+  if (
+    currentLastReadAt &&
+    !Number.isNaN(currentLastReadAt.getTime()) &&
+    currentLastReadAt >= nextLastReadAt
+  ) {
+    return {
+      lastReadAt: currentLastReadAt,
+      lastReadMessageId: toIdString(currentMember.lastReadMessage),
+      updated: false,
+    };
+  }
+
+  await Conversation.updateOne(
+    { _id: conversation._id, 'members.user': readerId },
+    {
+      $set: {
+        'members.$.lastReadAt': nextLastReadAt,
+        'members.$.lastReadMessage': latestMessage._id,
+      },
+    },
+  );
+
+  return {
+    lastReadAt: nextLastReadAt,
+    lastReadMessageId: latestMessage._id.toString(),
+    updated: true,
+  };
+};
+
+const emitConversationReadStateUpdated = async ({
+  io,
+  conversation,
+  readerId,
+  messageIds,
+  readState,
+  unreadCount,
+}) => {
+  const reader = await User.findById(readerId).select('username avatar').lean();
+
+  emitToUsers(io, getConversationMemberIds(conversation), 'conversation_read_state_updated', {
+    conversationId: conversation._id.toString(),
+    readerId,
+    readerName: reader?.username || '',
+    readerAvatar: reader?.avatar || '',
+    messageIds,
+    lastReadAt: readState?.lastReadAt || null,
+    lastReadMessageId: readState?.lastReadMessageId || null,
+    unreadCount,
+  });
 };
 
 const socketHandler = (io) => {
@@ -567,19 +630,66 @@ const socketHandler = (io) => {
       if (!Array.isArray(messageIds) || messageIds.length === 0) return;
 
       try {
+        const validMessageIds = messageIds.filter((messageId) =>
+          mongoose.Types.ObjectId.isValid(messageId),
+        );
+        if (validMessageIds.length === 0) return;
+
         const readQuery = {
-          _id: { $in: messageIds },
+          _id: { $in: validMessageIds },
           recipient: readerId,
           isDeleted: false,
           status: { $ne: 'read' },
         };
         let resolvedConversationId = null;
+        let conversation = null;
 
         if (conversationId) {
           if (!mongoose.Types.ObjectId.isValid(conversationId)) return;
 
-          const conversation = await Conversation.findById(conversationId).select('members');
+          conversation = await Conversation.findById(conversationId).select('type members');
           if (!conversation || !isConversationMember(conversation, readerId)) return;
+
+          if (conversation.type === 'group') {
+            const currentMember = getConversationMember(conversation, readerId);
+            const readCutoff = getMemberReadCutoff(currentMember);
+            const groupReadQuery = {
+              _id: { $in: validMessageIds },
+              conversation: conversation._id,
+              sender: { $ne: readerId },
+              isDeleted: false,
+            };
+
+            if (readCutoff) {
+              groupReadQuery.createdAt = { $gt: readCutoff };
+            }
+
+            const groupMessagesToRead = await Message.find(groupReadQuery)
+              .select('_id sender conversation createdAt')
+              .lean();
+
+            if (groupMessagesToRead.length === 0) return;
+
+            const latestMessage = getLatestMessageByCreatedAt(groupMessagesToRead);
+            const readState = await updateConversationMemberReadState(
+              conversation,
+              readerId,
+              latestMessage,
+            );
+
+            await emitConversationReadStateUpdated({
+              io,
+              conversation,
+              readerId,
+              messageIds: groupMessagesToRead.map((message) => message._id.toString()),
+              readState: {
+                lastReadAt: readState?.lastReadAt || latestMessage.createdAt,
+                lastReadMessageId: readState?.lastReadMessageId || latestMessage._id.toString(),
+              },
+              unreadCount: 0,
+            });
+            return;
+          }
 
           readQuery.conversation = conversation._id;
           resolvedConversationId = conversation._id.toString();
@@ -590,13 +700,14 @@ const socketHandler = (io) => {
         }
 
         const messagesToRead = await Message.find(readQuery)
-          .select('_id sender conversation')
+          .select('_id sender conversation createdAt')
           .lean();
 
         if (messagesToRead.length === 0) return;
 
         const readableMessageIds = messagesToRead.map((message) => message._id);
         const senderIds = [...new Set(messagesToRead.map((message) => message.sender.toString()))];
+        const latestMessage = getLatestMessageByCreatedAt(messagesToRead);
 
         await Message.updateMany(
           {
@@ -607,6 +718,26 @@ const socketHandler = (io) => {
           },
           { $set: { status: 'read', readAt: new Date() } },
         );
+
+        if (conversation && latestMessage) {
+          const readState = await updateConversationMemberReadState(
+            conversation,
+            readerId,
+            latestMessage,
+          );
+
+          await emitConversationReadStateUpdated({
+            io,
+            conversation,
+            readerId,
+            messageIds: readableMessageIds.map((id) => id.toString()),
+            readState: {
+              lastReadAt: readState?.lastReadAt || latestMessage.createdAt,
+              lastReadMessageId: readState?.lastReadMessageId || latestMessage._id.toString(),
+            },
+            unreadCount: 0,
+          });
+        }
 
         senderIds.forEach((verifiedSenderId) => {
           emitToUser(io, verifiedSenderId, 'messages_were_read', {

@@ -3,8 +3,11 @@ import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import {
   attachLegacyDirectMessages,
+  getConversationMember,
+  getMemberReadCutoff,
   getOrCreateDirectConversation,
   isConversationMember,
+  toIdString,
 } from '../services/conversation.service.js';
 
 const populateMessageQuery = (query) =>
@@ -65,6 +68,27 @@ const getMessageWindowAroundTarget = async (conversationId, targetMessageId) => 
   return [...beforeAndTarget.reverse(), ...after];
 };
 
+const serializeMessagesForReader = (messages, conversation, currentUserId) => {
+  if (conversation.type !== 'group') return messages;
+
+  const currentMember = getConversationMember(conversation, currentUserId);
+  const readCutoff = getMemberReadCutoff(currentMember);
+  if (!readCutoff) return messages;
+
+  return messages.map((message) => {
+    const messageObject = message.toObject ? message.toObject() : message;
+    const senderId = toIdString(messageObject.sender);
+    const createdAt = messageObject.createdAt ? new Date(messageObject.createdAt) : null;
+    const wasReadByCurrentUser =
+      senderId !== currentUserId &&
+      !messageObject.isDeleted &&
+      createdAt &&
+      createdAt <= readCutoff;
+
+    return wasReadByCurrentUser ? { ...messageObject, status: 'read' } : messageObject;
+  });
+};
+
 const messageController = {
   // Lấy lịch sử tin nhắn theo conversationId
   getConversationMessages: async (req, res) => {
@@ -106,6 +130,12 @@ const messageController = {
         messages = messages.reverse();
       }
 
+      const messagesForCurrentUser = serializeMessagesForReader(
+        messages,
+        conversation,
+        currentUserId,
+      );
+
       res.status(200).json({
         success: true,
         conversation: {
@@ -113,7 +143,7 @@ const messageController = {
           type: conversation.type,
           pinnedMessage: conversation.pinnedMessage,
         },
-        messages,
+        messages: messagesForCurrentUser,
         targetMessageId: targetMessageId || null,
       });
     } catch (error) {

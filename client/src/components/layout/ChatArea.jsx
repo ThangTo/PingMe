@@ -76,6 +76,42 @@ const ChatArea = ({
     currentUser?.latestPinnedMessage || currentUser?.pinnedMessage || pinnedMessages[0] || null;
   const pinnedMessageCount = currentUser?.pinnedMessageCount ?? pinnedMessages.length;
   const pinnedMessageIds = pinnedMessages.map((message) => message.id).filter(Boolean);
+  const readReceiptsByMessageId = useMemo(() => {
+    const membersById = new Map(
+      (currentUser?.members || []).map((member) => [
+        member.id,
+        {
+          name: member.username || '',
+          avatar: member.avatar || '',
+        },
+      ]),
+    );
+    const receiptsByMessageId = {};
+
+    (currentUser?.readStates || []).forEach((readState) => {
+      if (!readState?.lastReadMessageId || readState.userId === currentUserId) return;
+
+      const member = membersById.get(readState.userId);
+      const receipt = {
+        id: readState.userId,
+        name: readState.userName || member?.name || 'Người dùng',
+        avatar: readState.avatar || member?.avatar || '',
+        lastReadAt: readState.lastReadAt || null,
+      };
+
+      if (!receiptsByMessageId[readState.lastReadMessageId]) {
+        receiptsByMessageId[readState.lastReadMessageId] = [];
+      }
+
+      receiptsByMessageId[readState.lastReadMessageId].push(receipt);
+    });
+
+    Object.values(receiptsByMessageId).forEach((receipts) => {
+      receipts.sort((a, b) => new Date(b.lastReadAt || 0) - new Date(a.lastReadAt || 0));
+    });
+
+    return receiptsByMessageId;
+  }, [currentUser?.members, currentUser?.readStates, currentUserId]);
 
   const searchMatchCount = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -288,6 +324,7 @@ const ChatArea = ({
           error={error}
           searchQuery={searchQuery}
           pinnedMessageIds={pinnedMessageIds}
+          readReceiptsByMessageId={readReceiptsByMessageId}
           jumpToMessageSignal={jumpToMessageSignal}
           onEditMessage={onStartEditMessage}
           onDeleteMessage={onDeleteMessage}

@@ -30,6 +30,34 @@ const normalizeReactions = (reactions = []) =>
     userName: reaction.userId?.username || reaction.userName || '',
   }));
 
+const normalizeReadStates = (readStates = []) =>
+  readStates
+    .map((readState) => {
+      const userId = getIdString(readState.userId || readState.user);
+      if (!userId) return null;
+
+      return {
+        userId,
+        userName: readState.userName || readState.username || readState.user?.username || '',
+        avatar: readState.avatar || readState.user?.avatar || '',
+        lastReadAt: readState.lastReadAt || null,
+        lastReadMessageId: getIdString(readState.lastReadMessageId || readState.lastReadMessage),
+      };
+    })
+    .filter(Boolean);
+
+const upsertReadState = (readStates = [], nextReadState) => {
+  const normalizedNext = normalizeReadStates([nextReadState])[0];
+  if (!normalizedNext) return readStates;
+
+  const existingIndex = readStates.findIndex((readState) => readState.userId === normalizedNext.userId);
+  if (existingIndex === -1) return [...readStates, normalizedNext];
+
+  return readStates.map((readState, index) =>
+    index === existingIndex ? { ...readState, ...normalizedNext } : readState,
+  );
+};
+
 const getMessagePreview = (content, attachment, isDeleted = false, attachments = []) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (content) return content;
@@ -114,6 +142,8 @@ const formatConversationSummary = (conversation, onlineUsers = []) => {
     lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
     lastMessageAt: conversation.lastMessageAt || null,
     unreadCount: conversation.unreadCount || 0,
+    readState: conversation.readState || null,
+    readStates: normalizeReadStates(conversation.readStates),
     pinnedMessages,
     pinnedMessageCount: conversation.pinnedMessageCount ?? pinnedMessages.length,
     latestPinnedMessage,
@@ -249,6 +279,8 @@ const Chat = () => {
             lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
             lastMessageAt: conversation.lastMessageAt || null,
             unreadCount: conversation.unreadCount || 0,
+            readState: conversation.readState || null,
+            readStates: normalizeReadStates(conversation.readStates),
             pinnedMessages,
             pinnedMessageCount: conversation.pinnedMessageCount ?? pinnedMessages.length,
             latestPinnedMessage,
@@ -421,7 +453,7 @@ const Chat = () => {
       const hasConversation = conversationsRef.current.some((conv) => conv.id === eventConversationId);
 
       console.log('📨 Received message:', data);
-      if (user?.id && data.id && data.senderId) {
+      if (user?.id && data.id && data.senderId && !data.isGroup) {
         socket.emit('mark_message_delivered', {
           messageId: data.id,
         });
@@ -492,6 +524,54 @@ const Chat = () => {
       }
     };
     socket.on('messages_were_read', handleMessagesRead);
+
+    const handleConversationReadStateUpdated = (data) => {
+      if (!data?.conversationId || !data.readerId) return;
+
+      const nextReadState = {
+        userId: data.readerId,
+        userName: data.readerName || '',
+        avatar: data.readerAvatar || '',
+        lastReadAt: data.lastReadAt || null,
+        lastReadMessageId: data.lastReadMessageId || null,
+      };
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === data.conversationId
+            ? {
+                ...conv,
+                unreadCount:
+                  data.readerId === user?.id ? data.unreadCount ?? 0 : conv.unreadCount,
+                readState:
+                  data.readerId === user?.id
+                    ? {
+                        lastReadAt: data.lastReadAt || null,
+                        lastReadMessageId: data.lastReadMessageId || null,
+                      }
+                    : conv.readState,
+                readStates: upsertReadState(conv.readStates, nextReadState),
+              }
+            : conv,
+        ),
+      );
+
+      if (
+        data.readerId === user?.id &&
+        data.conversationId === selectedConversationId &&
+        Array.isArray(data.messageIds)
+      ) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            data.messageIds.includes(msg.id) && msg.senderId !== user?.id
+              ? { ...msg, status: 'read' }
+              : msg,
+          ),
+        );
+      }
+    };
+
+    socket.on('conversation_read_state_updated', handleConversationReadStateUpdated);
 
     const handleAddReaction = (data) => {
       setMessages((prev) =>
@@ -774,6 +854,7 @@ const Chat = () => {
       socket.off('friend_request_accepted', handleFriendAccepted);
       socket.off('conversation_created', handleConversationCreated);
       socket.off('messages_were_read', handleMessagesRead);
+      socket.off('conversation_read_state_updated', handleConversationReadStateUpdated);
       socket.off('reaction_added', handleAddReaction);
       socket.off('reaction_removed', handleRemoveReaction);
       socket.off('message_sent', handleMessageSent);

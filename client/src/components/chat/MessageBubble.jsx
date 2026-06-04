@@ -40,10 +40,28 @@ const PinGlyph = ({ className = '' }) => (
   </span>
 );
 
+const getReceiptAvatarSrc = (receipt) => {
+  if (receipt.avatar) return receipt.avatar;
+
+  const name = encodeURIComponent(receipt.name || 'User');
+  return `https://ui-avatars.com/api/?name=${name}&background=d9c8b4&color=2a2520&bold=true`;
+};
+
+const getReceiptSummary = (receipts = []) => {
+  const names = [...new Set(receipts.map((receipt) => receipt.name || 'Người dùng'))];
+
+  if (names.length === 0) return '';
+  if (names.length === 1) return `${names[0]} đã xem`;
+  if (names.length === 2) return `${names[0]}, ${names[1]} đã xem`;
+
+  return `${names[0]}, ${names[1]} và ${names.length - 2} người khác đã xem`;
+};
+
 const MessageBubble = ({
   message,
   isOwn = false,
   showAvatar = true,
+  readReceipts = [],
   onReaction,
   onEditMessage,
   onDeleteMessage,
@@ -334,6 +352,17 @@ const MessageBubble = ({
   const avatarSrc =
     message.senderAvatar ||
     'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
+  const deliveryText =
+    isOwn && !isRevoked
+      ? message.status === 'sending'
+        ? 'Đang gửi'
+        : message.status === 'delivered'
+          ? 'Đã nhận'
+          : message.status === 'read'
+            ? ''
+            : 'Đã gửi'
+      : '';
+  const receiptSummary = getReceiptSummary(readReceipts);
 
   return (
     <>
@@ -739,18 +768,46 @@ const MessageBubble = ({
           <span className={`px-1 text-[11px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
             {formatTime(message.timestamp)}
             {!isRevoked && message.isEdited && <span className="ml-1">Đã sửa</span>}
-            {isOwn && (
-              <span className="ml-1">
-                {message.status === 'sending'
-                  ? 'Đang gửi'
-                  : message.status === 'read'
-                    ? 'Đã đọc'
-                    : message.status === 'delivered'
-                      ? 'Đã nhận'
-                      : 'Đã gửi'}
-              </span>
-            )}
+            {deliveryText && <span className="ml-1">{deliveryText}</span>}
           </span>
+
+          {readReceipts.length > 0 && (
+            <div className={`mt-0.5 flex px-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`group/read-receipt relative flex items-center ${
+                  isOwn ? '-space-x-1.5 space-x-reverse' : '-space-x-1.5'
+                }`}
+                tabIndex={0}
+                aria-label={receiptSummary}
+              >
+                {readReceipts.slice(0, 5).map((receipt) => (
+                  <span
+                    key={receipt.id}
+                    className="block h-4 w-4 min-w-4 max-w-4 flex-none overflow-hidden rounded-full border border-surface bg-surface-container-low shadow-[0_2px_6px_rgba(40,37,32,0.16)]"
+                  >
+                    <img
+                      src={getReceiptAvatarSrc(receipt)}
+                      alt={`${receipt.name || 'Người dùng'} đã đọc`}
+                      className="block h-full w-full rounded-full object-cover"
+                      loading="lazy"
+                    />
+                  </span>
+                ))}
+                {readReceipts.length > 5 && (
+                  <span className="flex h-4 min-w-4 flex-none items-center justify-center rounded-full border border-surface bg-surface-container-low px-1 text-[9px] font-semibold text-on-surface-variant shadow-[0_2px_6px_rgba(40,37,32,0.12)]">
+                    +{readReceipts.length - 5}
+                  </span>
+                )}
+                <span
+                  className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-[0_12px_28px_rgba(40,37,32,0.2)] transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${
+                    isOwn ? 'right-0' : 'left-0'
+                  }`}
+                >
+                  {receiptSummary}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -4,7 +4,9 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
   attachLegacyDirectMessages,
+  getConversationMember,
   getUserRoomId,
+  getMemberReadCutoff,
   getOrCreateDirectConversation,
   getPeerMember,
   toIdString,
@@ -86,6 +88,28 @@ const formatConversationMembers = (conversation) =>
     };
   });
 
+const formatReadState = (conversation, currentUserId) => {
+  const currentMember = getConversationMember(conversation, currentUserId);
+
+  return {
+    lastReadAt: currentMember?.lastReadAt || null,
+    lastReadMessageId: toIdString(currentMember?.lastReadMessage) || null,
+  };
+};
+
+const formatReadStates = (conversation) =>
+  (conversation.members || []).map((member) => {
+    const memberUser = member.user;
+
+    return {
+      userId: toIdString(memberUser),
+      userName: memberUser?.username || '',
+      avatar: memberUser?.avatar || '',
+      lastReadAt: member.lastReadAt || null,
+      lastReadMessageId: toIdString(member.lastReadMessage) || null,
+    };
+  });
+
 const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
   const peerMember = getPeerMember(conversation, currentUserId);
   const peer = peerMember?.user;
@@ -107,6 +131,8 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
     lastMessage: getMessagePreview(lastMessage),
     lastMessageAt: lastMessage?.createdAt || conversation.updatedAt || conversation.createdAt,
     unreadCount: unreadCountByConversation.get(conversationId) || 0,
+    readState: formatReadState(conversation, currentUserId),
+    readStates: formatReadStates(conversation),
     pinnedMessage: latestPinnedMessage,
     latestPinnedMessage,
     pinnedMessages,
@@ -249,6 +275,33 @@ const conversationController = {
       const unreadCountByConversation = new Map(
         unreadCounts.map((item) => [item._id.toString(), item.count]),
       );
+
+      const groupUnreadCounts = await Promise.all(
+        conversations
+          .filter((conversation) => conversation.type === 'group')
+          .map(async (conversation) => {
+            const currentMember = getConversationMember(conversation, currentUserId);
+            if (!currentMember) return [conversation._id.toString(), 0];
+
+            const readCutoff = getMemberReadCutoff(currentMember);
+            const unreadQuery = {
+              conversation: conversation._id,
+              sender: { $ne: currentUserObjectId },
+              isDeleted: false,
+            };
+
+            if (readCutoff) {
+              unreadQuery.createdAt = { $gt: readCutoff };
+            }
+
+            const count = await Message.countDocuments(unreadQuery);
+            return [conversation._id.toString(), count];
+          }),
+      );
+
+      groupUnreadCounts.forEach(([conversationId, count]) => {
+        unreadCountByConversation.set(conversationId, count);
+      });
 
       const formattedConversations = conversations
         .map((conversation) =>
