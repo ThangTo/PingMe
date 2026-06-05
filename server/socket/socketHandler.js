@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
+import { updateMessageLinkPreview } from '../services/linkPreview.service.js';
 import {
   getConversationRoomId,
   getConversationMember,
@@ -318,6 +319,19 @@ const emitConversationReadStateUpdated = async ({
   });
 };
 
+const queueLinkPreviewUpdate = ({ io, messageId, contentSnapshot, participantIds }) => {
+  if (!messageId || !contentSnapshot) return;
+
+  updateMessageLinkPreview({ messageId, contentSnapshot })
+    .then((previewState) => {
+      if (!previewState) return;
+      emitToUsers(io, participantIds, 'message_preview_updated', previewState);
+    })
+    .catch((error) => {
+      console.error('Lỗi lấy link preview:', error.message);
+    });
+};
+
 const socketHandler = (io) => {
   io.use((socket, next) => {
     try {
@@ -494,6 +508,7 @@ const socketHandler = (io) => {
           status: newMessage.status,
           attachment: newMessage.attachment,
           attachments: newMessage.attachments || [],
+          linkPreview: newMessage.linkPreview || null,
           replyTo: formatReplyPreview(replyToMessage),
         });
 
@@ -507,11 +522,19 @@ const socketHandler = (io) => {
           content: newMessage.content,
           attachment: newMessage.attachment,
           attachments: newMessage.attachments || [],
+          linkPreview: newMessage.linkPreview || null,
           timestamp: newMessage.createdAt,
           status: newMessage.status,
           replyTo: formatReplyPreview(replyToMessage),
           isGroup: conversation.type === 'group',
         };
+
+        queueLinkPreviewUpdate({
+          io,
+          messageId: newMessage._id,
+          contentSnapshot: cleanContent,
+          participantIds: memberIds,
+        });
 
         if (conversation.type === 'group') {
           const roomId = joinOnlineUsersToConversation(io, memberIds, resolvedConversationId);
@@ -821,6 +844,7 @@ const socketHandler = (io) => {
         message.content = nextContent;
         message.isEdited = true;
         message.editedAt = new Date();
+        message.linkPreview = null;
         await message.save();
 
         emitToUsers(io, participantIds, 'message_updated', {
@@ -829,9 +853,17 @@ const socketHandler = (io) => {
           senderId: message.sender.toString(),
           recipientId: message.recipient?.toString(),
           content: message.content,
+          linkPreview: message.linkPreview,
           isEdited: message.isEdited,
           editedAt: message.editedAt,
           updatedAt: message.updatedAt,
+        });
+
+        queueLinkPreviewUpdate({
+          io,
+          messageId: message._id,
+          contentSnapshot: nextContent,
+          participantIds,
         });
       } catch (error) {
         console.error('Lỗi edit_message:', error);
@@ -876,6 +908,7 @@ const socketHandler = (io) => {
         message.content = REVOKED_MESSAGE_TEXT;
         message.attachment = null;
         message.attachments = [];
+        message.linkPreview = null;
         message.messageType = 'text';
         message.reactions = [];
         message.isEdited = false;
@@ -915,6 +948,7 @@ const socketHandler = (io) => {
           content: REVOKED_MESSAGE_TEXT,
           attachment: null,
           attachments: [],
+          linkPreview: null,
           reactions: [],
           isDeleted: true,
           deletedAt: message.deletedAt,

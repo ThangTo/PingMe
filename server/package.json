@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "check": "node --check index.js && node --check controllers/auth.controller.js && node --check controllers/conversation.controller.js && node --check controllers/message.controller.js && node --check controllers/user.controller.js && node --check middlewares/auth.middleware.js && node --check middlewares/upload.middleware.js && node --check models/Conversation.js && node --check models/Message.js && node --check routers/conversation.routes.js && node --check routers/message.routes.js && node --check services/conversation.service.js && node --check socket/socketHandler.js && node --check scripts/backfill-conversations.js && node --check scripts/seed-test-users.js",
+    "check": "node --check index.js && node --check controllers/auth.controller.js && node --check controllers/conversation.controller.js && node --check controllers/message.controller.js && node --check controllers/user.controller.js && node --check middlewares/auth.middleware.js && node --check middlewares/upload.middleware.js && node --check models/Conversation.js && node --check models/Message.js && node --check routers/conversation.routes.js && node --check routers/message.routes.js && node --check services/conversation.service.js && node --check services/linkPreview.service.js && node --check socket/socketHandler.js && node --check scripts/backfill-conversations.js && node --check scripts/seed-test-users.js",
     "backfill:conversations": "node scripts/backfill-conversations.js",
     "seed:test-users": "node scripts/seed-test-users.js",
     "test": "npm run check"

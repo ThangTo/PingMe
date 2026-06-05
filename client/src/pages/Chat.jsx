@@ -126,6 +126,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   reactions: normalizeReactions(msg.reactions),
   attachment: msg.attachment || null,
   attachments: getMessageAttachments(msg),
+  linkPreview: msg.linkPreview || null,
   isEdited: msg.isEdited || false,
   editedAt: msg.editedAt || null,
   isDeleted: msg.isDeleted || false,
@@ -707,6 +708,7 @@ const Chat = () => {
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
                 attachment: data.attachment || savedAttachments[0] || msg.attachment,
                 attachments: savedAttachments.length > 0 ? savedAttachments : msg.attachments || [],
+                linkPreview: data.linkPreview || msg.linkPreview || null,
                 replyTo: data.replyTo || msg.replyTo || null,
               }
             : msg,
@@ -796,6 +798,7 @@ const Chat = () => {
             return {
               ...msg,
               content: data.content,
+              linkPreview: data.linkPreview || null,
               isEdited: data.isEdited,
               editedAt: data.editedAt,
             };
@@ -878,6 +881,7 @@ const Chat = () => {
               content: data.content || REVOKED_MESSAGE_TEXT,
               attachment: null,
               attachments: [],
+              linkPreview: null,
               reactions: [],
               isEdited: false,
               editedAt: null,
@@ -944,10 +948,26 @@ const Chat = () => {
       alert(data.error || 'Không thể thu hồi tin nhắn');
     };
 
+    const handleMessagePreviewUpdated = (data) => {
+      if (!data?.messageId || !data.linkPreview) return;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? {
+                ...msg,
+                linkPreview: data.linkPreview,
+              }
+            : msg,
+        ),
+      );
+    };
+
     socket.on('message_updated', handleMessageUpdated);
     socket.on('message_edit_failed', handleMessageEditFailed);
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('message_delete_failed', handleMessageDeleteFailed);
+    socket.on('message_preview_updated', handleMessagePreviewUpdated);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
@@ -968,6 +988,7 @@ const Chat = () => {
       socket.off('message_edit_failed', handleMessageEditFailed);
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('message_delete_failed', handleMessageDeleteFailed);
+      socket.off('message_preview_updated', handleMessagePreviewUpdated);
     };
   }, [
     selectedConversationId,
@@ -1042,6 +1063,7 @@ const Chat = () => {
       status: 'sending',
       attachment: primaryAttachment,
       attachments: messageAttachments,
+      linkPreview: null,
       replyTo: replyPreview,
     };
     setMessages((prev) => [...prev, newMessage]);

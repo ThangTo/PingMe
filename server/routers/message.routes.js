@@ -17,6 +17,11 @@ const uploadMessageFiles = (req, res, next) => {
   });
 };
 
+router.get(
+  '/conversation/:conversationId/gallery',
+  authMiddleware,
+  messageController.getConversationGallery,
+);
 router.get('/conversation/:conversationId', authMiddleware, messageController.getConversationMessages);
 router.get('/:userId', authMiddleware, messageController.getMessages);
 router.post('/upload', authMiddleware, uploadMessageFiles, messageController.uploadFile);

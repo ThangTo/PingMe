@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import api from '../../config/api';
+import FileTypeIcon from '../ui/FileTypeIcon';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -14,6 +16,7 @@ const getInitials = (name = '') =>
 
 const tabs = [
   { key: 'media', label: 'Media' },
+  { key: 'audio', label: 'Audio' },
   { key: 'files', label: 'Tệp' },
   { key: 'links', label: 'Liên kết' },
 ];
@@ -25,6 +28,12 @@ const roleLabels = {
 };
 
 const urlRegex = /(https?:\/\/[^\s]+)/g;
+const emptyGallery = {
+  media: [],
+  files: [],
+  audio: [],
+  links: [],
+};
 
 const getMessageAttachments = (message = {}) => {
   if (message.isDeleted) return [];
@@ -42,7 +51,6 @@ const formatFileSize = (size) => {
 
 const getAttachmentKindLabel = (attachment = {}) => {
   if (attachment.type === 'audio') return 'AUDIO';
-  if (attachment.mimeType) return attachment.mimeType.split('/').pop()?.toUpperCase() || 'FILE';
   const extension = attachment.filename?.split('.').pop();
   return extension ? extension.toUpperCase() : 'FILE';
 };
@@ -66,6 +74,70 @@ const getHostname = (url) => {
   }
 };
 
+const createGalleryItem = ({ message, attachment, index, type }) => ({
+  id: `${message.id}-${type}-${index}`,
+  messageId: message.id,
+  type,
+  url: attachment.url,
+  filename: attachment.filename || '',
+  size: attachment.size || 0,
+  mimeType: attachment.mimeType || '',
+  duration: attachment.duration || 0,
+  timestamp: message.timestamp,
+  senderName: message.senderName || '',
+});
+
+const buildLocalGallery = (messages = []) =>
+  messages.reduce(
+    (gallery, message) => {
+      getMessageAttachments(message).forEach((attachment, index) => {
+        if (!attachment?.url) return;
+
+        if (attachment.type === 'image') {
+          gallery.media.push(createGalleryItem({ message, attachment, index, type: 'image' }));
+          return;
+        }
+
+        if (attachment.type === 'audio') {
+          gallery.audio.push(createGalleryItem({ message, attachment, index, type: 'audio' }));
+          return;
+        }
+
+        gallery.files.push(createGalleryItem({ message, attachment, index, type: 'file' }));
+      });
+
+      if (!message.isDeleted) {
+        const matches = message.content?.match(urlRegex) || [];
+        matches.forEach((url, index) => {
+          gallery.links.push({
+            id: `${message.id}-link-${index}`,
+            messageId: message.id,
+            url,
+            host: getHostname(url),
+            timestamp: message.timestamp,
+            senderName: message.senderName || '',
+          });
+        });
+      }
+
+      return gallery;
+    },
+    { media: [], files: [], audio: [], links: [] },
+  );
+
+const mergeGalleryItems = (serverItems = [], localItems = []) => {
+  const itemsByKey = new Map();
+
+  [...serverItems, ...localItems].forEach((item) => {
+    const key = item.id || `${item.messageId}-${item.url}`;
+    if (key) itemsByKey.set(key, item);
+  });
+
+  return [...itemsByKey.values()].sort(
+    (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0),
+  );
+};
+
 const ChatDetailsPanel = ({
   user,
   messages = [],
@@ -79,73 +151,105 @@ const ChatDetailsPanel = ({
   const [activeTab, setActiveTab] = useState('media');
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMembersOpen, setIsMembersOpen] = useState(false);
   const [isMemberComposerOpen, setIsMemberComposerOpen] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [memberActionError, setMemberActionError] = useState('');
   const [isAddingMembers, setIsAddingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState(null);
   const [updatingRoleMemberId, setUpdatingRoleMemberId] = useState(null);
+  const [serverGallery, setServerGallery] = useState(emptyGallery);
+  const [isGalleryLoading, setIsGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState('');
   const isGroup = Boolean(user?.isGroup);
 
+  useEffect(() => {
+    if (!user?.id) {
+      setServerGallery(emptyGallery);
+      setGalleryError('');
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const fetchGallery = async () => {
+      try {
+        setIsGalleryLoading(true);
+        setGalleryError('');
+        const response = await api.get(`/messages/conversation/${user.id}/gallery`, {
+          params: { limit: 300 },
+        });
+
+        if (!isCancelled && response.data.success) {
+          setServerGallery(response.data.gallery || emptyGallery);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Không thể tải gallery:', error);
+          setGalleryError('Không thể tải gallery.');
+          setServerGallery(emptyGallery);
+        }
+      } finally {
+        if (!isCancelled) setIsGalleryLoading(false);
+      }
+    };
+
+    fetchGallery();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    setIsMembersOpen(false);
+    setIsMemberComposerOpen(false);
+    setSelectedMemberIds([]);
+    setMemberActionError('');
+  }, [user?.id]);
+
+  const localGallery = useMemo(() => buildLocalGallery(messages), [messages]);
+
   const media = useMemo(
-    () =>
-      messages
-        .flatMap((message) =>
-          getMessageAttachments(message)
-            .filter((attachment) => attachment.type === 'image')
-            .map((attachment, index) => ({
-              id: `${message.id}-${index}`,
-              url: attachment.url,
-              filename: attachment.filename,
-            })),
-        )
-        .reverse(),
-    [messages],
+    () => mergeGalleryItems(serverGallery.media, localGallery.media),
+    [localGallery, serverGallery.media],
   );
 
   const files = useMemo(
-    () =>
-      messages
-        .flatMap((message) =>
-          getMessageAttachments(message)
-            .filter((attachment) => attachment.type !== 'image')
-            .map((attachment, index) => ({
-              id: `${message.id}-${index}`,
-              url: attachment.url,
-              filename: attachment.filename,
-              size: attachment.size,
-              type: attachment.type,
-              mimeType: attachment.mimeType,
-              timestamp: message.timestamp,
-            })),
-        )
-        .reverse(),
-    [messages],
+    () => mergeGalleryItems(serverGallery.files, localGallery.files),
+    [localGallery, serverGallery.files],
+  );
+
+  const audio = useMemo(
+    () => mergeGalleryItems(serverGallery.audio, localGallery.audio),
+    [localGallery, serverGallery.audio],
   );
 
   const links = useMemo(
-    () =>
-      messages.flatMap((message) => {
-        if (message.isDeleted) return [];
-        const matches = message.content?.match(urlRegex) || [];
-        return matches.map((url) => ({
-          id: `${message.id}-${url}`,
-          url,
-          host: getHostname(url),
-        }));
-      }),
-    [messages],
+    () => mergeGalleryItems(serverGallery.links, localGallery.links),
+    [localGallery, serverGallery.links],
   );
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredMedia = normalizedSearch
-    ? media.filter((item) => item.filename?.toLowerCase().includes(normalizedSearch))
+    ? media.filter((item) =>
+        `${item.filename || ''} ${item.senderName || ''}`.toLowerCase().includes(normalizedSearch),
+      )
     : media;
   const filteredFiles = normalizedSearch
-    ? files.filter((file) => file.filename?.toLowerCase().includes(normalizedSearch))
+    ? files.filter((file) =>
+        `${file.filename || ''} ${file.senderName || ''}`.toLowerCase().includes(normalizedSearch),
+      )
     : files;
+  const filteredAudio = normalizedSearch
+    ? audio.filter((item) =>
+        `${item.filename || ''} ${item.senderName || ''}`.toLowerCase().includes(normalizedSearch),
+      )
+    : audio;
   const filteredLinks = normalizedSearch
-    ? links.filter((link) => `${link.host} ${link.url}`.toLowerCase().includes(normalizedSearch))
+    ? links.filter((link) =>
+        `${link.host} ${link.url} ${link.senderName || ''}`.toLowerCase().includes(normalizedSearch),
+      )
     : links;
   const currentMember = useMemo(
     () => user?.members?.find((member) => member.id === currentUserId) || null,
@@ -181,6 +285,15 @@ const ChatDetailsPanel = ({
     setMemberActionError('');
     setSelectedMemberIds([]);
     setIsMemberComposerOpen((value) => !value);
+  };
+
+  const toggleMembersSection = () => {
+    if (isMembersOpen) {
+      setIsMemberComposerOpen(false);
+      setSelectedMemberIds([]);
+      setMemberActionError('');
+    }
+    setIsMembersOpen((value) => !value);
   };
 
   const handleAddMembers = async () => {
@@ -323,14 +436,30 @@ const ChatDetailsPanel = ({
 
         {isGroup && (
           <section className="mt-5 border-y border-outline-variant px-6 py-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-on-surface">Thành viên</h3>
-                <p className="mt-0.5 text-xs text-on-surface-variant">
+            <button
+              type="button"
+              onClick={toggleMembersSection}
+              className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left transition-colors hover:bg-surface-container-low"
+              aria-expanded={isMembersOpen}
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-on-surface">Thành viên</span>
+                <span className="mt-0.5 block text-xs text-on-surface-variant">
                   {user?.memberCount || user?.members?.length || 0} người trong nhóm
-                </p>
-              </div>
+                </span>
+              </span>
+              <span
+                className={`material-symbols-outlined text-[22px] text-on-surface-variant transition-transform ${
+                  isMembersOpen ? 'rotate-180' : ''
+                }`}
+              >
+                expand_more
+              </span>
+            </button>
 
+            <div
+              className={`${isMembersOpen && canManageMembers ? 'mb-3 mt-3 flex' : 'hidden'} items-center justify-end gap-3`}
+            >
               {canManageMembers && (
                 <button
                   type="button"
@@ -343,13 +472,13 @@ const ChatDetailsPanel = ({
               )}
             </div>
 
-            {memberActionError && (
+            {isMembersOpen && memberActionError && (
               <p className="mb-3 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-xs text-error">
                 {memberActionError}
               </p>
             )}
 
-            {isMemberComposerOpen && (
+            {isMembersOpen && isMemberComposerOpen && (
               <div className="mb-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
@@ -433,7 +562,7 @@ const ChatDetailsPanel = ({
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className={isMembersOpen ? `${canManageMembers ? '' : 'pt-3'} space-y-2` : 'hidden'}>
               {(user?.members || []).map((member) => (
                 <div
                   key={member.id}
@@ -530,6 +659,14 @@ const ChatDetailsPanel = ({
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto">
+          {(isGalleryLoading || galleryError) && (
+            <div className="border-b border-outline-variant px-6 py-3">
+              <p className={`text-xs ${galleryError ? 'text-error' : 'text-on-surface-variant'}`}>
+                {galleryError || 'Đang tải gallery...'}
+              </p>
+            </div>
+          )}
+
           {activeTab === 'media' && (
             <section className="border-b border-outline-variant px-6 py-5">
               {filteredMedia.length === 0 ? (
@@ -537,107 +674,149 @@ const ChatDetailsPanel = ({
                   {searchQuery ? 'Không tìm thấy media.' : 'Chưa có media nào.'}
                 </p>
               ) : (
-                <>
-                  <div className="grid grid-cols-3 gap-2">
-                    {filteredMedia.slice(0, 9).map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setLightboxSrc(item.url)}
-                        className="aspect-[4/3] overflow-hidden rounded-md border border-outline-variant bg-surface-container-low transition-opacity hover:opacity-85"
-                      >
-                        <img
-                          src={item.url}
-                          alt={item.filename || 'Media'}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="mt-4 flex w-full items-center justify-between text-sm text-on-surface-variant transition-colors hover:text-on-surface"
-                  >
-                    <span>Xem tất cả media ({media.length})</span>
-                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
-                  </button>
-                </>
+                <div className="grid grid-cols-3 gap-2">
+                  {filteredMedia.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setLightboxSrc(item.url)}
+                      className="aspect-[4/3] overflow-hidden rounded-md border border-outline-variant bg-surface-container-low transition-opacity hover:opacity-85"
+                    >
+                      <img
+                        src={item.url}
+                        alt={item.filename || 'Media'}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  ))}
+                </div>
               )}
             </section>
           )}
 
-          <section className="border-b border-outline-variant px-6 py-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-on-surface">Tệp</h3>
-              <button type="button" className="text-xs text-on-surface-variant hover:text-on-surface">
-                Xem tất cả
-              </button>
-            </div>
-            {filteredFiles.length === 0 ? (
-              <p className="py-4 text-sm text-on-surface-variant">
-                {searchQuery ? 'Không tìm thấy tệp.' : 'Chưa có tệp nào.'}
-              </p>
-            ) : (
-              <div className="divide-y divide-outline-variant">
-                {filteredFiles.slice(0, 4).map((file) => (
-                  <a
-                    key={file.id}
-                    href={file.url}
-                    download={file.filename}
-                    className="flex items-center gap-3 py-3"
-                  >
-                    <span className="material-symbols-outlined text-[26px] text-on-surface-variant">
-                      {file.type === 'audio' ? 'graphic_eq' : 'description'}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-on-surface">{file.filename}</span>
-                      <span className="mt-0.5 block text-xs text-on-surface-variant">
-                        {formatFileSize(file.size)} · {getAttachmentKindLabel(file)}
+          {activeTab === 'files' && (
+            <section className="border-b border-outline-variant px-6 py-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-on-surface">Tệp</h3>
+                <span className="text-xs text-on-surface-variant">{files.length} mục</span>
+              </div>
+              {filteredFiles.length === 0 ? (
+                <p className="py-4 text-sm text-on-surface-variant">
+                  {searchQuery ? 'Không tìm thấy tệp.' : 'Chưa có tệp nào.'}
+                </p>
+              ) : (
+                <div className="divide-y divide-outline-variant">
+                  {filteredFiles.map((file) => (
+                    <a
+                      key={file.id}
+                      href={file.url}
+                      download={file.filename}
+                      className="flex min-w-0 items-center gap-3 py-3"
+                    >
+                      <FileTypeIcon
+                        filename={file.filename}
+                        mimeType={file.mimeType}
+                        type={file.type}
+                        size="sm"
+                      />
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="block truncate text-sm text-on-surface">
+                          {file.filename}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+                          {formatFileSize(file.size)} · {getAttachmentKindLabel(file)}
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-xs text-on-surface-variant">
-                      {formatDateLabel(file.timestamp)}
-                    </span>
-                  </a>
-                ))}
-              </div>
-            )}
-          </section>
+                      <span className="shrink-0 text-xs text-on-surface-variant">
+                        {formatDateLabel(file.timestamp)}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
-          <section className="px-6 py-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-on-surface">Liên kết</h3>
-              <button type="button" className="text-xs text-on-surface-variant hover:text-on-surface">
-                Xem tất cả
-              </button>
-            </div>
-            {filteredLinks.length === 0 ? (
-              <p className="py-4 text-sm text-on-surface-variant">
-                {searchQuery ? 'Không tìm thấy liên kết.' : 'Chưa có liên kết nào.'}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {filteredLinks.slice(0, 4).map((link) => (
-                  <a
-                    key={link.id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-3 transition-colors hover:bg-surface-container-low"
-                  >
-                    <span className="material-symbols-outlined text-[24px] text-on-surface-variant">
-                      language
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm text-on-surface">{link.host}</span>
-                      <span className="block truncate text-xs text-on-surface-variant">{link.url}</span>
-                    </span>
-                  </a>
-                ))}
+          {activeTab === 'audio' && (
+            <section className="border-b border-outline-variant px-6 py-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-on-surface">Audio</h3>
+                <span className="text-xs text-on-surface-variant">{audio.length} mục</span>
               </div>
-            )}
-          </section>
+              {filteredAudio.length === 0 ? (
+                <p className="py-4 text-sm text-on-surface-variant">
+                  {searchQuery ? 'Không tìm thấy audio.' : 'Chưa có audio nào.'}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {filteredAudio.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-3"
+                    >
+                      <div className="mb-2 flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
+                          <span className="material-symbols-outlined text-[21px]">graphic_eq</span>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-on-surface">
+                            Tin nhắn thoại
+                          </span>
+                          <span className="mt-0.5 block text-xs text-on-surface-variant">
+                            {[
+                              formatFileSize(item.size),
+                              item.senderName,
+                              formatDateLabel(item.timestamp),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
+                      </div>
+                      <audio controls src={item.url} className="h-9 w-full" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'links' && (
+            <section className="px-6 py-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-on-surface">Liên kết</h3>
+                <span className="text-xs text-on-surface-variant">{links.length} mục</span>
+              </div>
+              {filteredLinks.length === 0 ? (
+                <p className="py-4 text-sm text-on-surface-variant">
+                  {searchQuery ? 'Không tìm thấy liên kết.' : 'Chưa có liên kết nào.'}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredLinks.map((link) => (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-3 transition-colors hover:bg-surface-container-low"
+                    >
+                      <span className="material-symbols-outlined text-[24px] text-on-surface-variant">
+                        language
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-on-surface">{link.host}</span>
+                        <span className="block truncate text-xs text-on-surface-variant">
+                          {link.url}
+                        </span>
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </aside>
     </>

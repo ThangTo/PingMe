@@ -178,7 +178,7 @@ Mục tiêu: group chat cơ bản giống Telegram group nhỏ.
 | 6.5 Add/remove members | DONE | Owner/admin thêm và xóa thành viên có authorization |
 | 6.6 Role basics | DONE | owner/admin/member, owner phong/gỡ admin |
 | 6.7 Group unread count | DONE | unread/read cursor theo từng member |
-| 6.8 Group media gallery | PLANNED | Gallery theo group |
+| 6.8 Group media gallery | IN_PROGRESS | REST gallery theo conversation, panel group/detail có Media/Audio/Tệp/Liên kết; cần test thực tế |
 
 Realtime notes:
 
@@ -335,7 +335,7 @@ Mục tiêu: tin nhắn giàu hơn text/file cơ bản.
 
 | Stage | Status | Output |
 |---|---|---|
-| A6.1 Link preview | PLANNED | Title, description, image |
+| A6.1 Link preview | IN_PROGRESS | Async server unfurl, lưu `linkPreview`, emit `message_preview_updated`; cần test nhiều domain |
 | A6.2 Stickers | PLANNED | Sticker packs |
 | A6.3 GIF search/send | PLANNED | GIF provider or local library |
 | A6.4 Polls | PLANNED | Poll message type |

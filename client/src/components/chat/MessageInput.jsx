@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../config/api';
+import FileTypeIcon from '../ui/FileTypeIcon';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const MAX_ATTACHMENTS = 5;
 const ACCEPTED_FILE_TYPES =
-  'image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv';
+  'image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv,.json,.js,.jsx,.ts,.tsx,.html,.css,.md';
 const AUDIO_MIME_TYPES = [
   'audio/webm;codecs=opus',
   'audio/webm',
@@ -720,9 +721,12 @@ const MessageInput = ({
                   />
                 ) : preview.type === 'audio' ? (
                   <div className="flex aspect-square flex-col items-center justify-center gap-2 px-2 text-center">
-                    <span className="material-symbols-outlined text-3xl text-on-surface-variant">
-                      graphic_eq
-                    </span>
+                    <FileTypeIcon
+                      filename={preview.name}
+                      mimeType={preview.file?.type}
+                      type={preview.type}
+                      size="lg"
+                    />
                     <span className="line-clamp-2 text-xs font-medium text-on-surface">
                       {preview.name}
                     </span>
@@ -730,9 +734,12 @@ const MessageInput = ({
                   </div>
                 ) : (
                   <div className="flex aspect-square flex-col items-center justify-center gap-2 px-2 text-center">
-                    <span className="material-symbols-outlined text-3xl text-on-surface-variant">
-                      description
-                    </span>
+                    <FileTypeIcon
+                      filename={preview.name}
+                      mimeType={preview.file?.type}
+                      type={preview.type}
+                      size="lg"
+                    />
                     <span className="line-clamp-2 text-xs font-medium text-on-surface">
                       {preview.name}
                     </span>

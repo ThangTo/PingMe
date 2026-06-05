@@ -27,6 +27,91 @@ const getUploadedFiles = (req) => {
   return Object.values(filesFromFields).flat();
 };
 
+const urlRegex = /https?:\/\/[^\s]+/g;
+
+const getHostname = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
+
+const getMessageAttachments = (message = {}) => {
+  if (message.isDeleted) return [];
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    return message.attachments;
+  }
+  return message.attachment?.url ? [message.attachment] : [];
+};
+
+const getAttachmentType = (attachment = {}) => {
+  const type = attachment.type || attachment.mimeType || '';
+  if (['image', 'file', 'audio'].includes(type)) return type;
+  if (type.startsWith('image/')) return 'image';
+  if (type.startsWith('audio/')) return 'audio';
+  return 'file';
+};
+
+const serializeGalleryItem = ({ message, attachment, index, type }) => ({
+  id: `${message._id}-${type}-${index}`,
+  messageId: message._id.toString(),
+  type,
+  url: attachment.url,
+  filename: attachment.filename || '',
+  size: attachment.size || 0,
+  mimeType: attachment.mimeType || '',
+  duration: attachment.duration || 0,
+  timestamp: message.createdAt,
+  senderId: message.sender?._id?.toString() || message.sender?.toString() || '',
+  senderName: message.sender?.username || '',
+  senderAvatar: message.sender?.avatar || '',
+});
+
+const serializeGalleryMessage = (message) => {
+  const gallery = {
+    media: [],
+    files: [],
+    audio: [],
+    links: [],
+  };
+
+  getMessageAttachments(message).forEach((attachment, index) => {
+    if (!attachment?.url) return;
+
+    const type = getAttachmentType(attachment);
+    const item = serializeGalleryItem({ message, attachment, index, type });
+
+    if (type === 'image') {
+      gallery.media.push(item);
+      return;
+    }
+
+    if (type === 'audio') {
+      gallery.audio.push(item);
+      return;
+    }
+
+    gallery.files.push(item);
+  });
+
+  const links = typeof message.content === 'string' ? message.content.match(urlRegex) || [] : [];
+  links.forEach((url, index) => {
+    gallery.links.push({
+      id: `${message._id}-link-${index}`,
+      messageId: message._id.toString(),
+      url,
+      host: getHostname(url),
+      timestamp: message.createdAt,
+      senderId: message.sender?._id?.toString() || message.sender?.toString() || '',
+      senderName: message.sender?.username || '',
+      senderAvatar: message.sender?.avatar || '',
+    });
+  });
+
+  return gallery;
+};
+
 const formatUploadedFile = (req, file) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   const fileUrl = `${baseUrl}/uploads/${file.filename}`;
@@ -158,7 +243,70 @@ const messageController = {
     }
   },
 
-  // Lấy lịch sử tin nhắn giữa 2 người
+  // Lấy gallery media, file, audio và link theo conversation
+  getConversationGallery: async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const currentUserId = req.user?.id;
+      const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 300);
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
+      }
+
+      if (!isConversationMember(conversation, currentUserId)) {
+        return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này' });
+      }
+
+      await attachLegacyDirectMessages(conversation);
+
+      const messages = await Message.find({
+        conversation: conversation._id,
+        isDeleted: false,
+        $or: [
+          { 'attachments.0': { $exists: true } },
+          { 'attachment.url': { $exists: true } },
+          { content: { $regex: /https?:\/\//i } },
+        ],
+      })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .select('content attachment attachments sender createdAt isDeleted')
+        .populate('sender', 'username avatar')
+        .lean();
+
+      const gallery = messages.reduce(
+        (acc, message) => {
+          const next = serializeGalleryMessage(message);
+          acc.media.push(...next.media);
+          acc.files.push(...next.files);
+          acc.audio.push(...next.audio);
+          acc.links.push(...next.links);
+          return acc;
+        },
+        { media: [], files: [], audio: [], links: [] },
+      );
+
+      return res.status(200).json({
+        success: true,
+        conversationId,
+        gallery,
+      });
+    } catch (error) {
+      console.error('Lỗi lấy gallery theo conversation:', error);
+      return res.status(500).json({ error: 'Không thể lấy gallery' });
+    }
+  },
+
   getMessages: async (req, res) => {
     try {
       const { userId } = req.params;

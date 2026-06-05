@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import EmojiPicker from './EmojiPicker';
+import FileTypeIcon from '../ui/FileTypeIcon';
 
+const MESSAGE_URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const TRAILING_URL_PUNCTUATION_REGEX = /[),.!?:;]+$/;
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -40,6 +43,102 @@ const formatVoiceDuration = (seconds = 0) => {
   const minutes = Math.floor(safeSeconds / 60);
   const remainingSeconds = safeSeconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const normalizeLinkHref = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+
+const stopInteractiveBubbleEvent = (event) => {
+  event.stopPropagation();
+};
+
+const renderMessageContent = (content = '') => {
+  if (!content) return null;
+
+  const parts = [];
+  let lastIndex = 0;
+  MESSAGE_URL_REGEX.lastIndex = 0;
+
+  for (const match of content.matchAll(MESSAGE_URL_REGEX)) {
+    const rawUrl = match[0];
+    const startIndex = match.index ?? 0;
+
+    if (startIndex > lastIndex) {
+      parts.push(content.slice(lastIndex, startIndex));
+    }
+
+    const displayUrl = rawUrl.replace(TRAILING_URL_PUNCTUATION_REGEX, '');
+    const trailingText = rawUrl.slice(displayUrl.length);
+
+    parts.push(
+      <a
+        key={`${displayUrl}-${startIndex}`}
+        href={normalizeLinkHref(displayUrl)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-primary underline decoration-primary/35 underline-offset-2 transition-colors hover:text-primary-dark hover:decoration-primary"
+        onClick={stopInteractiveBubbleEvent}
+        onPointerDown={stopInteractiveBubbleEvent}
+        onTouchStart={stopInteractiveBubbleEvent}
+        onContextMenu={stopInteractiveBubbleEvent}
+      >
+        {displayUrl}
+      </a>,
+    );
+
+    if (trailingText) {
+      parts.push(trailingText);
+    }
+
+    lastIndex = startIndex + rawUrl.length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts;
+};
+
+const LinkPreviewCard = ({ preview }) => {
+  if (!preview?.url) return null;
+
+  return (
+    <a
+      href={preview.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block w-[min(520px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-left shadow-[0_2px_12px_rgba(40,37,32,0.05)] transition-colors hover:bg-surface-container-low"
+      onClick={stopInteractiveBubbleEvent}
+      onPointerDown={stopInteractiveBubbleEvent}
+      onTouchStart={stopInteractiveBubbleEvent}
+      onContextMenu={stopInteractiveBubbleEvent}
+    >
+      {preview.image && (
+        <img
+          src={preview.image}
+          alt={preview.title || preview.hostname || 'Link preview'}
+          className="aspect-[1.9/1] w-full bg-surface-container-low object-cover"
+          loading="lazy"
+        />
+      )}
+      <span className="block px-3.5 py-3">
+        <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+          {preview.siteName || preview.hostname || 'Liên kết'}
+        </span>
+        <span className="mt-1 block line-clamp-2 text-sm font-semibold leading-5 text-on-surface">
+          {preview.title || preview.url}
+        </span>
+        {preview.description && (
+          <span className="mt-1 block line-clamp-2 text-xs leading-5 text-on-surface-variant">
+            {preview.description}
+          </span>
+        )}
+        <span className="mt-2 block truncate text-[11px] text-on-surface-variant">
+          {preview.hostname || preview.url}
+        </span>
+      </span>
+    </a>
+  );
 };
 
 const CompactVoicePlayer = ({ src, duration = 0 }) => {
@@ -216,6 +315,7 @@ const MessageBubble = ({
     (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
   );
   const hasAttachments = attachments.length > 0;
+  const linkPreview = !isRevoked ? message.linkPreview : null;
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
   const showActions = isActionMenuOpen;
@@ -800,9 +900,12 @@ const MessageBubble = ({
                         className="flex min-w-[240px] items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)] transition-colors hover:bg-surface-container-low"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <span className="material-symbols-outlined shrink-0 text-3xl text-on-surface">
-                          description
-                        </span>
+                        <FileTypeIcon
+                          filename={attachment.filename}
+                          mimeType={attachment.mimeType}
+                          type={attachment.type}
+                          size="md"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="truncate text-sm font-medium text-on-surface">
                             {attachment.filename}
@@ -827,9 +930,11 @@ const MessageBubble = ({
                         : 'border border-outline-variant bg-surface-container-lowest text-on-surface'
                     } ${hasAttachments ? 'max-w-[min(520px,72vw)]' : ''}`}
                   >
-                    <span className="whitespace-pre-wrap">{message.content}</span>
+                    <span className="whitespace-pre-wrap">{renderMessageContent(message.content)}</span>
                   </div>
                 ) : null}
+
+                {linkPreview && <LinkPreviewCard preview={linkPreview} />}
               </div>
             )}
 

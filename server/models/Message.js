@@ -15,6 +15,18 @@ const attachmentSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const linkPreviewSchema = new mongoose.Schema(
+  {
+    url: String,
+    title: String,
+    description: String,
+    image: String,
+    siteName: String,
+    hostname: String,
+  },
+  { _id: false },
+);
+
 /**
  * Message Schema - Định nghĩa cấu trúc tin nhắn
  */
@@ -63,6 +75,11 @@ const messageSchema = new mongoose.Schema(
     attachments: {
       type: [attachmentSchema],
       default: [],
+    },
+
+    linkPreview: {
+      type: linkPreviewSchema,
+      default: null,
     },
 
     // Room ID (nếu là chat nhóm)
