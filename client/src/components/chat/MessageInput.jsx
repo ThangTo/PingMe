@@ -4,7 +4,13 @@ import api from '../../config/api';
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const MAX_ATTACHMENTS = 5;
 const ACCEPTED_FILE_TYPES =
-  'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv';
+  'image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv';
+const AUDIO_MIME_TYPES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4',
+  'audio/ogg;codecs=opus',
+];
 
 const getMessageAttachments = (message = {}) => {
   if (Array.isArray(message.attachments) && message.attachments.length > 0) {
@@ -19,9 +25,13 @@ const getReplyPreviewText = (replyingMessage) => {
 
   const attachments = getMessageAttachments(replyingMessage);
   if (replyingMessage.content) return replyingMessage.content;
+  if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
     return `${attachments.length} ảnh`;
+  }
+  if (attachments.length > 1 && attachments.every((item) => item.type === 'audio')) {
+    return `${attachments.length} tin nhắn thoại`;
   }
   if (attachments.length > 1) return `${attachments.length} tệp đính kèm`;
   return 'Tệp đính kèm';
@@ -32,10 +42,148 @@ const formatFileSize = (size = 0) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const formatVoiceDuration = (seconds = 0) => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const getAttachmentType = (type = '', fallback = 'file') => {
+  if (['image', 'file', 'audio'].includes(type)) return type;
+  if (type.startsWith('image/')) return 'image';
+  if (type.startsWith('audio/')) return 'audio';
+  return fallback;
+};
+
+const getSupportedAudioMimeType = () => {
+  if (typeof MediaRecorder === 'undefined') return '';
+  return AUDIO_MIME_TYPES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || '';
+};
+
+const getAudioExtension = (mimeType = '') => {
+  if (mimeType.includes('mp4')) return 'm4a';
+  if (mimeType.includes('ogg')) return 'ogg';
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'mp3';
+  if (mimeType.includes('wav')) return 'wav';
+  return 'webm';
+};
+
 const revokePreviewUrls = (items = []) => {
   items.forEach((item) => {
     if (item.url) URL.revokeObjectURL(item.url);
   });
+};
+
+const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(duration || 0);
+  const effectiveDuration = audioDuration || duration || 0;
+  const progress = effectiveDuration > 0 ? Math.min((currentTime / effectiveDuration) * 100, 100) : 0;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return undefined;
+
+    const handleLoadedMetadata = () => {
+      if (Number.isFinite(audio.duration)) setAudioDuration(audio.duration);
+    };
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(audio.duration || 0);
+    };
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [src]);
+
+  const togglePlayback = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audio.paused) {
+      try {
+        await audio.play();
+      } catch (error) {
+        console.error('Không thể phát ghi âm preview:', error);
+      }
+      return;
+    }
+
+    audio.pause();
+  };
+
+  const handleSeek = (event) => {
+    const audio = audioRef.current;
+    if (!audio || !effectiveDuration) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+    const nextTime = ratio * effectiveDuration;
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  };
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <button
+        type="button"
+        onClick={togglePlayback}
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-dark"
+        title={isPlaying ? 'Tạm dừng' : 'Nghe lại'}
+        aria-label={isPlaying ? 'Tạm dừng ghi âm' : 'Nghe lại ghi âm'}
+      >
+        <span
+          className="material-symbols-outlined text-[22px]"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          {isPlaying ? 'pause' : 'play_arrow'}
+        </span>
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-on-surface">
+            Ghi âm
+            <span className="font-normal text-on-surface-variant"> · {formatFileSize(size)}</span>
+          </p>
+          <span className="shrink-0 text-[11px] tabular-nums text-on-surface-variant">
+            {formatVoiceDuration(currentTime)} / {formatVoiceDuration(effectiveDuration)}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={handleSeek}
+          className="block h-3 w-full py-1"
+          aria-label="Tua ghi âm"
+        >
+          <span className="block h-1 overflow-hidden rounded-full bg-on-surface-variant/25">
+            <span
+              className="block h-full rounded-full bg-accent transition-[width]"
+              style={{ width: `${progress}%` }}
+            />
+          </span>
+        </button>
+      </div>
+      <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
+    </div>
+  );
 };
 
 const MessageInput = ({
@@ -55,20 +203,49 @@ const MessageInput = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
+  const [voicePreview, setVoicePreview] = useState(null);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isUploadingVoice, setIsUploadingVoice] = useState(false);
+  const [voiceDuration, setVoiceDuration] = useState(0);
+  const [voiceError, setVoiceError] = useState('');
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
   const wasEditingRef = useRef(false);
   const typingTimeoutRef = useRef(null);
   const previewsRef = useRef([]);
+  const voicePreviewRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const voiceChunksRef = useRef([]);
+  const voiceStreamRef = useRef(null);
+  const voiceTimerRef = useRef(null);
+  const recordingStartedAtRef = useRef(null);
+  const discardVoiceRef = useRef(false);
   const hasPreviews = previews.length > 0;
+  const hasVoicePreview = Boolean(voicePreview);
 
   useEffect(() => {
     previewsRef.current = previews;
   }, [previews]);
 
+  useEffect(() => {
+    voicePreviewRef.current = voicePreview;
+  }, [voicePreview]);
+
   useEffect(
     () => () => {
       revokePreviewUrls(previewsRef.current);
+      if (voicePreviewRef.current?.url) URL.revokeObjectURL(voicePreviewRef.current.url);
+      if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+      discardVoiceRef.current = true;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.onerror = null;
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current = null;
+      recordingStartedAtRef.current = null;
+      voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     },
     [],
@@ -83,11 +260,33 @@ const MessageInput = ({
     setUploadProgress(0);
   };
 
+  const clearVoiceTimer = () => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+  };
+
+  const stopVoiceStream = () => {
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    voiceStreamRef.current = null;
+  };
+
+  const clearVoicePreview = () => {
+    setVoicePreview((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+    setVoiceDuration(0);
+    setVoiceError('');
+  };
+
   useEffect(() => {
     if (!editingMessage) {
       if (wasEditingRef.current) {
         setMessage('');
         clearPreviews();
+        clearVoicePreview();
         wasEditingRef.current = false;
       }
 
@@ -97,6 +296,7 @@ const MessageInput = ({
     wasEditingRef.current = true;
     setMessage(editingMessage.content || '');
     clearPreviews();
+    clearVoicePreview();
 
     requestAnimationFrame(() => {
       inputRef.current?.focus();
@@ -134,10 +334,11 @@ const MessageInput = ({
 
   const validateFile = (file) => {
     const isImage = file.type.startsWith('image/');
+    const isAudio = file.type.startsWith('audio/');
     const maxSize = isImage ? 10 * 1024 * 1024 : 25 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      return `Kích thước tối đa ${isImage ? '10MB' : '25MB'} cho ${file.name}`;
+      return `Kích thước tối đa ${isImage ? '10MB' : '25MB'} cho ${isAudio ? 'ghi âm' : file.name}`;
     }
 
     return '';
@@ -149,6 +350,7 @@ const MessageInput = ({
 
     setUploadError('');
     setUploadProgress(0);
+    clearVoicePreview();
 
     const validationError = selectedFiles.map(validateFile).find(Boolean);
     if (validationError) {
@@ -170,11 +372,10 @@ const MessageInput = ({
       }
 
       const nextPreviews = acceptedFiles.map((file) => {
-        const isImage = file.type.startsWith('image/');
         return {
           id: crypto.randomUUID(),
           url: URL.createObjectURL(file),
-          type: isImage ? 'image' : 'file',
+          type: getAttachmentType(file.type),
           name: file.name,
           size: file.size,
           file,
@@ -227,12 +428,13 @@ const MessageInput = ({
       const uploadedFiles = await handleUploadFiles();
       const attachments = uploadedFiles.map((uploadedFile, index) => {
         const preview = previews[index];
+        const mimeType = uploadedFile.mimeType || preview?.file?.type || uploadedFile.type || '';
         return {
-          type: preview?.type || (uploadedFile.type?.startsWith('image/') ? 'image' : 'file'),
+          type: getAttachmentType(uploadedFile.type, preview?.type || getAttachmentType(mimeType)),
           url: uploadedFile.url,
           filename: uploadedFile.filename || preview?.name,
           size: uploadedFile.size || preview?.size,
-          mimeType: uploadedFile.type || preview?.file?.type,
+          mimeType,
         };
       });
 
@@ -245,6 +447,193 @@ const MessageInput = ({
       setUploadError('Upload thất bại, thử lại');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const startVoiceRecording = async () => {
+    if (
+      disabled ||
+      editingMessage ||
+      hasPreviews ||
+      hasVoicePreview ||
+      isRecordingVoice ||
+      isUploading ||
+      isUploadingVoice
+    ) {
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceError('Trình duyệt chưa hỗ trợ ghi âm.');
+      return;
+    }
+
+    try {
+      setVoiceError('');
+      discardVoiceRef.current = false;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      voiceStreamRef.current = stream;
+      voiceChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) {
+          voiceChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const startedAt = recordingStartedAtRef.current || Date.now();
+        clearVoiceTimer();
+        stopVoiceStream();
+        mediaRecorderRef.current = null;
+        recordingStartedAtRef.current = null;
+        setIsRecordingVoice(false);
+
+        if (discardVoiceRef.current) {
+          discardVoiceRef.current = false;
+          voiceChunksRef.current = [];
+          setVoiceDuration(0);
+          return;
+        }
+
+        const recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
+        const blob = new Blob(voiceChunksRef.current, { type: recordedMimeType });
+        voiceChunksRef.current = [];
+
+        if (blob.size === 0) {
+          setVoiceDuration(0);
+          setVoiceError('Không ghi được âm thanh, thử lại.');
+          return;
+        }
+
+        const duration = Math.max(
+          1,
+          Math.round((Date.now() - startedAt) / 1000),
+        );
+
+        setVoicePreview((current) => {
+          if (current?.url) URL.revokeObjectURL(current.url);
+          return {
+            url: URL.createObjectURL(blob),
+            blob,
+            duration,
+            mimeType: recordedMimeType,
+            size: blob.size,
+          };
+        });
+        setVoiceDuration(duration);
+      };
+
+      recorder.onerror = () => {
+        clearVoiceTimer();
+        stopVoiceStream();
+        mediaRecorderRef.current = null;
+        recordingStartedAtRef.current = null;
+        setIsRecordingVoice(false);
+        setVoiceDuration(0);
+        setVoiceError('Không thể ghi âm, thử lại.');
+      };
+
+      recordingStartedAtRef.current = Date.now();
+      setVoiceDuration(0);
+      setIsRecordingVoice(true);
+      recorder.start();
+
+      voiceTimerRef.current = setInterval(() => {
+        setVoiceDuration(
+          Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000)),
+        );
+      }, 500);
+    } catch (error) {
+      console.error('Không thể truy cập micro:', error);
+      clearVoiceTimer();
+      stopVoiceStream();
+      mediaRecorderRef.current = null;
+      recordingStartedAtRef.current = null;
+      setIsRecordingVoice(false);
+      setVoiceDuration(0);
+      setVoiceError('Không thể truy cập micro. Hãy cấp quyền rồi thử lại.');
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === 'inactive') {
+      clearVoiceTimer();
+      stopVoiceStream();
+      mediaRecorderRef.current = null;
+      recordingStartedAtRef.current = null;
+      setIsRecordingVoice(false);
+      return;
+    }
+
+    recorder.stop();
+  };
+
+  const cancelVoiceRecording = () => {
+    discardVoiceRef.current = true;
+    const recorder = mediaRecorderRef.current;
+
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    } else {
+      clearVoiceTimer();
+      stopVoiceStream();
+      mediaRecorderRef.current = null;
+      recordingStartedAtRef.current = null;
+      setIsRecordingVoice(false);
+      setVoiceDuration(0);
+      discardVoiceRef.current = false;
+    }
+  };
+
+  const handleSendVoiceMessage = async () => {
+    if (!voicePreview || isUploadingVoice || disabled) return;
+
+    setIsUploadingVoice(true);
+    setVoiceError('');
+
+    try {
+      const extension = getAudioExtension(voicePreview.mimeType);
+      const voiceFile = new File([voicePreview.blob], `voice-${Date.now()}.${extension}`, {
+        type: voicePreview.mimeType || 'audio/webm',
+      });
+      const formData = new FormData();
+      formData.append('files', voiceFile);
+
+      const response = await api.post('/messages/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const uploadedFile = Array.isArray(response.data.files)
+        ? response.data.files[0]
+        : response.data.file;
+
+      if (!uploadedFile?.url) {
+        throw new Error('Upload voice không trả về file.');
+      }
+
+      const attachment = {
+        type: 'audio',
+        url: uploadedFile.url,
+        filename: uploadedFile.filename || voiceFile.name,
+        size: uploadedFile.size || voicePreview.size,
+        mimeType: uploadedFile.mimeType || voiceFile.type,
+        duration: voicePreview.duration,
+      };
+
+      onSendMessage(message.trim(), attachment, replyingMessage, [attachment]);
+      setMessage('');
+      clearVoicePreview();
+      stopTypingNow();
+    } catch (error) {
+      console.error('Gửi ghi âm thất bại:', error);
+      setVoiceError('Gửi ghi âm thất bại, thử lại.');
+    } finally {
+      setIsUploadingVoice(false);
     }
   };
 
@@ -266,6 +655,11 @@ const MessageInput = ({
       return;
     }
 
+    if (hasVoicePreview) {
+      await handleSendVoiceMessage();
+      return;
+    }
+
     if (message.trim() && !disabled) {
       onSendMessage(message.trim(), null, replyingMessage, []);
       setMessage('');
@@ -275,7 +669,18 @@ const MessageInput = ({
 
   const canSend = editingMessage
     ? Boolean(message.trim()) && !disabled
-    : (Boolean(message.trim()) || hasPreviews) && !disabled && !isUploading;
+    : (Boolean(message.trim()) || hasPreviews || hasVoicePreview) &&
+      !disabled &&
+      !isUploading &&
+      !isUploadingVoice &&
+      !isRecordingVoice;
+  const canRecordVoice =
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice;
 
   return (
     <footer className="shrink-0 border-t border-outline-variant bg-surface px-4 py-3 md:px-7 md:py-5">
@@ -313,6 +718,16 @@ const MessageInput = ({
                     alt={preview.name || 'Ảnh đã chọn'}
                     className="aspect-square w-full object-cover"
                   />
+                ) : preview.type === 'audio' ? (
+                  <div className="flex aspect-square flex-col items-center justify-center gap-2 px-2 text-center">
+                    <span className="material-symbols-outlined text-3xl text-on-surface-variant">
+                      graphic_eq
+                    </span>
+                    <span className="line-clamp-2 text-xs font-medium text-on-surface">
+                      {preview.name}
+                    </span>
+                    <audio controls src={preview.url} className="h-8 w-full" />
+                  </div>
                 ) : (
                   <div className="flex aspect-square flex-col items-center justify-center gap-2 px-2 text-center">
                     <span className="material-symbols-outlined text-3xl text-on-surface-variant">
@@ -375,6 +790,109 @@ const MessageInput = ({
         </div>
       )}
 
+      {(isRecordingVoice || hasVoicePreview) && (
+        <div className="mx-auto mb-3 max-w-[860px] rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 sm:py-3">
+          {isRecordingVoice ? (
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-error-container text-error">
+                <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-error/45" />
+                <span className="h-2.5 w-2.5 rounded-full bg-error" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-on-surface">Đang ghi âm</p>
+                <p className="text-xs text-on-surface-variant">
+                  {formatVoiceDuration(voiceDuration)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cancelVoiceRecording}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                title="Hủy ghi âm"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+              <button
+                type="button"
+                onClick={stopVoiceRecording}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-dark"
+                title="Dừng ghi âm"
+              >
+                <span className="material-symbols-outlined text-xl">stop</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 sm:hidden">
+                <VoicePreviewPlayer
+                  src={voicePreview.url}
+                  duration={voicePreview.duration}
+                  size={voicePreview.size}
+                />
+                <button
+                  type="button"
+                  onClick={clearVoicePreview}
+                  disabled={isUploadingVoice}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
+                  title="Bỏ ghi âm"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+
+              <div className="hidden gap-3 sm:flex sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
+                    <span
+                      className="material-symbols-outlined text-[22px]"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      graphic_eq
+                    </span>
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-on-surface">Ghi âm sẵn sàng gửi</p>
+                    <p className="text-xs text-on-surface-variant">
+                      {formatVoiceDuration(voicePreview.duration)} · {formatFileSize(voicePreview.size)}
+                    </p>
+                  </div>
+                </div>
+                <audio
+                  controls
+                  src={voicePreview.url}
+                  className="h-9 min-w-0 flex-1 sm:max-w-[320px]"
+                />
+                <button
+                  type="button"
+                  onClick={clearVoicePreview}
+                  disabled={isUploadingVoice}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
+                  title="Bỏ ghi âm"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {voiceError && (
+        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-md border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+          <p>{voiceError}</p>
+          {hasVoicePreview && (
+            <button
+              type="button"
+              onClick={handleSendVoiceMessage}
+              disabled={isUploadingVoice}
+              className="shrink-0 rounded-md bg-error px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Thử lại
+            </button>
+          )}
+        </div>
+      )}
+
       {editingMessage && (
         <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-lg border border-accent bg-accent-soft px-3 py-2">
           <div className="min-w-0">
@@ -419,7 +937,7 @@ const MessageInput = ({
         type="file"
         accept={ACCEPTED_FILE_TYPES}
         multiple
-        disabled={disabled || Boolean(editingMessage)}
+        disabled={disabled || Boolean(editingMessage) || isRecordingVoice || hasVoicePreview}
         onChange={handleFileChange}
         className="hidden"
       />
@@ -431,7 +949,7 @@ const MessageInput = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || Boolean(editingMessage)}
+          disabled={disabled || Boolean(editingMessage) || isRecordingVoice || hasVoicePreview}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-30"
           title="Đính kèm"
         >
@@ -445,21 +963,24 @@ const MessageInput = ({
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
-          disabled={disabled}
+          disabled={disabled || isRecordingVoice}
           autoComplete="off"
           className="min-w-0 flex-1 border-none bg-transparent py-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant"
           placeholder={
             editingMessage
               ? 'Chỉnh sửa tin nhắn...'
-              : hasPreviews
-                ? 'Viết chú thích...'
-                : 'Nhập tin nhắn...'
+              : isRecordingVoice
+                ? 'Đang ghi âm...'
+                : hasPreviews || hasVoicePreview
+                  ? 'Viết chú thích...'
+                  : 'Nhập tin nhắn...'
           }
         />
 
         <button
           type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+          disabled={isRecordingVoice}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
           title="Cảm xúc"
         >
           <span className="material-symbols-outlined text-xl">sentiment_satisfied</span>
@@ -468,10 +989,18 @@ const MessageInput = ({
         {!canSend && (
           <button
             type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-            title="Ghi âm"
+            onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+            disabled={!isRecordingVoice && !canRecordVoice}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-30 ${
+              isRecordingVoice
+                ? 'bg-error-container text-error hover:bg-error/15'
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+            title={isRecordingVoice ? 'Dừng ghi âm' : 'Ghi âm'}
           >
-            <span className="material-symbols-outlined text-xl">mic</span>
+            <span className="material-symbols-outlined text-xl">
+              {isRecordingVoice ? 'stop' : 'mic'}
+            </span>
           </button>
         )}
 

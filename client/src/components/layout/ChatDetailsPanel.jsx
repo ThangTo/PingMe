@@ -40,6 +40,13 @@ const formatFileSize = (size) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const getAttachmentKindLabel = (attachment = {}) => {
+  if (attachment.type === 'audio') return 'AUDIO';
+  if (attachment.mimeType) return attachment.mimeType.split('/').pop()?.toUpperCase() || 'FILE';
+  const extension = attachment.filename?.split('.').pop();
+  return extension ? extension.toUpperCase() : 'FILE';
+};
+
 const formatDateLabel = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -107,6 +114,8 @@ const ChatDetailsPanel = ({
               url: attachment.url,
               filename: attachment.filename,
               size: attachment.size,
+              type: attachment.type,
+              mimeType: attachment.mimeType,
               timestamp: message.timestamp,
             })),
         )
@@ -579,12 +588,12 @@ const ChatDetailsPanel = ({
                     className="flex items-center gap-3 py-3"
                   >
                     <span className="material-symbols-outlined text-[26px] text-on-surface-variant">
-                      description
+                      {file.type === 'audio' ? 'graphic_eq' : 'description'}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-on-surface">{file.filename}</span>
                       <span className="mt-0.5 block text-xs text-on-surface-variant">
-                        {formatFileSize(file.size)} · PDF
+                        {formatFileSize(file.size)} · {getAttachmentKindLabel(file)}
                       </span>
                     </span>
                     <span className="text-xs text-on-surface-variant">

@@ -30,12 +30,18 @@ const getUploadedFiles = (req) => {
 const formatUploadedFile = (req, file) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   const fileUrl = `${baseUrl}/uploads/${file.filename}`;
+  const attachmentType = file.mimetype.startsWith('image/')
+    ? 'image'
+    : file.mimetype.startsWith('audio/')
+      ? 'audio'
+      : 'file';
 
   return {
     url: fileUrl,
     filename: file.originalname,
     size: file.size,
-    type: file.mimetype,
+    type: attachmentType,
+    mimeType: file.mimetype,
   };
 };
 

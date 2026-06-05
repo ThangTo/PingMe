@@ -124,7 +124,9 @@ const getPrimaryAttachment = (attachment, attachments) =>
 const getMessageTypeFromAttachments = (attachments) => {
   const firstAttachment = attachments[0];
   if (!firstAttachment) return 'text';
-  return firstAttachment.type === 'image' ? 'image' : 'file';
+  if (firstAttachment.type === 'image') return 'image';
+  if (firstAttachment.type === 'audio') return 'audio';
+  return 'file';
 };
 
 const formatReplyPreview = (message) => {

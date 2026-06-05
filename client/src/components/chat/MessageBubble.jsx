@@ -18,9 +18,13 @@ const getReplyPreviewText = (replyTo) => {
 
   const attachments = getMessageAttachments(replyTo);
   if (replyTo.content) return replyTo.content;
+  if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
     return `${attachments.length} ảnh`;
+  }
+  if (attachments.length > 1 && attachments.every((item) => item.type === 'audio')) {
+    return `${attachments.length} tin nhắn thoại`;
   }
   if (attachments.length > 1) return `${attachments.length} tệp đính kèm`;
   return 'Tệp đính kèm';
@@ -29,6 +33,124 @@ const getReplyPreviewText = (replyTo) => {
 const formatFileSize = (size = 0) => {
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const formatVoiceDuration = (seconds = 0) => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const CompactVoicePlayer = ({ src, duration = 0 }) => {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(duration || 0);
+  const effectiveDuration = audioDuration || duration || 0;
+  const progress = effectiveDuration > 0 ? Math.min((currentTime / effectiveDuration) * 100, 100) : 0;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return undefined;
+
+    const handleLoadedMetadata = () => {
+      if (Number.isFinite(audio.duration)) setAudioDuration(audio.duration);
+    };
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(audio.duration || 0);
+    };
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [src]);
+
+  const togglePlayback = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audio.paused) {
+      try {
+        await audio.play();
+      } catch (error) {
+        console.error('Không thể phát tin nhắn thoại:', error);
+      }
+      return;
+    }
+
+    audio.pause();
+  };
+
+  const handleSeek = (event) => {
+    const audio = audioRef.current;
+    if (!audio || !effectiveDuration) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+    const nextTime = ratio * effectiveDuration;
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  };
+
+  return (
+    <div
+      className="flex min-w-0 items-center gap-2"
+      onPointerDown={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={togglePlayback}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface text-on-surface transition-colors hover:bg-surface-container-high"
+        title={isPlaying ? 'Tạm dừng' : 'Phát'}
+        aria-label={isPlaying ? 'Tạm dừng tin nhắn thoại' : 'Phát tin nhắn thoại'}
+      >
+        <span
+          className="material-symbols-outlined text-[21px]"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          {isPlaying ? 'pause' : 'play_arrow'}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={handleSeek}
+        className="h-5 min-w-0 flex-1"
+        aria-label="Tua tin nhắn thoại"
+      >
+        <span className="block h-1 overflow-hidden rounded-full bg-on-surface-variant/30">
+          <span
+            className="block h-full rounded-full bg-on-surface transition-[width]"
+            style={{ width: `${progress}%` }}
+          />
+        </span>
+      </button>
+
+      <span className="w-20 shrink-0 text-right text-[11px] font-medium tabular-nums text-on-surface-variant">
+        {formatVoiceDuration(currentTime)} / {formatVoiceDuration(effectiveDuration)}
+      </span>
+
+      <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
+    </div>
+  );
 };
 
 const PinGlyph = ({ className = '' }) => (
@@ -89,7 +211,10 @@ const MessageBubble = ({
   const canReact = Boolean(message.id) && !isRevoked && message.status !== 'sending';
   const attachments = getMessageAttachments(message);
   const imageAttachments = attachments.filter((attachment) => attachment.type === 'image');
-  const fileAttachments = attachments.filter((attachment) => attachment.type !== 'image');
+  const audioAttachments = attachments.filter((attachment) => attachment.type === 'audio');
+  const fileAttachments = attachments.filter(
+    (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
+  );
   const hasAttachments = attachments.length > 0;
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
@@ -616,6 +741,53 @@ const MessageBubble = ({
                       })}
                     </div>
                   </>
+                )}
+
+                {audioAttachments.length > 0 && (
+                  <div className="flex w-[min(280px,72vw)] flex-col gap-2 md:w-[min(420px,74vw)]">
+                    {audioAttachments.map((attachment, index) => (
+                      <div
+                        key={`${attachment.url}-${index}`}
+                        className={`rounded-lg border shadow-[0_2px_10px_rgba(40,37,32,0.03)] ${
+                          isOwn
+                            ? 'border-[#ded1c1] bg-accent-soft'
+                            : 'border-outline-variant bg-surface-container-lowest'
+                        }`}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="px-2.5 py-2 md:hidden">
+                          <CompactVoicePlayer src={attachment.url} duration={attachment.duration} />
+                        </div>
+
+                        <div className="hidden min-w-[250px] flex-col gap-2 px-3 py-3 md:flex">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-on-surface">
+                              <span
+                                className="material-symbols-outlined text-[21px]"
+                                style={{ fontVariationSettings: "'FILL' 1" }}
+                              >
+                                graphic_eq
+                              </span>
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-on-surface">
+                                Tin nhắn thoại
+                              </p>
+                              <p className="text-[11px] text-on-surface-variant">
+                                {[
+                                  attachment.duration ? formatVoiceDuration(attachment.duration) : '',
+                                  formatFileSize(attachment.size),
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </p>
+                            </div>
+                          </div>
+                          <audio controls src={attachment.url} className="h-9 w-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
 
                 {fileAttachments.length > 0 && (

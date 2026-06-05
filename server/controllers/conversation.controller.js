@@ -31,8 +31,12 @@ const getMessagePreview = (message) => {
 
   if (message.content) return message.content;
   if (attachments.length === 0) return 'Tin nhắn mới';
+  if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.every((attachment) => attachment.type === 'image')) return `${attachments.length} ảnh`;
+  if (attachments.every((attachment) => attachment.type === 'audio')) {
+    return `${attachments.length} tin nhắn thoại`;
+  }
   return `${attachments.length} tệp đính kèm`;
 };
 

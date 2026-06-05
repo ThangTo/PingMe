@@ -79,8 +79,14 @@ const getMessagePreview = (content, attachment, isDeleted = false, attachments =
 
   const messageAttachments = getMessageAttachments({ attachment, attachments });
   if (messageAttachments.length === 0) return 'Tin nhắn mới';
+  if (messageAttachments.length === 1 && messageAttachments[0].type === 'audio') {
+    return 'Tin nhắn thoại';
+  }
   if (messageAttachments.length === 1) return messageAttachments[0].filename || 'Tệp đính kèm';
   if (messageAttachments.every((item) => item.type === 'image')) return `${messageAttachments.length} ảnh`;
+  if (messageAttachments.every((item) => item.type === 'audio')) {
+    return `${messageAttachments.length} tin nhắn thoại`;
+  }
   return `${messageAttachments.length} tệp đính kèm`;
 };
 

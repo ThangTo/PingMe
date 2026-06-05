@@ -4,12 +4,13 @@ const attachmentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['image', 'file'],
+      enum: ['image', 'file', 'audio'],
     },
     url: String,
     filename: String,
     size: Number,
     mimeType: String,
+    duration: Number,
   },
   { _id: false },
 );

@@ -1,6 +1,6 @@
 # PingMe Product Pipeline
 
-Cập nhật: 2026-06-01
+Cập nhật: 2026-06-05
 
 Mục tiêu sản phẩm: xây PingMe theo hướng chat app tương tự Telegram: nhanh, ổn định, hỗ trợ nhiều thiết bị, có chat 1-1, nhóm, media, gọi thoại/video, thông báo, tìm kiếm, quyền riêng tư và các tính năng nâng cao. Làm theo thứ tự: hoàn thành tính năng cơ bản trước, sau đó mới mở rộng sang phần nâng cao.
 
@@ -139,12 +139,12 @@ Mục tiêu: gửi ảnh/file/reaction như một chat app hiện đại.
 | 4.7 Media gallery | DONE | Panel xem media trong conversation |
 | 4.8 Multiple images per message | DONE | Album/grouped media |
 | 4.9 Upload progress/retry | DONE | Progress bar, retry khi upload fail |
-| 4.10 Voice messages | PLANNED | Record audio, waveform, playback |
+| 4.10 Voice messages | DONE | Record audio, upload audio attachment, compact mobile playback |
 
 Next actions:
 
-- Upload progress và retry nên làm trước album.
-- Cần giới hạn file size và mime type rõ hơn ở server.
+- Pipeline 6.8: hoàn thiện group media gallery cho ảnh, file và audio trong group.
+- Sau khi media/group ổn, chuyển sang Pipeline 9 voice/video calls.
 
 ## Pipeline 5 - UI/UX Basic Product Polish
 

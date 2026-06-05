@@ -19,9 +19,13 @@ const getPinnedPreviewText = (message) => {
 
   const attachments = getMessageAttachments(message);
   if (message.content) return message.content;
+  if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
     return `${attachments.length} ảnh`;
+  }
+  if (attachments.length > 1 && attachments.every((item) => item.type === 'audio')) {
+    return `${attachments.length} tin nhắn thoại`;
   }
   if (attachments.length > 1) return `${attachments.length} tệp đính kèm`;
   return 'Tệp đính kèm';

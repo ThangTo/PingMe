@@ -25,6 +25,19 @@ const storage = multer.diskStorage({
 // Lọc loại file
 const fileFilter = (req, file, cb) => {
   const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+  const allowedAudioTypes = [
+    'audio/webm',
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/wave',
+    'audio/ogg',
+    'audio/mp4',
+    'audio/m4a',
+    'audio/x-m4a',
+    'audio/aac',
+  ];
   const allowedFileTypes = [
     'application/pdf',
     'application/msword',
@@ -38,9 +51,10 @@ const fileFilter = (req, file, cb) => {
     'text/plain',
     'text/csv',
   ];
-  const allowedTypes = [...allowedImageTypes, ...allowedFileTypes];
+  const allowedTypes = [...allowedImageTypes, ...allowedAudioTypes, ...allowedFileTypes];
+  const normalizedMimeType = file.mimetype.split(';')[0].trim().toLowerCase();
 
-  if (allowedTypes.includes(file.mimetype)) {
+  if (allowedTypes.includes(normalizedMimeType)) {
     cb(null, true);
   } else {
     cb(new Error('Định dạng không được hỗ trợ'), false);
