@@ -34,6 +34,8 @@ const callNoticeText = {
   failed: 'Không thể bắt đầu cuộc gọi.',
 };
 
+const OPEN_CONVERSATION_EVENT = 'pingme:open-conversation';
+
 export const useCall = () => {
   const context = useContext(CallContext);
   if (!context) throw new Error('useCall must be used within CallProvider');
@@ -53,6 +55,8 @@ export const CallProvider = ({ children }) => {
   const pendingIceCandidatesRef = useRef([]);
   const noticeTimerRef = useRef(null);
   const ringtoneAudioRef = useRef(null);
+  const incomingCallNotificationRef = useRef(null);
+  const notificationPermissionRequestedRef = useRef(false);
 
   useEffect(() => {
     callStateRef.current = callState;
@@ -74,6 +78,72 @@ export const CallProvider = ({ children }) => {
     setCallNotice(message);
     noticeTimerRef.current = setTimeout(() => setCallNotice(''), 2600);
   }, []);
+
+  const requestCallNotificationPermission = useCallback(() => {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'default') return;
+    if (notificationPermissionRequestedRef.current) return;
+
+    notificationPermissionRequestedRef.current = true;
+    void Notification.requestPermission()
+      .then((permission) => {
+        if (permission === 'default') {
+          notificationPermissionRequestedRef.current = false;
+        }
+      })
+      .catch((error) => {
+        notificationPermissionRequestedRef.current = false;
+        console.warn('Không thể xin quyền thông báo:', error);
+      });
+  }, []);
+
+  const closeIncomingCallNotification = useCallback(() => {
+    incomingCallNotificationRef.current?.close();
+    incomingCallNotificationRef.current = null;
+  }, []);
+
+  const showIncomingCallNotification = useCallback(
+    (payload = {}) => {
+      if (typeof Notification === 'undefined') return;
+      if (Notification.permission !== 'granted') return;
+      if (!document.hidden) return;
+
+      closeIncomingCallNotification();
+
+      const callerName = payload.caller?.name || 'Người gọi';
+      const callTypeLabel = payload.type === 'video' ? 'video' : 'thoại';
+      let notification;
+
+      try {
+        notification = new Notification(`Cuộc gọi ${callTypeLabel} đến`, {
+          body: `${callerName} đang gọi cho bạn`,
+          icon: '/pingme.svg',
+          badge: '/pingme.svg',
+          tag: payload.callId ? `pingme-call-${payload.callId}` : 'pingme-call-incoming',
+          renotify: true,
+          requireInteraction: true,
+        });
+      } catch (error) {
+        console.warn('Không thể hiển thị thông báo cuộc gọi:', error);
+        return;
+      }
+
+      notification.onclick = () => {
+        window.focus();
+        if (payload.conversationId) {
+          window.dispatchEvent(
+            new CustomEvent(OPEN_CONVERSATION_EVENT, {
+              detail: { conversationId: payload.conversationId },
+            }),
+          );
+        }
+        notification.close();
+      };
+
+      incomingCallNotificationRef.current = notification;
+    },
+    [closeIncomingCallNotification],
+  );
 
   const getRingtoneAudio = useCallback(() => {
     if (typeof Audio === 'undefined') return null;
@@ -182,13 +252,21 @@ export const CallProvider = ({ children }) => {
 
   const resetCall = useCallback(
     (notice) => {
+      closeIncomingCallNotification();
       stopRingtone();
       closePeerConnection();
       stopLocalMedia();
       setCallStateSnapshot(initialCallState);
       showCallNotice(notice);
     },
-    [closePeerConnection, setCallStateSnapshot, showCallNotice, stopLocalMedia, stopRingtone],
+    [
+      closeIncomingCallNotification,
+      closePeerConnection,
+      setCallStateSnapshot,
+      showCallNotice,
+      stopLocalMedia,
+      stopRingtone,
+    ],
   );
 
   const getNoticeFromPayload = useCallback((payload, fallbackReason = 'ended') => {
@@ -243,11 +321,12 @@ export const CallProvider = ({ children }) => {
     const currentCall = callStateRef.current;
     if (currentCall.status !== 'ringing' || !currentCall.callId) return;
 
+    closeIncomingCallNotification();
     stopRingtone();
     socket.emit('call_accept', {
       callId: currentCall.callId,
     });
-  }, [socket, stopRingtone]);
+  }, [closeIncomingCallNotification, socket, stopRingtone]);
 
   const rejectCall = useCallback(() => {
     const currentCall = callStateRef.current;
@@ -294,6 +373,7 @@ export const CallProvider = ({ children }) => {
   useEffect(() => {
     const handleUserGesture = () => {
       void unlockRingtoneAudio();
+      requestCallNotificationPermission();
     };
 
     window.addEventListener('pointerdown', handleUserGesture, { passive: true });
@@ -303,7 +383,7 @@ export const CallProvider = ({ children }) => {
       window.removeEventListener('pointerdown', handleUserGesture);
       window.removeEventListener('keydown', handleUserGesture);
     };
-  }, [unlockRingtoneAudio]);
+  }, [requestCallNotificationPermission, unlockRingtoneAudio]);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -383,6 +463,7 @@ export const CallProvider = ({ children }) => {
         },
       });
       startRingtone();
+      showIncomingCallNotification(payload);
     };
 
     const handleCallAccepted = async (payload) => {
@@ -580,6 +661,7 @@ export const CallProvider = ({ children }) => {
     getNoticeFromPayload,
     resetCall,
     setCallStateSnapshot,
+    showIncomingCallNotification,
     socket,
     startRingtone,
     startLocalMedia,
@@ -588,12 +670,13 @@ export const CallProvider = ({ children }) => {
   useEffect(
     () => () => {
       clearTimeout(noticeTimerRef.current);
+      closeIncomingCallNotification();
       stopRingtone();
       closePeerConnection();
       stopLocalMedia();
       ringtoneAudioRef.current = null;
     },
-    [closePeerConnection, stopLocalMedia, stopRingtone],
+    [closeIncomingCallNotification, closePeerConnection, stopLocalMedia, stopRingtone],
   );
 
   return (

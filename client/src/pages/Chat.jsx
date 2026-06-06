@@ -17,6 +17,8 @@ import AppIcon from '../components/ui/AppIcon';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
+const OPEN_CONVERSATION_EVENT = 'pingme:open-conversation';
+
 const getMessageAttachments = ({ attachment, attachments } = {}) => {
   if (Array.isArray(attachments) && attachments.length > 0) return attachments;
   return attachment ? [attachment] : [];
@@ -1196,7 +1198,7 @@ const Chat = () => {
     setPendingJumpMessageId(messageId);
   };
 
-  const handleSelectConversation = (conversationId) => {
+  const handleSelectConversation = useCallback((conversationId) => {
     setEditingMessage(null);
     setReplyingMessage(null);
     setSelectedConversationId(conversationId);
@@ -1206,7 +1208,19 @@ const Chat = () => {
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    const handleOpenConversation = (event) => {
+      const conversationId = event.detail?.conversationId;
+      if (!conversationId) return;
+
+      handleSelectConversation(conversationId);
+    };
+
+    window.addEventListener(OPEN_CONVERSATION_EVENT, handleOpenConversation);
+    return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, handleOpenConversation);
+  }, [handleSelectConversation]);
 
   useEffect(() => {
     const handleShortcut = (event) => {
