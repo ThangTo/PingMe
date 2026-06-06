@@ -1,6 +1,6 @@
 # PingMe Product Pipeline
 
-Cập nhật: 2026-06-05
+Cập nhật: 2026-06-06
 
 Mục tiêu sản phẩm: xây PingMe theo hướng chat app tương tự Telegram: nhanh, ổn định, hỗ trợ nhiều thiết bị, có chat 1-1, nhóm, media, gọi thoại/video, thông báo, tìm kiếm, quyền riêng tư và các tính năng nâng cao. Làm theo thứ tự: hoàn thành tính năng cơ bản trước, sau đó mới mở rộng sang phần nâng cao.
 
@@ -211,9 +211,9 @@ Mục tiêu: không bỏ lỡ tin nhắn, nhưng không làm phiền.
 |---|---|---|
 | 8.1 In-app unread badge | DONE | Sidebar unread count |
 | 8.2 In-app notification panel | PLANNED | Bell/list notifications |
-| 8.3 Browser notification permission | PLANNED | Notification API |
-| 8.4 Push for new messages | PLANNED | Service worker + Web Push |
-| 8.5 Notification preferences | PLANNED | Mute chat, mute duration |
+| 8.3 Browser notification permission | DONE | Notification API + đồng bộ permission/subscription |
+| 8.4 Push for new messages | DONE | Service worker + Web Push + in-app fallback toast |
+| 8.5 Notification preferences | DONE | Global mute và mute riêng từng conversation theo user |
 | 8.6 Mention notification | PLANNED | Quan trọng cho group |
 
 Product rule:
@@ -387,13 +387,12 @@ Mục tiêu: dùng tốt trên phone, gần như app native.
 
 Nên làm theo thứ tự gần nhất:
 
-1. Commit/push mốc vừa làm: socket auth identity + multi-tab presence + `PIPELINE.md`.
-2. Pipeline 3.12: Pin message.
-3. Pipeline 4.8: Multiple images per message.
-4. Pipeline 6.1-6.4: Group chat MVP.
-5. Pipeline 9.2-9.4: Voice/video call MVP.
-6. Pipeline 8.2-8.4: Notifications.
-7. Pipeline 10.4: API/socket smoke tests.
+1. Commit/push mốc Notifications.
+2. Pipeline 10.4: API/socket smoke tests.
+3. Pipeline A8.1: Pagination messages/load older messages.
+4. Pipeline A8.2: Virtualized message list.
+5. Pipeline 7.4: Global message search.
+6. Pipeline 8.2: In-app notification panel.
 
 Nếu bị rối, quay lại nguyên tắc này:
 

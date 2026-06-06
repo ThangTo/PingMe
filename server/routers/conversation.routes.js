@@ -6,6 +6,11 @@ const router = Router();
 
 router.get('/', authMiddleware, conversationController.getConversations);
 router.post('/groups', authMiddleware, conversationController.createGroup);
+router.patch(
+  '/:conversationId/notifications',
+  authMiddleware,
+  conversationController.updateNotificationSettings,
+);
 router.post('/:conversationId/members', authMiddleware, conversationController.addGroupMembers);
 router.patch(
   '/:conversationId/members/:memberId/role',

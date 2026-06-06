@@ -35,6 +35,9 @@ const authController = {
           email: user.email,
           avatar: user.avatar,
           bio: user.bio || '',
+          notificationSettings: {
+            muteAll: Boolean(user.notificationSettings?.muteAll),
+          },
         },
       });
     } catch (error) {
@@ -76,6 +79,9 @@ const authController = {
           email: user.email,
           avatar: user.avatar,
           bio: user.bio || '',
+          notificationSettings: {
+            muteAll: Boolean(user.notificationSettings?.muteAll),
+          },
         },
       });
     } catch (error) {

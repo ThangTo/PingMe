@@ -517,8 +517,11 @@ const Sidebar = ({
                     </div>
 
                     <div className="flex min-w-[44px] flex-col items-end gap-2 self-center">
-                      <span className="text-xs text-on-surface-variant">
-                        {formatConversationTime(conv.lastMessageAt)}
+                      <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                        {conv.notificationsMuted && (
+                          <AppIcon name="notifications_off" className="text-[13px]" />
+                        )}
+                        <span>{formatConversationTime(conv.lastMessageAt)}</span>
                       </span>
                       {conv.unreadCount > 0 ? (
                         <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-2 text-xs font-semibold text-white">

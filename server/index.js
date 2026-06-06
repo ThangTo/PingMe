@@ -11,6 +11,7 @@ import socketHandler from './socket/socketHandler.js';
 import authRoutes from './routers/auth.routes.js';
 import conversationRoutes from './routers/conversation.routes.js';
 import messageRoutes from './routers/message.routes.js';
+import pushRoutes from './routers/push.routes.js';
 import userRoutes from './routers/user.routes.js';
 
 // Load biến môi trường từ file .env
@@ -56,6 +57,7 @@ socketHandler(io);
 app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/users', userRoutes);
 
 // Static file serving cho uploads

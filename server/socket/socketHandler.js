@@ -5,6 +5,7 @@ import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { updateMessageLinkPreview } from '../services/linkPreview.service.js';
+import { sendMessagePushToUsers } from '../services/pushNotification.service.js';
 import {
   getConversationRoomId,
   getConversationMember,
@@ -50,6 +51,27 @@ const getOnlineSocketIds = (userId) => {
 };
 
 const isUserOnline = (userId) => getOnlineSocketIds(userId).length > 0;
+
+const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, conversation, senderUser }) => {
+  const offlineRecipientIds = memberIds.filter(
+    (memberId) => memberId !== senderId && !isUserOnline(memberId),
+  );
+
+  if (!offlineRecipientIds.length) return;
+
+  console.log(
+    `[Push] queue message conversation=${messagePayload.conversationId} offlineRecipients=${offlineRecipientIds.length}`,
+  );
+
+  void sendMessagePushToUsers({
+    recipientIds: offlineRecipientIds,
+    message: messagePayload,
+    conversation,
+    senderUser,
+  }).catch((error) => {
+    console.warn('Khong the gui push notification cho tin nhan:', error.message || error);
+  });
+};
 
 const emitToUser = (io, userId, eventName, payload) => {
   getOnlineSocketIds(userId).forEach((socketId) => {
@@ -1012,6 +1034,14 @@ const socketHandler = (io) => {
           messageId: newMessage._id,
           contentSnapshot: cleanContent,
           participantIds: memberIds,
+        });
+
+        queueMessagePushNotification({
+          memberIds,
+          senderId,
+          messagePayload,
+          conversation,
+          senderUser,
         });
 
         if (conversation.type === 'group') {

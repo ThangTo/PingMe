@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import incomingCallRingtoneUrl from '../assets/audio/incoming-call-soft.wav';
+import { requestNotificationPermission } from '../services/pushNotifications';
 
 const rtcConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -85,7 +86,7 @@ export const CallProvider = ({ children }) => {
     if (notificationPermissionRequestedRef.current) return;
 
     notificationPermissionRequestedRef.current = true;
-    void Notification.requestPermission()
+    void requestNotificationPermission()
       .then((permission) => {
         if (permission === 'default') {
           notificationPermissionRequestedRef.current = false;

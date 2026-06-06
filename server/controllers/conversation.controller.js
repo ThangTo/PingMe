@@ -103,6 +103,12 @@ const formatReadState = (conversation, currentUserId) => {
   };
 };
 
+const isActiveMute = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+};
+
 const formatReadStates = (conversation) =>
   (conversation.members || []).map((member) => {
     const memberUser = member.user;
@@ -117,6 +123,7 @@ const formatReadStates = (conversation) =>
   });
 
 const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
+  const currentMember = getConversationMember(conversation, currentUserId);
   const peerMember = getPeerMember(conversation, currentUserId);
   const peer = peerMember?.user;
   const lastMessage = conversation.lastMessage;
@@ -137,6 +144,8 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
     lastMessage: getMessagePreview(lastMessage),
     lastMessageAt: lastMessage?.createdAt || conversation.updatedAt || conversation.createdAt,
     unreadCount: unreadCountByConversation.get(conversationId) || 0,
+    mutedUntil: currentMember?.mutedUntil || null,
+    notificationsMuted: isActiveMute(currentMember?.mutedUntil),
     readState: formatReadState(conversation, currentUserId),
     readStates: formatReadStates(conversation),
     pinnedMessage: latestPinnedMessage,
@@ -521,6 +530,57 @@ const conversationController = {
     } catch (error) {
       console.error('Lỗi đổi quyền thành viên nhóm:', error);
       return res.status(500).json({ error: 'Không thể đổi quyền thành viên' });
+    }
+  },
+
+  updateNotificationSettings: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId } = req.params;
+      const { muted } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
+      }
+
+      if (typeof muted !== 'boolean') {
+        return res.status(400).json({ error: 'muted phải là boolean' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
+      }
+
+      const member = getConversationMember(conversation, currentUserId);
+      if (!member) {
+        return res.status(403).json({ error: 'Bạn không nằm trong cuộc trò chuyện này' });
+      }
+
+      member.mutedUntil = muted ? new Date('9999-12-31T23:59:59.999Z') : null;
+      await conversation.save();
+
+      const payload = {
+        conversationId: conversation._id.toString(),
+        mutedUntil: member.mutedUntil || null,
+        notificationsMuted: muted,
+      };
+
+      const io = req.app.get('io');
+      if (io) {
+        io.to(getUserRoomId(currentUserId)).emit(
+          'conversation_notification_settings_updated',
+          payload,
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        ...payload,
+      });
+    } catch (error) {
+      console.error('Lỗi cập nhật thông báo cuộc trò chuyện:', error);
+      return res.status(500).json({ error: 'Không thể cập nhật thông báo cuộc trò chuyện' });
     }
   },
 

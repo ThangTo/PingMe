@@ -14,6 +14,7 @@ const SettingsPanel = ({ onBack }) => {
     avatar: user?.avatar || '',
     bio: user?.bio || '',
     provider: 'local',
+    notificationSettings: user?.notificationSettings || { muteAll: false },
   });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -28,6 +29,10 @@ const SettingsPanel = ({ onBack }) => {
   const [profileError, setProfileError] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [isNotificationSaving, setIsNotificationSaving] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationError, setNotificationError] = useState('');
+  const notificationsMuted = Boolean(profile.notificationSettings?.muteAll);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -99,6 +104,33 @@ const SettingsPanel = ({ onBack }) => {
     setThemePreference(theme);
     localStorage.setItem('pingme_theme', theme);
     window.dispatchEvent(new Event('pingme-theme-change'));
+  };
+
+  const handleNotificationToggle = async () => {
+    const nextMuteAll = !notificationsMuted;
+    setIsNotificationSaving(true);
+    setNotificationMessage('');
+    setNotificationError('');
+
+    try {
+      const response = await api.patch('/users/me/notifications', {
+        muteAll: nextMuteAll,
+      });
+
+      if (response.data.success) {
+        setProfile(response.data.user);
+        updateUser(response.data.user);
+        setNotificationMessage(
+          nextMuteAll ? 'Đã tắt toàn bộ thông báo PingMe.' : 'Đã bật lại thông báo PingMe.',
+        );
+      }
+    } catch (error) {
+      setNotificationError(
+        error.response?.data?.error || error.message || 'Không thể cập nhật thông báo.',
+      );
+    } finally {
+      setIsNotificationSaving(false);
+    }
   };
 
   return (
@@ -226,6 +258,53 @@ const SettingsPanel = ({ onBack }) => {
                   </button>
                 ))}
               </div>
+            </section>
+
+            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
+                    Thông báo
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+                    Tắt toàn bộ thông báo PingMe cho tài khoản này, gồm thông báo trong app và Web Push.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNotificationToggle}
+                  disabled={isNotificationSaving || isLoading}
+                  className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
+                    notificationsMuted
+                      ? 'border-accent bg-accent-soft text-on-surface hover:bg-surface-container-low'
+                      : 'border-outline-variant bg-surface text-on-surface hover:bg-surface-container-low'
+                  }`}
+                >
+                  <AppIcon
+                    name={notificationsMuted ? 'notifications' : 'notifications_off'}
+                    className="text-[19px]"
+                  />
+                  <span>
+                    {isNotificationSaving
+                      ? 'Đang lưu...'
+                      : notificationsMuted
+                        ? 'Bật thông báo'
+                        : 'Tắt thông báo'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+                {notificationsMuted
+                  ? 'Bạn đang tắt toàn bộ thông báo. Tin nhắn vẫn nhận bình thường, chỉ không bật nhắc nhở.'
+                  : 'Thông báo đang bật. Bạn vẫn có thể tắt riêng từng cuộc trò chuyện trong phần chi tiết.'}
+              </div>
+
+              {notificationError && <p className="mt-4 text-sm text-error">{notificationError}</p>}
+              {notificationMessage && (
+                <p className="mt-4 text-sm text-secondary">{notificationMessage}</p>
+              )}
             </section>
 
             <form

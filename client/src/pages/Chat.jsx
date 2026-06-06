@@ -14,6 +14,7 @@ import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
 import api from '../config/api';
 import AppIcon from '../components/ui/AppIcon';
+import { showClientNotification } from '../services/pushNotifications';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -127,6 +128,75 @@ const getMessagePreview = (
   return `${messageAttachments.length} tệp đính kèm`;
 };
 
+const truncateNotificationText = (value = '', maxLength = 90) => {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}...`;
+};
+
+const showHiddenTabMessageNotification = ({ message, conversationId, conversationName }) => {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') {
+    if (import.meta.env.DEV) {
+      console.info('[PingMe Push] skip hidden-tab message notification: permission', Notification.permission);
+    }
+    return;
+  }
+  if (!document.hidden) {
+    if (import.meta.env.DEV) {
+      console.info('[PingMe Push] skip hidden-tab message notification: tab is visible');
+    }
+    return;
+  }
+
+  const attachments = getMessageAttachments(message);
+  const body = truncateNotificationText(
+    getMessagePreview(
+      message.content,
+      message.attachment,
+      Boolean(message.isDeleted),
+      attachments,
+      message.messageType,
+      message.callDetails,
+    ),
+  );
+  const senderName = message.senderName || 'PingMe';
+  const title =
+    message.isGroup && conversationName ? `${senderName} trong ${conversationName}` : senderName;
+  const notificationOptions = {
+    body,
+    icon: '/pingme.svg',
+    badge: '/pingme.svg',
+    tag: conversationId ? `pingme-message-${conversationId}` : `pingme-message-${Date.now()}`,
+    renotify: true,
+    data: {
+      type: 'message',
+      conversationId,
+      messageId: message.id,
+      url: conversationId ? `/chat?conversationId=${encodeURIComponent(conversationId)}` : '/chat',
+    },
+  };
+
+  void showClientNotification({
+    title,
+    options: notificationOptions,
+    onClick: (event) => {
+      window.focus();
+      if (conversationId) {
+        window.dispatchEvent(
+          new CustomEvent(OPEN_CONVERSATION_EVENT, {
+            detail: { conversationId },
+          }),
+        );
+      }
+      event?.target?.close?.();
+    },
+  }).then((result) => {
+    if (import.meta.env.DEV) {
+      console.info('[PingMe Push] hidden-tab message notification result:', result);
+    }
+  });
+};
+
 const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
   if (!message) return null;
 
@@ -203,6 +273,8 @@ const formatConversationSummary = (conversation, onlineUsers = []) => {
     lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
     lastMessageAt: conversation.lastMessageAt || null,
     unreadCount: conversation.unreadCount || 0,
+    mutedUntil: conversation.mutedUntil || null,
+    notificationsMuted: Boolean(conversation.notificationsMuted),
     readState: conversation.readState || null,
     readStates: normalizeReadStates(conversation.readStates),
     pinnedMessages,
@@ -210,6 +282,52 @@ const formatConversationSummary = (conversation, onlineUsers = []) => {
     latestPinnedMessage,
     pinnedMessage: latestPinnedMessage,
   };
+};
+
+const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
+  if (!notifications.length) return null;
+
+  return (
+    <div className="pointer-events-none fixed right-4 top-4 z-[9999] flex w-[min(380px,calc(100vw-32px))] flex-col gap-2 md:right-6 md:top-6">
+      {notifications.map((notification) => (
+        <div
+          key={notification.id}
+          className="pointer-events-auto overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_18px_50px_rgba(40,37,32,0.18)] ring-1 ring-black/5"
+        >
+          <div className="flex items-start gap-3 p-3.5">
+            <button
+              type="button"
+              onClick={() => onOpen(notification)}
+              className="flex min-w-0 flex-1 items-start gap-3 text-left"
+            >
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
+                <AppIcon name="notifications" className="text-xl" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  PingMe
+                </span>
+                <span className="mt-0.5 block truncate text-sm font-semibold text-on-surface">
+                  {notification.title}
+                </span>
+                <span className="mt-1 line-clamp-2 block text-sm leading-5 text-on-surface-variant">
+                  {notification.body}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onDismiss(notification.id)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
+              aria-label="Dong thong bao"
+            >
+              <AppIcon name="close" className="text-lg" />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const Chat = () => {
@@ -231,8 +349,10 @@ const Chat = () => {
   const [replyingMessage, setReplyingMessage] = useState(null);
   const [jumpToMessageSignal, setJumpToMessageSignal] = useState(null);
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
+  const [appNotifications, setAppNotifications] = useState([]);
   const messagesRef = useRef(messages);
   const conversationsRef = useRef(conversations);
+  const appNotificationTimersRef = useRef(new Map());
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -241,6 +361,98 @@ const Chat = () => {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(
+    () => () => {
+      appNotificationTimersRef.current.forEach((timer) => clearTimeout(timer));
+      appNotificationTimersRef.current.clear();
+    },
+    [],
+  );
+
+  const dismissAppNotification = useCallback((notificationId) => {
+    const timer = appNotificationTimersRef.current.get(notificationId);
+    if (timer) {
+      clearTimeout(timer);
+      appNotificationTimersRef.current.delete(notificationId);
+    }
+
+    setAppNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+  }, []);
+
+  const showAppNotification = useCallback(
+    ({ title = 'PingMe', body = 'Thong bao moi', conversationId = null }) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const nextNotification = {
+        id,
+        title,
+        body,
+        conversationId,
+      };
+
+      setAppNotifications((prev) => [nextNotification, ...prev].slice(0, 2));
+
+      const timer = window.setTimeout(() => {
+        dismissAppNotification(id);
+      }, 9000);
+      appNotificationTimersRef.current.set(id, timer);
+
+      return nextNotification;
+    },
+    [dismissAppNotification],
+  );
+
+  const openAppNotification = useCallback(
+    (notification) => {
+      if (notification?.conversationId) {
+        window.dispatchEvent(
+          new CustomEvent(OPEN_CONVERSATION_EVENT, {
+            detail: { conversationId: notification.conversationId },
+          }),
+        );
+      }
+      dismissAppNotification(notification.id);
+    },
+    [dismissAppNotification],
+  );
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+
+    window.pingmeAppNotify = (payload = {}) =>
+      showAppNotification({
+        title: payload.title || 'PingMe test',
+        body: payload.body || 'Thong bao fallback trong app dang hoat dong.',
+        conversationId: payload.conversationId || selectedConversationId || null,
+      });
+
+    return () => {
+      if (window.pingmeAppNotify) {
+        delete window.pingmeAppNotify;
+      }
+    };
+  }, [selectedConversationId, showAppNotification]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debugNotification') !== '1') return;
+
+    showAppNotification({
+      title: 'PingMe notification',
+      body: 'Fallback notification trong app dang hoat dong.',
+      conversationId: selectedConversationId || null,
+    });
+
+    params.delete('debugNotification');
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`,
+    );
+  }, [selectedConversationId, showAppNotification]);
 
   useEffect(() => {
     if (!pendingJumpMessageId) return;
@@ -253,6 +465,18 @@ const Chat = () => {
 
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
   const currentChatUserName = currentChatUser?.name;
+  const isGlobalNotificationsMuted = Boolean(user?.notificationSettings?.muteAll);
+  const isConversationMuted = useCallback(
+    (conversationId) => {
+      if (!conversationId) return false;
+      return Boolean(conversationsRef.current.find((conv) => conv.id === conversationId)?.notificationsMuted);
+    },
+    [],
+  );
+  const shouldNotifyConversation = useCallback(
+    (conversationId) => !isGlobalNotificationsMuted && !isConversationMuted(conversationId),
+    [isConversationMuted, isGlobalNotificationsMuted],
+  );
   const reactionUsersById = {
     ...(user?.id
       ? {
@@ -460,6 +684,26 @@ const Chat = () => {
     [applyConversationMembersUpdate],
   );
 
+  const handleUpdateConversationNotifications = useCallback(async (conversationId, muted) => {
+    const response = await api.patch(`/conversations/${conversationId}/notifications`, { muted });
+
+    if (response.data.success) {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId
+            ? {
+                ...conv,
+                mutedUntil: response.data.mutedUntil || null,
+                notificationsMuted: Boolean(response.data.notificationsMuted),
+              }
+            : conv,
+        ),
+      );
+    }
+
+    return response.data;
+  }, []);
+
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
       const unreadMessages = messagesRef.current.filter(
@@ -574,10 +818,14 @@ const Chat = () => {
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
-      const fallbackConversationId = conversationsRef.current.find((conv) => conv.peerId === data.senderId)?.id;
+      const targetConversation = conversationsRef.current.find(
+        (conv) => conv.id === data.conversationId || conv.peerId === data.senderId,
+      );
+      const fallbackConversationId = targetConversation?.id;
       const eventConversationId = data.conversationId || fallbackConversationId || data.senderId;
       const isCurrentConversation = eventConversationId === selectedConversationId;
       const isOwnMessage = data.senderId === user?.id;
+      const canNotifyConversation = shouldNotifyConversation(eventConversationId);
       const shouldMarkRead = !isOwnMessage && isCurrentConversation && document.hasFocus();
       const incomingAttachments = getMessageAttachments(data);
       const incomingMessage = {
@@ -601,6 +849,35 @@ const Chat = () => {
           conversationId: eventConversationId,
           messageIds: [data.id],
         });
+      }
+
+      if (!isOwnMessage && canNotifyConversation) {
+        const notificationBody = getMessagePreview(
+          data.content,
+          data.attachment,
+          Boolean(data.isDeleted),
+          incomingAttachments,
+          data.messageType,
+          data.callDetails,
+        );
+        const shouldShowAppToast = !isCurrentConversation;
+
+        showHiddenTabMessageNotification({
+          message: incomingMessage,
+          conversationId: eventConversationId,
+          conversationName: targetConversation?.name,
+        });
+
+        if (shouldShowAppToast) {
+          showAppNotification({
+            title:
+              data.isGroup && targetConversation?.name
+                ? `${data.senderName || 'PingMe'} trong ${targetConversation.name}`
+                : data.senderName || targetConversation?.name || 'PingMe',
+            body: notificationBody,
+            conversationId: eventConversationId,
+          });
+        }
       }
 
       if (isCurrentConversation) {
@@ -660,6 +937,27 @@ const Chat = () => {
     };
 
     socket.on('conversation_members_updated', handleConversationMembersUpdated);
+
+    const handleConversationNotificationSettingsUpdated = (data) => {
+      if (!data?.conversationId) return;
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === data.conversationId
+            ? {
+                ...conv,
+                mutedUntil: data.mutedUntil || null,
+                notificationsMuted: Boolean(data.notificationsMuted),
+              }
+            : conv,
+        ),
+      );
+    };
+
+    socket.on(
+      'conversation_notification_settings_updated',
+      handleConversationNotificationSettingsUpdated,
+    );
 
     const handleMessagesRead = (data) => {
       console.log('Người kia đã đọc tin nhắn:', data);
@@ -1032,6 +1330,10 @@ const Chat = () => {
       socket.off('friend_request_accepted', handleFriendAccepted);
       socket.off('conversation_created', handleConversationCreated);
       socket.off('conversation_members_updated', handleConversationMembersUpdated);
+      socket.off(
+        'conversation_notification_settings_updated',
+        handleConversationNotificationSettingsUpdated,
+      );
       socket.off('messages_were_read', handleMessagesRead);
       socket.off('conversation_read_state_updated', handleConversationReadStateUpdated);
       socket.off('reaction_added', handleAddReaction);
@@ -1055,6 +1357,8 @@ const Chat = () => {
     fetchFriends,
     upsertConversation,
     applyConversationMembersUpdate,
+    showAppNotification,
+    shouldNotifyConversation,
   ]);
 
   const handleTypingStart = () => {
@@ -1223,6 +1527,56 @@ const Chat = () => {
   }, [handleSelectConversation]);
 
   useEffect(() => {
+    const openConversationFromNotification = (conversationId) => {
+      if (!conversationId) return;
+      handleSelectConversation(conversationId);
+
+      if (window.location.search.includes('conversationId=')) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    };
+
+    const handleServiceWorkerMessage = (event) => {
+      if (event.data?.type === 'PINGME_OPEN_CONVERSATION') {
+        openConversationFromNotification(event.data.conversationId);
+        return;
+      }
+
+      if (
+        event.data?.type === 'PINGME_PUSH_DEBUG' &&
+        event.data.eventName === 'push_received' &&
+        event.data.detail?.title
+      ) {
+        const pushConversationId = event.data.detail.conversationId || null;
+        if (isGlobalNotificationsMuted) return;
+        if (pushConversationId && isConversationMuted(pushConversationId)) return;
+        if (pushConversationId && pushConversationId === selectedConversationId) return;
+
+        showAppNotification({
+          title: event.data.detail.title,
+          body: event.data.detail.body || 'Thong bao moi',
+          conversationId: pushConversationId,
+        });
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+
+    const queryConversationId = new URLSearchParams(window.location.search).get('conversationId');
+    openConversationFromNotification(queryConversationId);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, [
+    handleSelectConversation,
+    isConversationMuted,
+    isGlobalNotificationsMuted,
+    selectedConversationId,
+    showAppNotification,
+  ]);
+
+  useEffect(() => {
     const handleShortcut = (event) => {
       const isSearchShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
 
@@ -1297,6 +1651,11 @@ const Chat = () => {
     <div className="h-[100dvh] w-full overflow-hidden bg-background font-body text-on-surface">
       <IncomingCallModal />
       <CallOverlay />
+      <AppNotificationToasts
+        notifications={appNotifications}
+        onOpen={openAppNotification}
+        onDismiss={dismissAppNotification}
+      />
 
       <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface shadow-[0_18px_60px_rgba(40,37,32,0.08)]">
         <AppRail activeItem={activeRailItem} onNavigate={handleRailNavigate} />
@@ -1371,6 +1730,7 @@ const Chat = () => {
                       onAddGroupMembers={handleAddGroupMembers}
                       onRemoveGroupMember={handleRemoveGroupMember}
                       onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
+                      onUpdateConversationNotifications={handleUpdateConversationNotifications}
                       onClose={() => setShowDetails(false)}
                     />
                   )}

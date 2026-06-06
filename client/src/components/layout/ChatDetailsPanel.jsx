@@ -148,6 +148,7 @@ const ChatDetailsPanel = ({
   onAddGroupMembers,
   onRemoveGroupMember,
   onUpdateGroupMemberRole,
+  onUpdateConversationNotifications,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('media');
@@ -160,12 +161,15 @@ const ChatDetailsPanel = ({
   const [isAddingMembers, setIsAddingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState(null);
   const [updatingRoleMemberId, setUpdatingRoleMemberId] = useState(null);
+  const [isUpdatingNotifications, setIsUpdatingNotifications] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
   const [serverGallery, setServerGallery] = useState(emptyGallery);
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState('');
   const isGroup = Boolean(user?.isGroup);
   const { callState, initiateCall } = useCall();
   const canStartDirectCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
+  const notificationsMuted = Boolean(user?.notificationsMuted);
 
   const handleStartCall = (type) => {
     if (!canStartDirectCall) return;
@@ -175,6 +179,22 @@ const ChatDetailsPanel = ({
       avatar: user.avatar,
       conversationId: user.id,
     });
+  };
+
+  const handleToggleConversationNotifications = async () => {
+    if (!user?.id) return;
+
+    try {
+      setIsUpdatingNotifications(true);
+      setNotificationError('');
+      await onUpdateConversationNotifications?.(user.id, !notificationsMuted);
+    } catch (error) {
+      setNotificationError(
+        error.response?.data?.error || 'Không thể cập nhật thông báo cuộc trò chuyện.',
+      );
+    } finally {
+      setIsUpdatingNotifications(false);
+    }
   };
 
   useEffect(() => {
@@ -220,6 +240,7 @@ const ChatDetailsPanel = ({
     setIsMemberComposerOpen(false);
     setSelectedMemberIds([]);
     setMemberActionError('');
+    setNotificationError('');
   }, [user?.id]);
 
   const localGallery = useMemo(() => buildLocalGallery(messages), [messages]);
@@ -445,20 +466,50 @@ const ChatDetailsPanel = ({
             },
             { icon: 'search', label: 'Tìm kiếm' },
             { icon: 'notifications_off', label: 'Tắt thông báo' },
-          ].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={item.onClick}
-              disabled={item.disabled}
-              className={`${isGroup && ['call', 'videocam'].includes(item.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-45`}
-              title={item.label}
-            >
-              <AppIcon name={item.icon} className="text-[24px]" />
-              <span className="text-xs">{item.label}</span>
-            </button>
-          ))}
+          ].map((item) => {
+            const actionItem =
+              item.icon === 'notifications_off'
+                ? {
+                    ...item,
+                    icon: notificationsMuted ? 'notifications' : 'notifications_off',
+                    label: notificationsMuted ? 'Bật thông báo' : 'Tắt thông báo',
+                    active: notificationsMuted,
+                    disabled: isUpdatingNotifications,
+                    onClick: handleToggleConversationNotifications,
+                  }
+                : item;
+
+            return (
+              <button
+                key={actionItem.label}
+                type="button"
+                onClick={actionItem.onClick}
+                disabled={actionItem.disabled}
+                className={`${isGroup && ['call', 'videocam'].includes(actionItem.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                  actionItem.active
+                    ? 'border-accent bg-accent-soft text-on-surface'
+                    : 'border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low'
+                }`}
+                title={actionItem.label}
+              >
+                <AppIcon name={actionItem.icon} className="text-[24px]" />
+                <span className="text-xs">{actionItem.label}</span>
+              </button>
+            );
+          })}
         </div>
+
+        {notificationError && (
+          <p className="mx-6 mt-3 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-xs text-error">
+            {notificationError}
+          </p>
+        )}
+
+        {notificationsMuted && !notificationError && (
+          <p className="mx-6 mt-3 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant">
+            Bạn đã tắt thông báo cho cuộc trò chuyện này.
+          </p>
+        )}
 
         {isGroup && (
           <section className="mt-5 border-y border-outline-variant px-6 py-5">

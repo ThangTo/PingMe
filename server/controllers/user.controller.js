@@ -27,11 +27,26 @@ const getMessagePreview = (message) => {
   return `${attachments.length} tệp đính kèm`;
 };
 
+const formatUserProfile = (user) => ({
+  id: user._id,
+  username: user.username,
+  email: user.email,
+  avatar: user.avatar,
+  bio: user.bio || '',
+  provider: user.provider,
+  notificationSettings: {
+    muteAll: Boolean(user.notificationSettings?.muteAll),
+  },
+  createdAt: user.createdAt,
+});
+
 const userController = {
   // Lấy profile hiện tại
   getMe: async (req, res) => {
     try {
-      const user = await User.findById(req.user.id).select('username email avatar bio provider createdAt');
+      const user = await User.findById(req.user.id).select(
+        'username email avatar bio provider notificationSettings createdAt',
+      );
 
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
@@ -39,15 +54,7 @@ const userController = {
 
       res.status(200).json({
         success: true,
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-          bio: user.bio || '',
-          provider: user.provider,
-          createdAt: user.createdAt,
-        },
+        user: formatUserProfile(user),
       });
     } catch (error) {
       console.error('Lỗi lấy profile:', error);
@@ -88,7 +95,7 @@ const userController = {
       const user = await User.findByIdAndUpdate(req.user.id, updates, {
         new: true,
         runValidators: true,
-      }).select('username email avatar bio provider createdAt');
+      }).select('username email avatar bio provider notificationSettings createdAt');
 
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
@@ -96,15 +103,7 @@ const userController = {
 
       res.status(200).json({
         success: true,
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-          bio: user.bio || '',
-          provider: user.provider,
-          createdAt: user.createdAt,
-        },
+        user: formatUserProfile(user),
       });
     } catch (error) {
       console.error('Lỗi cập nhật profile:', error);
@@ -113,6 +112,38 @@ const userController = {
   },
 
   // Đổi mật khẩu cho tài khoản local
+  updateNotificationSettings: async (req, res) => {
+    try {
+      const { muteAll } = req.body;
+
+      if (typeof muteAll !== 'boolean') {
+        return res.status(400).json({ error: 'muteAll phải là boolean' });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.user.id,
+        {
+          $set: {
+            'notificationSettings.muteAll': muteAll,
+          },
+        },
+        { new: true, runValidators: true },
+      ).select('username email avatar bio provider notificationSettings createdAt');
+
+      if (!user) {
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      res.status(200).json({
+        success: true,
+        user: formatUserProfile(user),
+      });
+    } catch (error) {
+      console.error('Lỗi cập nhật thông báo:', error);
+      res.status(500).json({ error: 'Không thể cập nhật thông báo' });
+    }
+  },
+
   changePassword: async (req, res) => {
     try {
       const { currentPassword, newPassword } = req.body;

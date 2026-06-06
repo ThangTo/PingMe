@@ -10,6 +10,7 @@ router.get('/friends', authMiddleware, userController.getFriends);
 router.get('/search', authMiddleware, userController.searchUsers);
 router.get('/requests', authMiddleware, userController.getFriendRequests);
 router.patch('/me', authMiddleware, userController.updateProfile);
+router.patch('/me/notifications', authMiddleware, userController.updateNotificationSettings);
 router.patch('/me/password', authMiddleware, userController.changePassword);
 router.post('/request', authMiddleware, userController.sendFriendRequest);
 router.post('/accept', authMiddleware, userController.acceptFriendRequest);

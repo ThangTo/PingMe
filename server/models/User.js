@@ -72,7 +72,49 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    pushSubscriptions: [
+      {
+        endpoint: {
+          type: String,
+          required: true,
+        },
+        expirationTime: {
+          type: Number,
+          default: null,
+        },
+        keys: {
+          p256dh: {
+            type: String,
+            required: true,
+          },
+          auth: {
+            type: String,
+            required: true,
+          },
+        },
+        userAgent: {
+          type: String,
+          default: '',
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
     // Lần cuối online
+    notificationSettings: {
+      muteAll: {
+        type: Boolean,
+        default: false,
+      },
+    },
+
     lastSeen: {
       type: Date,
       default: Date.now,
@@ -104,6 +146,7 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ googleId: 1 }); // Index cho Google ID
+userSchema.index({ 'pushSubscriptions.endpoint': 1 });
 
 // Virtual field: URL ảnh đại diện đầy đủ (nếu cần)
 userSchema.virtual('avatarUrl').get(function () {
@@ -114,6 +157,7 @@ userSchema.virtual('avatarUrl').get(function () {
 userSchema.methods.toJSON = function () {
   const user = this.toObject();
   delete user.password;
+  delete user.pushSubscriptions;
   delete user.__v;
   return user;
 };
