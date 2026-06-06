@@ -52,6 +52,13 @@ const stopInteractiveBubbleEvent = (event) => {
   event.stopPropagation();
 };
 
+const isInteractiveMessageTarget = (target) =>
+  Boolean(
+    target?.closest?.(
+      'a, button, input, textarea, select, audio, video, [role="button"], [data-message-interactive="true"]',
+    ),
+  );
+
 const renderMessageContent = (content = '') => {
   if (!content) return null;
 
@@ -330,6 +337,8 @@ const MessageBubble = ({
   onPinMessage,
   onJumpToMessage,
   isPinned = false,
+  showMeta = true,
+  onToggleMeta,
   reactionUsersById = {},
   isActionMenuOpen = false,
   onOpenActionMenu,
@@ -561,6 +570,12 @@ const MessageBubble = ({
     clearTimeout(longPressTimer.current);
   };
 
+  const handleMessageClick = (event) => {
+    if (event.button !== 0 || showActions || showPicker) return;
+    if (isInteractiveMessageTarget(event.target)) return;
+    onToggleMeta?.(message.id);
+  };
+
   const handleCopy = async () => {
     if (message.content) {
       await navigator.clipboard?.writeText(message.content);
@@ -634,7 +649,10 @@ const MessageBubble = ({
     const callMeta = getCallMessageMeta(message);
 
     return (
-      <div className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
+      <div
+        className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
+        onClick={handleMessageClick}
+      >
         <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
             <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
@@ -657,9 +675,11 @@ const MessageBubble = ({
               <AppIcon name={callMeta.icon} className="text-[16px]" />
             </span>
             <span className="min-w-0 truncate font-medium">{callMeta.title}</span>
-            <span className="shrink-0 text-[11px] text-on-surface-variant">
-              {formatTime(message.timestamp)}
-            </span>
+            {showMeta && (
+              <span className="shrink-0 text-[11px] text-on-surface-variant">
+                {formatTime(message.timestamp)}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -769,6 +789,7 @@ const MessageBubble = ({
             ref={messageRef}
             className="relative inline-flex max-w-full flex-col items-stretch gap-1"
             onContextMenu={openContextMenu}
+            onClick={handleMessageClick}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
@@ -1100,13 +1121,15 @@ const MessageBubble = ({
               ))}
             </div>
           )}
-          <span className={`px-1 text-[11px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
+          <span
+            className={`px-1 text-[11px] text-on-surface-variant ${showMeta ? '' : 'hidden'} ${isOwn ? 'text-right' : ''}`}
+          >
             {formatTime(message.timestamp)}
             {!isRevoked && message.isEdited && <span className="ml-1">?? s?a</span>}
             {deliveryText && <span className="ml-1">{deliveryText}</span>}
           </span>
 
-          {readReceipts.length > 0 && (
+          {showMeta && readReceipts.length > 0 && (
             <div className={`mt-0.5 flex px-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`group/read-receipt relative flex items-center ${

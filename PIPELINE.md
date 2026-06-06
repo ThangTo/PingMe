@@ -362,7 +362,7 @@ Mục tiêu: sản phẩm chịu dữ liệu lớn hơn demo.
 
 | Stage | Status | Output |
 |---|---|---|
-| A8.1 Pagination messages | PLANNED | Load older messages |
+| A8.1 Pagination messages | READY_TO_TEST | Cursor pagination, load older messages, keep scroll position |
 | A8.2 Virtualized message list | PLANNED | Render large chat smoothly |
 | A8.3 Redis adapter for Socket.IO | PLANNED | Scale multi-server |
 | A8.4 Redis presence store | PLANNED | Online state not only in memory |

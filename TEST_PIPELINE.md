@@ -346,3 +346,27 @@ npm run smoke
 
 - Mở `GET /health`, kiểm tra có `status`, `database`, `uptimeSeconds`, `socketConnections`.
 - Kiểm tra `.env.example` không chứa secret thật và `.env` không xuất hiện trong git status.
+
+## Stage 17 - Advanced A8.1 Message Pagination
+
+### API Cursor
+
+- Mở một conversation có nhiều hơn 40 tin nhắn.
+- Gọi `GET /api/messages/conversation/:conversationId?limit=40`, kiểm tra response có `pagination.hasMoreBefore` và `pagination.nextBefore`.
+- Gọi tiếp `GET /api/messages/conversation/:conversationId?limit=40&before=<nextBefore>`, kiểm tra tin cũ hơn được trả về, không trùng page đầu.
+- Gọi với `before` sai, kiểm tra API trả 400 hoặc 404 thay vì crash server.
+
+### UI Load Older
+
+- Mở conversation dài trên desktop.
+- Ban đầu app chỉ tải page mới nhất, vẫn tự scroll xuống cuối.
+- Kéo lên gần đầu danh sách, app tự tải thêm tin cũ.
+- Bấm nút `Tải tin cũ hơn`, app prepend tin cũ và giữ nguyên vị trí đang đọc, không nhảy xuống cuối.
+- Gửi tin mới trong lúc đang ở cuối chat, message realtime vẫn append và hiển thị như cũ.
+- Jump tới pinned/search result cũ, app vẫn tải window quanh message và highlight đúng message.
+
+### Mobile
+
+- Mở cùng conversation dài trên mobile.
+- Kéo lên đầu, kiểm tra load thêm tin cũ không làm input/header bị lệch.
+- Gửi message mới, kiểm tra realtime append và read/avatar marker vẫn đúng.

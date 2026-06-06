@@ -130,33 +130,119 @@ const formatUploadedFile = (req, file) => {
   };
 };
 
-const getMessageWindowAroundTarget = async (conversationId, targetMessageId) => {
+const DEFAULT_MESSAGE_LIMIT = 40;
+const MAX_MESSAGE_LIMIT = 100;
+const TARGET_MESSAGE_WINDOW_LIMIT = 25;
+
+const getMessageLimit = (value, fallback = DEFAULT_MESSAGE_LIMIT) => {
+  const parsedLimit = Number(value);
+  if (!Number.isFinite(parsedLimit)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsedLimit), 1), MAX_MESSAGE_LIMIT);
+};
+
+const createBeforeMessageQuery = async (conversationId, beforeMessageId) => {
+  if (!beforeMessageId) return null;
+
+  if (!mongoose.Types.ObjectId.isValid(beforeMessageId)) {
+    const error = new Error('before khong hop le');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const beforeMessage = await Message.findOne({
+    _id: beforeMessageId,
+    conversation: conversationId,
+  })
+    .select('_id createdAt')
+    .lean();
+
+  if (!beforeMessage) {
+    const error = new Error('Tin nhan moc phan trang khong ton tai');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    $or: [
+      { createdAt: { $lt: beforeMessage.createdAt } },
+      { createdAt: beforeMessage.createdAt, _id: { $lt: beforeMessage._id } },
+    ],
+  };
+};
+
+const getConversationMessagePage = async ({ conversationId, limit, before }) => {
+  const beforeQuery = await createBeforeMessageQuery(conversationId, before);
+  const messagesNewestFirst = await populateMessageQuery(
+    Message.find({
+      conversation: conversationId,
+      ...(beforeQuery || {}),
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1),
+  );
+  const hasMoreBefore = messagesNewestFirst.length > limit;
+  const pageMessages = (hasMoreBefore
+    ? messagesNewestFirst.slice(0, limit)
+    : messagesNewestFirst
+  ).reverse();
+  const oldestMessage = pageMessages[0];
+
+  return {
+    messages: pageMessages,
+    pagination: {
+      limit,
+      hasMoreBefore,
+      nextBefore: hasMoreBefore && oldestMessage ? oldestMessage._id.toString() : null,
+    },
+  };
+};
+
+const getMessageWindowAroundTarget = async (conversationId, targetMessageId, limit) => {
   const targetMessage = await Message.findOne({
     _id: targetMessageId,
     conversation: conversationId,
-  }).select('createdAt');
+  }).select('_id createdAt');
 
   if (!targetMessage) return null;
 
   const beforeAndTarget = await populateMessageQuery(
     Message.find({
       conversation: conversationId,
-      createdAt: { $lte: targetMessage.createdAt },
+      $or: [
+        { createdAt: { $lt: targetMessage.createdAt } },
+        { createdAt: targetMessage.createdAt, _id: { $lte: targetMessage._id } },
+      ],
     })
-      .sort({ createdAt: -1 })
-      .limit(25),
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1),
   );
+  const hasMoreBefore = beforeAndTarget.length > limit;
+  const visibleBeforeAndTarget = hasMoreBefore
+    ? beforeAndTarget.slice(0, limit)
+    : beforeAndTarget;
 
   const after = await populateMessageQuery(
     Message.find({
       conversation: conversationId,
-      createdAt: { $gt: targetMessage.createdAt },
+      $or: [
+        { createdAt: { $gt: targetMessage.createdAt } },
+        { createdAt: targetMessage.createdAt, _id: { $gt: targetMessage._id } },
+      ],
     })
-      .sort({ createdAt: 1 })
-      .limit(25),
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(limit),
   );
+  const messages = [...visibleBeforeAndTarget.reverse(), ...after];
+  const oldestMessage = messages[0];
 
-  return [...beforeAndTarget.reverse(), ...after];
+  return {
+    messages,
+    pagination: {
+      limit,
+      hasMoreBefore,
+      nextBefore: hasMoreBefore && oldestMessage ? oldestMessage._id.toString() : null,
+    },
+  };
 };
 
 const serializeMessagesForReader = (messages, conversation, currentUserId) => {
@@ -185,7 +271,11 @@ const messageController = {
   getConversationMessages: async (req, res) => {
     try {
       const { conversationId } = req.params;
-      const { targetMessageId } = req.query;
+      const { targetMessageId, before } = req.query;
+      const limit = getMessageLimit(
+        req.query.limit,
+        targetMessageId ? TARGET_MESSAGE_WINDOW_LIMIT : DEFAULT_MESSAGE_LIMIT,
+      );
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
@@ -207,18 +297,30 @@ const messageController = {
 
       await attachLegacyDirectMessages(conversation);
       let messages;
+      let pagination;
       if (targetMessageId) {
         if (!mongoose.Types.ObjectId.isValid(targetMessageId)) {
           return res.status(400).json({ error: 'targetMessageId không hợp lệ' });
         }
 
-        messages = await getMessageWindowAroundTarget(conversation._id, targetMessageId);
-        if (!messages) {
+        const targetWindow = await getMessageWindowAroundTarget(
+          conversation._id,
+          targetMessageId,
+          limit,
+        );
+        if (!targetWindow) {
           return res.status(404).json({ error: 'Tin nhắn cần nhảy tới không tồn tại' });
         }
+        messages = targetWindow.messages;
+        pagination = targetWindow.pagination;
       } else {
-        messages = await Message.getConversationById(conversation._id);
-        messages = messages.reverse();
+        const page = await getConversationMessagePage({
+          conversationId: conversation._id,
+          limit,
+          before,
+        });
+        messages = page.messages;
+        pagination = page.pagination;
       }
 
       const messagesForCurrentUser = serializeMessagesForReader(
@@ -236,8 +338,12 @@ const messageController = {
         },
         messages: messagesForCurrentUser,
         targetMessageId: targetMessageId || null,
+        pagination,
       });
     } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
       console.error('Lỗi lấy tin nhắn theo conversation:', error);
       res.status(500).json({ error: 'Không thể lấy lịch sử tin nhắn' });
     }

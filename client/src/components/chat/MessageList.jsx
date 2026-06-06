@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import AppIcon from '../ui/AppIcon';
 
@@ -20,8 +20,11 @@ const messageMatchesSearch = (message, query) => {
   return `${content} ${filenames}`.toLowerCase().includes(normalizedQuery);
 };
 
+const EMPTY_META_MESSAGE_IDS = new Set();
+
 const MessageList = ({
   messages = [],
+  conversationId,
   currentUserId,
   reactionUsersById = {},
   isTyping,
@@ -31,6 +34,9 @@ const MessageList = ({
   onReplyMessage,
   onPinMessage,
   isLoading = false,
+  isLoadingOlderMessages = false,
+  hasOlderMessages = false,
+  onLoadOlderMessages,
   error = '',
   searchQuery = '',
   pinnedMessageIds = [],
@@ -40,15 +46,70 @@ const MessageList = ({
   const messagesEndRef = useRef(null);
   const messageRefs = useRef(new Map());
   const highlightTimeoutRef = useRef(null);
+  const previousLastMessageIdRef = useRef(null);
+  const previousMessageCountRef = useRef(0);
+  const previousConversationIdRef = useRef(conversationId);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeActionMessageId, setActiveActionMessageId] = useState(null);
+  const [expandedMetaState, setExpandedMetaState] = useState(() => ({
+    conversationId,
+    ids: new Set(),
+  }));
   const visibleMessages = searchQuery.trim()
     ? messages.filter((message) => messageMatchesSearch(message, searchQuery.trim()))
     : messages;
+  const latestMessageId = messages[messages.length - 1]?.id || null;
+  const expandedMetaMessageIds =
+    expandedMetaState.conversationId === conversationId ? expandedMetaState.ids : EMPTY_META_MESSAGE_IDS;
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useLayoutEffect(() => {
+    if (previousConversationIdRef.current === conversationId) return;
+
+    previousConversationIdRef.current = conversationId;
+    previousLastMessageIdRef.current = null;
+    previousMessageCountRef.current = 0;
+  }, [conversationId]);
+
+  useLayoutEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    const lastMessageId = lastMessage?.id || null;
+    const previousLastMessageId = previousLastMessageIdRef.current;
+    const previousMessageCount = previousMessageCountRef.current;
+    const shouldScrollToBottom =
+      previousMessageCount === 0 ||
+      (lastMessageId && lastMessageId !== previousLastMessageId) ||
+      isTyping;
+
+    previousLastMessageIdRef.current = lastMessageId;
+    previousMessageCountRef.current = messages.length;
+
+    if (!shouldScrollToBottom) return undefined;
+
+    const behavior = previousMessageCount === 0 ? 'auto' : 'smooth';
+    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+
+    const frameId = requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+    });
+
+    return () => cancelAnimationFrame(frameId);
   }, [messages, isTyping]);
+
+  const toggleMessageMeta = (messageId) => {
+    if (!messageId || messageId === latestMessageId) return;
+
+    setExpandedMetaState((current) => {
+      const currentIds =
+        current.conversationId === conversationId ? current.ids : EMPTY_META_MESSAGE_IDS;
+      const next = new Set(currentIds);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return { conversationId, ids: next };
+    });
+  };
 
   useEffect(() => {
     return () => {
@@ -128,6 +189,23 @@ const MessageList = ({
 
   return (
     <div className="mx-auto min-h-full max-w-[900px] space-y-3 px-4 py-6 md:px-7">
+      {!searchQuery.trim() && (hasOlderMessages || isLoadingOlderMessages) && (
+        <div className="flex justify-center pb-1">
+          <button
+            type="button"
+            onClick={onLoadOlderMessages}
+            disabled={isLoadingOlderMessages}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <AppIcon
+              name={isLoadingOlderMessages ? 'hourglass_empty' : 'expand_less'}
+              className={`text-[18px] ${isLoadingOlderMessages ? 'animate-spin' : ''}`}
+            />
+            <span>{isLoadingOlderMessages ? 'Đang tải...' : 'Tải tin cũ hơn'}</span>
+          </button>
+        </div>
+      )}
+
       <div className="mb-5 flex justify-center">
         <span className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-xs text-on-surface-variant">
           Hôm nay
@@ -149,6 +227,7 @@ const MessageList = ({
         const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
         const isActionMenuOpen = activeActionMessageId === message.id;
         const readReceipts = readReceiptsByMessageId[message.id] || [];
+        const showMeta = message.id === latestMessageId || expandedMetaMessageIds.has(message.id);
 
         return (
           <div
@@ -176,6 +255,8 @@ const MessageList = ({
               onReplyMessage={onReplyMessage}
               onPinMessage={onPinMessage}
               isPinned={pinnedMessageIds.includes(message.id)}
+              showMeta={showMeta}
+              onToggleMeta={toggleMessageMeta}
               onJumpToMessage={handleJumpToMessage}
               isActionMenuOpen={isActionMenuOpen}
               onOpenActionMenu={() => openActionMenu(message.id)}

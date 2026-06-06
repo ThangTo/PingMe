@@ -21,6 +21,12 @@ import { showClientNotification } from '../services/pushNotifications';
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
 const OPEN_CONVERSATION_EVENT = 'pingme:open-conversation';
+const MESSAGE_PAGE_LIMIT = 40;
+const EMPTY_MESSAGE_PAGINATION = {
+  hasMoreBefore: false,
+  nextBefore: null,
+  limit: MESSAGE_PAGE_LIMIT,
+};
 
 const getMessageAttachments = ({ attachment, attachments } = {}) => {
   if (Array.isArray(attachments) && attachments.length > 0) return attachments;
@@ -337,6 +343,7 @@ const Chat = () => {
   const { isConnected } = useSocket();
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [messagePagination, setMessagePagination] = useState(EMPTY_MESSAGE_PAGINATION);
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -346,6 +353,7 @@ const Chat = () => {
   const [isFriendsLoading, setIsFriendsLoading] = useState(false);
   const [friendsError, setFriendsError] = useState('');
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [messagesError, setMessagesError] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
   const [replyingMessage, setReplyingMessage] = useState(null);
@@ -768,6 +776,8 @@ const Chat = () => {
     const fetchMessages = async () => {
       if (!selectedConversationId) {
         setMessages([]);
+        setMessagePagination(EMPTY_MESSAGE_PAGINATION);
+        setIsLoadingOlderMessages(false);
         return;
       }
       try {
@@ -778,13 +788,16 @@ const Chat = () => {
             ? messageTargetRef.current.messageId
             : null;
         const response = await api.get(`/messages/conversation/${selectedConversationId}`, {
-          params: targetMessageId ? { targetMessageId } : undefined,
+          params: targetMessageId
+            ? { targetMessageId, limit: MESSAGE_PAGE_LIMIT }
+            : { limit: MESSAGE_PAGE_LIMIT },
         });
         if (response.data.success) {
           const normalizedMessages = response.data.messages.map((msg) =>
             normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
           );
           setMessages(normalizedMessages);
+          setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
           if (targetMessageId) {
             messageTargetRef.current = null;
             setPendingJumpMessageId(targetMessageId);
@@ -823,6 +836,46 @@ const Chat = () => {
     };
     fetchMessages();
   }, [selectedConversationId, user, currentChatUserName]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (
+      !selectedConversationId ||
+      !messagePagination.hasMoreBefore ||
+      !messagePagination.nextBefore ||
+      isLoadingOlderMessages
+    ) {
+      return;
+    }
+
+    try {
+      setIsLoadingOlderMessages(true);
+      const response = await api.get(`/messages/conversation/${selectedConversationId}`, {
+        params: {
+          before: messagePagination.nextBefore,
+          limit: MESSAGE_PAGE_LIMIT,
+        },
+      });
+
+      if (response.data.success) {
+        const normalizedMessages = response.data.messages.map((msg) =>
+          normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
+        );
+        setMessages((prev) => mergeMessagesById(normalizedMessages, prev));
+        setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
+      }
+    } catch (error) {
+      console.error('Khong the tai tin nhan cu hon:', error);
+    } finally {
+      setIsLoadingOlderMessages(false);
+    }
+  }, [
+    currentChatUserName,
+    isLoadingOlderMessages,
+    messagePagination.hasMoreBefore,
+    messagePagination.nextBefore,
+    selectedConversationId,
+    user,
+  ]);
 
   useEffect(() => {
     const handleTyping = (data) => {
@@ -1541,6 +1594,7 @@ const Chat = () => {
             normalizeMessage(msg, selectedConversationId, user, currentChatUser),
           );
           setMessages((prev) => mergeMessagesById(prev, normalizedMessages));
+          setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
         }
       } catch (error) {
         console.error('Không thể tải tin nhắn đã ghim:', error);
@@ -1553,8 +1607,21 @@ const Chat = () => {
   };
 
   const handleSelectConversation = useCallback((conversationId) => {
+    const isChangingConversation = selectedConversationId !== conversationId;
+
     setEditingMessage(null);
     setReplyingMessage(null);
+    setJumpToMessageSignal(null);
+    setPendingJumpMessageId(null);
+
+    if (isChangingConversation) {
+      setMessages([]);
+      setMessagePagination(EMPTY_MESSAGE_PAGINATION);
+      setIsLoadingOlderMessages(false);
+      setMessagesError('');
+      setIsMessagesLoading(true);
+    }
+
     setSelectedConversationId(conversationId);
     setShowDetails(false);
     setActiveRailItem('messages');
@@ -1562,7 +1629,7 @@ const Chat = () => {
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
-  }, []);
+  }, [selectedConversationId]);
 
   const handleOpenMessageTarget = async ({ conversationId, messageId, type }) => {
     if (!conversationId) {
@@ -1805,6 +1872,9 @@ const Chat = () => {
                     onCancelReplyMessage={handleCancelReplyMessage}
                     onDeleteMessage={handleDeleteMessage}
                     isLoading={isMessagesLoading}
+                    isLoadingOlderMessages={isLoadingOlderMessages}
+                    hasOlderMessages={Boolean(messagePagination.hasMoreBefore)}
+                    onLoadOlderMessages={loadOlderMessages}
                     error={messagesError}
                   />
                   {showDetails && currentChatUser && (
