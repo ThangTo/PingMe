@@ -269,6 +269,55 @@ const getReceiptSummary = (receipts = []) => {
   return `${names[0]}, ${names[1]} và ${names.length - 2} người khác đã xem`;
 };
 
+const getCallMessageMeta = (message = {}) => {
+  const details = message.callDetails || {};
+  const callType = details.callType === 'video' ? 'video' : 'voice';
+  const typeLabel = callType === 'video' ? 'video' : 'thoại';
+  const durationSeconds = details.durationSeconds || 0;
+  const durationLabel =
+    details.status === 'ended' && durationSeconds > 0
+      ? ` · ${formatVoiceDuration(durationSeconds)}`
+      : '';
+
+  if (details.status === 'missed') {
+    return {
+      icon: 'call_end',
+      title: message.content || `Cuộc gọi ${typeLabel} bị nhỡ`,
+      tone: 'text-error',
+    };
+  }
+
+  if (details.status === 'rejected') {
+    return {
+      icon: 'call_end',
+      title: message.content || `Cuộc gọi ${typeLabel} đã bị từ chối`,
+      tone: 'text-error',
+    };
+  }
+
+  if (details.status === 'cancelled') {
+    return {
+      icon: 'call_end',
+      title: message.content || `Cuộc gọi ${typeLabel} đã bị hủy`,
+      tone: 'text-on-surface-variant',
+    };
+  }
+
+  if (details.status === 'busy' || details.status === 'failed') {
+    return {
+      icon: 'call_end',
+      title: message.content || `Cuộc gọi ${typeLabel} không thành công`,
+      tone: 'text-on-surface-variant',
+    };
+  }
+
+  return {
+    icon: callType === 'video' ? 'videocam' : 'call',
+    title: message.content || `Cuộc gọi ${typeLabel} đã kết thúc${durationLabel}`,
+    tone: 'text-secondary',
+  };
+};
+
 const MessageBubble = ({
   message,
   isOwn = false,
@@ -298,7 +347,8 @@ const MessageBubble = ({
   const mobileActionsRef = useRef(null);
 
   const isRevoked = Boolean(message.isDeleted);
-  const canReact = Boolean(message.id) && !isRevoked && message.status !== 'sending';
+  const isCallMessage = message.messageType === 'call';
+  const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
   const attachments = getMessageAttachments(message);
   const imageAttachments = attachments.filter((attachment) => attachment.type === 'image');
   const audioAttachments = attachments.filter((attachment) => attachment.type === 'audio');
@@ -579,6 +629,42 @@ const MessageBubble = ({
             : 'Đã gửi'
       : '';
   const receiptSummary = getReceiptSummary(readReceipts);
+
+  if (isCallMessage) {
+    const callMeta = getCallMessageMeta(message);
+
+    return (
+      <div className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
+        <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
+          {!isOwn && (
+            <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
+              <img src={avatarSrc} alt="Người gọi" className="h-full w-full object-cover" />
+            </div>
+          )}
+        </div>
+
+        <div className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}>
+          {!isOwn && showAvatar && message.senderName && (
+            <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
+              {message.senderName}
+            </span>
+          )}
+
+          <div className="inline-flex max-w-[min(420px,86vw)] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface shadow-[0_4px_18px_rgba(40,37,32,0.05)]">
+            <span
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-container-low ${callMeta.tone}`}
+            >
+              <AppIcon name={callMeta.icon} className="text-[16px]" />
+            </span>
+            <span className="min-w-0 truncate font-medium">{callMeta.title}</span>
+            <span className="shrink-0 text-[11px] text-on-surface-variant">
+              {formatTime(message.timestamp)}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

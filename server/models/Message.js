@@ -27,6 +27,28 @@ const linkPreviewSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const callDetailsSchema = new mongoose.Schema(
+  {
+    callId: String,
+    callType: {
+      type: String,
+      enum: ['voice', 'video'],
+    },
+    status: {
+      type: String,
+      enum: ['ended', 'missed', 'rejected', 'cancelled', 'busy', 'failed'],
+    },
+    durationSeconds: {
+      type: Number,
+      default: 0,
+    },
+    startedAt: Date,
+    acceptedAt: Date,
+    endedAt: Date,
+  },
+  { _id: false },
+);
+
 /**
  * Message Schema - Định nghĩa cấu trúc tin nhắn
  */
@@ -64,7 +86,7 @@ const messageSchema = new mongoose.Schema(
     // Loại tin nhắn: text, image, file, audio, video
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio', 'video'],
+      enum: ['text', 'image', 'file', 'audio', 'video', 'call'],
       default: 'text',
     },
 
@@ -79,6 +101,11 @@ const messageSchema = new mongoose.Schema(
 
     linkPreview: {
       type: linkPreviewSchema,
+      default: null,
+    },
+
+    callDetails: {
+      type: callDetailsSchema,
       default: null,
     },
 

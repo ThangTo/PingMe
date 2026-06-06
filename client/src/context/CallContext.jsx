@@ -27,6 +27,7 @@ const callNoticeText = {
   missed: 'Cuộc gọi không có phản hồi.',
   disconnected: 'Người kia đã mất kết nối.',
   offline: 'Người này hiện không online.',
+  busy: 'Người này đang bận.',
   user_busy: 'Người này đang bận.',
   self_busy: 'Bạn đang ở trong một cuộc gọi khác.',
   failed: 'Không thể bắt đầu cuộc gọi.',

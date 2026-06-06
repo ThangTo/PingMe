@@ -99,6 +99,42 @@ const formatCallUser = (user) => ({
 
 const isValidCallType = (type) => ['voice', 'video'].includes(type);
 
+const formatCallDuration = (seconds = 0) => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const getCallLogStatus = ({ session, actorId, reason }) => {
+  if (reason === 'missed') return 'missed';
+  if (reason === 'rejected') return 'rejected';
+  if (reason === 'busy') return 'busy';
+  if (reason === 'media_error') return 'failed';
+
+  if (session?.status === 'ringing') {
+    return actorId === session.callerId ? 'cancelled' : 'missed';
+  }
+
+  return 'ended';
+};
+
+const getCallLogContent = ({ callType, status, durationSeconds }) => {
+  const typeLabel = callType === 'video' ? 'video' : 'thoại';
+
+  if (status === 'ended') {
+    const durationLabel = durationSeconds > 0 ? ` · ${formatCallDuration(durationSeconds)}` : '';
+    return `Cuộc gọi ${typeLabel} đã kết thúc${durationLabel}`;
+  }
+
+  if (status === 'missed') return `Cuộc gọi ${typeLabel} bị nhỡ`;
+  if (status === 'rejected') return `Cuộc gọi ${typeLabel} đã bị từ chối`;
+  if (status === 'cancelled') return `Cuộc gọi ${typeLabel} đã bị hủy`;
+  if (status === 'busy') return `Cuộc gọi ${typeLabel} không thành công vì máy bận`;
+
+  return `Cuộc gọi ${typeLabel} không thành công`;
+};
+
 const emitCallFailed = (socket, payload) => {
   socket.emit('call_failed', {
     reason: 'failed',
@@ -115,7 +151,14 @@ const scheduleCallTimeout = (io, callId) => {
     const currentSession = activeCallSessions.get(callId);
     if (!currentSession || currentSession.status !== 'ringing') return;
 
+    const sessionSnapshot = { ...currentSession };
     releaseCallSession(callId);
+    void createAndEmitCallLogMessage({
+      io,
+      session: sessionSnapshot,
+      actorId: currentSession.callerId,
+      reason: 'missed',
+    });
 
     emitToUser(io, currentSession.callerId, 'call_failed', {
       callId,
@@ -131,13 +174,20 @@ const scheduleCallTimeout = (io, callId) => {
   }, CALL_RING_TIMEOUT_MS);
 };
 
-const endActiveCallForUser = (io, userId, reason = 'ended') => {
+const endActiveCallForUser = async (io, userId, reason = 'ended') => {
   const normalizedUserId = toIdString(userId);
   const callId = getActiveCallId(normalizedUserId);
   const session = releaseCallSession(callId);
   if (!session) return;
 
   const partnerId = getCallPartnerId(session, normalizedUserId);
+  await createAndEmitCallLogMessage({
+    io,
+    session,
+    actorId: normalizedUserId,
+    reason,
+  });
+
   emitToUser(io, partnerId, 'call_ended', {
     callId,
     fromUserId: normalizedUserId,
@@ -460,6 +510,86 @@ const queueLinkPreviewUpdate = ({ io, messageId, contentSnapshot, participantIds
     });
 };
 
+const createAndEmitCallLogMessage = async ({ io, session, actorId, reason = 'ended' }) => {
+  if (!session?.callerId || !session?.calleeId) return null;
+
+  try {
+    let conversation = null;
+    if (session.conversationId && mongoose.Types.ObjectId.isValid(session.conversationId)) {
+      conversation = await Conversation.findById(session.conversationId);
+    }
+
+    if (!conversation) {
+      conversation = await getOrCreateDirectConversation(session.callerId, session.calleeId);
+    }
+
+    if (!conversation || !isConversationMember(conversation, session.callerId)) return null;
+    if (!isConversationMember(conversation, session.calleeId)) return null;
+
+    const senderId = session.callerId;
+    const recipientId = getDirectRecipientId(conversation, senderId, null);
+    const endedAt = new Date();
+    const acceptedAt = session.acceptedAt ? new Date(session.acceptedAt) : null;
+    const durationSeconds =
+      acceptedAt && !Number.isNaN(acceptedAt.getTime())
+        ? Math.max(0, Math.round((endedAt.getTime() - acceptedAt.getTime()) / 1000))
+        : 0;
+    const status = getCallLogStatus({ session, actorId: toIdString(actorId), reason });
+    const callDetails = {
+      callId: session.id,
+      callType: session.type,
+      status,
+      durationSeconds,
+      startedAt: session.createdAt || endedAt,
+      acceptedAt,
+      endedAt,
+    };
+
+    const callMessage = await Message.create({
+      sender: senderId,
+      recipient: recipientId,
+      conversation: conversation._id,
+      content: getCallLogContent(callDetails),
+      messageType: 'call',
+      callDetails,
+      status: 'sent',
+    });
+
+    conversation.lastMessage = callMessage._id;
+    await conversation.save();
+
+    const senderUser = await User.findById(senderId).select('username avatar').lean();
+    const memberIds = getConversationMemberIds(conversation);
+    const serializedCallDetails = callMessage.callDetails?.toObject
+      ? callMessage.callDetails.toObject()
+      : callDetails;
+    const messagePayload = {
+      id: callMessage.id,
+      conversationId: conversation._id.toString(),
+      senderId,
+      senderName: senderUser?.username || '',
+      senderAvatar: senderUser?.avatar || '',
+      recipientId,
+      content: callMessage.content,
+      messageType: callMessage.messageType,
+      callDetails: serializedCallDetails,
+      attachment: null,
+      attachments: [],
+      linkPreview: null,
+      timestamp: callMessage.createdAt,
+      status: callMessage.status,
+      replyTo: null,
+      isGroup: conversation.type === 'group',
+    };
+
+    emitToUsers(io, memberIds, 'receive_message', messagePayload);
+    return callMessage;
+  } catch (error) {
+    console.error('Loi tao call log:', error);
+    return null;
+  }
+};
+
 const socketHandler = (io) => {
   io.use((socket, next) => {
     try {
@@ -718,7 +848,7 @@ const socketHandler = (io) => {
       }
     });
 
-    socket.on('call_reject', (data) => {
+    socket.on('call_reject', async (data) => {
       const userId = socket.userId.toString();
       const { callId, reason = 'rejected' } = data || {};
       const session = activeCallSessions.get(callId);
@@ -726,6 +856,13 @@ const socketHandler = (io) => {
       if (!session || session.calleeId !== userId) return;
 
       releaseCallSession(callId);
+      await createAndEmitCallLogMessage({
+        io,
+        session,
+        actorId: userId,
+        reason,
+      });
+
       emitToUser(io, session.callerId, 'call_rejected', {
         callId,
         fromUserId: userId,
@@ -740,7 +877,7 @@ const socketHandler = (io) => {
       });
     });
 
-    socket.on('call_end', (data) => {
+    socket.on('call_end', async (data) => {
       const userId = socket.userId.toString();
       const { callId, reason = 'ended' } = data || {};
       const session = activeCallSessions.get(callId);
@@ -749,6 +886,12 @@ const socketHandler = (io) => {
 
       const partnerId = getCallPartnerId(session, userId);
       releaseCallSession(callId);
+      await createAndEmitCallLogMessage({
+        io,
+        session,
+        actorId: userId,
+        reason,
+      });
 
       emitToUser(io, partnerId, 'call_ended', {
         callId,
@@ -836,9 +979,12 @@ const socketHandler = (io) => {
           senderAvatar: senderUser?.avatar || '',
           timestamp: newMessage.createdAt,
           status: newMessage.status,
+          content: newMessage.content,
+          messageType: newMessage.messageType,
           attachment: newMessage.attachment,
           attachments: newMessage.attachments || [],
           linkPreview: newMessage.linkPreview || null,
+          callDetails: newMessage.callDetails || null,
           replyTo: formatReplyPreview(replyToMessage),
         });
 
@@ -850,9 +996,11 @@ const socketHandler = (io) => {
           senderAvatar: senderUser?.avatar || '',
           recipientId: resolvedRecipientId,
           content: newMessage.content,
+          messageType: newMessage.messageType,
           attachment: newMessage.attachment,
           attachments: newMessage.attachments || [],
           linkPreview: newMessage.linkPreview || null,
+          callDetails: newMessage.callDetails || null,
           timestamp: newMessage.createdAt,
           status: newMessage.status,
           replyTo: formatReplyPreview(replyToMessage),
@@ -1267,7 +1415,7 @@ const socketHandler = (io) => {
 
         const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
           .sort({ createdAt: -1 })
-          .select('content attachment attachments createdAt isDeleted')
+          .select('content attachment attachments createdAt isDeleted messageType callDetails')
           .lean();
 
         emitToUsers(io, participantIds, 'message_deleted', {
@@ -1300,6 +1448,8 @@ const socketHandler = (io) => {
                       attachments: conversationLastMessage.attachments,
                     }),
                 isDeleted: conversationLastMessage.isDeleted,
+                messageType: conversationLastMessage.messageType,
+                callDetails: conversationLastMessage.callDetails || null,
                 timestamp: conversationLastMessage.createdAt,
               }
             : null,
@@ -1592,7 +1742,7 @@ const socketHandler = (io) => {
       }
 
       onlineUsers.delete(disconnectedUserId);
-      endActiveCallForUser(io, disconnectedUserId, 'disconnected');
+      await endActiveCallForUser(io, disconnectedUserId, 'disconnected');
 
       try {
         const user = await User.findById(disconnectedUserId).select('friends');

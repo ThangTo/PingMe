@@ -74,8 +74,42 @@ const upsertReadState = (readStates = [], nextReadState) => {
   );
 };
 
-const getMessagePreview = (content, attachment, isDeleted = false, attachments = []) => {
+const formatCallDuration = (seconds = 0) => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const getCallPreviewText = (callDetails = {}, fallbackContent = '') => {
+  if (fallbackContent) return fallbackContent;
+
+  const typeLabel = callDetails.callType === 'video' ? 'video' : 'thoại';
+  const durationSeconds = callDetails.durationSeconds || 0;
+
+  if (callDetails.status === 'ended') {
+    const durationLabel = durationSeconds > 0 ? ` · ${formatCallDuration(durationSeconds)}` : '';
+    return `Cuộc gọi ${typeLabel} đã kết thúc${durationLabel}`;
+  }
+
+  if (callDetails.status === 'missed') return `Cuộc gọi ${typeLabel} bị nhỡ`;
+  if (callDetails.status === 'rejected') return `Cuộc gọi ${typeLabel} đã bị từ chối`;
+  if (callDetails.status === 'cancelled') return `Cuộc gọi ${typeLabel} đã bị hủy`;
+  if (callDetails.status === 'busy') return `Cuộc gọi ${typeLabel} không thành công vì máy bận`;
+
+  return `Cuộc gọi ${typeLabel} không thành công`;
+};
+
+const getMessagePreview = (
+  content,
+  attachment,
+  isDeleted = false,
+  attachments = [],
+  messageType = 'text',
+  callDetails = null,
+) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (messageType === 'call') return getCallPreviewText(callDetails, content);
   if (content) return content;
 
   const messageAttachments = getMessageAttachments({ attachment, attachments });
@@ -122,6 +156,8 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
     (msg.sender?._id === currentUser?.id || msg.sender === currentUser?.id ? 'Bạn' : currentChatUser?.name || ''),
   senderAvatar: msg.sender?.avatar || msg.senderAvatar || '',
   content: msg.content,
+  messageType: msg.messageType || 'text',
+  callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
   reactions: normalizeReactions(msg.reactions),
@@ -539,17 +575,20 @@ const Chat = () => {
       const fallbackConversationId = conversationsRef.current.find((conv) => conv.peerId === data.senderId)?.id;
       const eventConversationId = data.conversationId || fallbackConversationId || data.senderId;
       const isCurrentConversation = eventConversationId === selectedConversationId;
-      const shouldMarkRead = isCurrentConversation && document.hasFocus();
+      const isOwnMessage = data.senderId === user?.id;
+      const shouldMarkRead = !isOwnMessage && isCurrentConversation && document.hasFocus();
       const incomingAttachments = getMessageAttachments(data);
       const incomingMessage = {
         ...data,
+        messageType: data.messageType || 'text',
+        callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
       };
       const hasConversation = conversationsRef.current.some((conv) => conv.id === eventConversationId);
 
       console.log('📨 Received message:', data);
-      if (user?.id && data.id && data.senderId && !data.isGroup) {
+      if (user?.id && data.id && data.senderId && !data.isGroup && !isOwnMessage) {
         socket.emit('mark_message_delivered', {
           messageId: data.id,
         });
@@ -563,10 +602,10 @@ const Chat = () => {
       }
 
       if (isCurrentConversation) {
-        setMessages((prev) => [
-          ...prev,
-          shouldMarkRead ? { ...incomingMessage, status: 'read' } : incomingMessage,
-        ]);
+        setMessages((prev) => {
+          if (prev.some((message) => message.id === incomingMessage.id)) return prev;
+          return [...prev, shouldMarkRead ? { ...incomingMessage, status: 'read' } : incomingMessage];
+        });
       }
 
       if (!hasConversation) {
@@ -578,9 +617,20 @@ const Chat = () => {
         if (!targetConv) return prev;
         const updatedTarget = {
           ...targetConv,
-          lastMessage: getMessagePreview(data.content, data.attachment, false, incomingAttachments),
+          lastMessage: getMessagePreview(
+            data.content,
+            data.attachment,
+            false,
+            incomingAttachments,
+            data.messageType,
+            data.callDetails,
+          ),
           lastMessageAt: data.timestamp,
-          unreadCount: shouldMarkRead ? 0 : (targetConv.unreadCount || 0) + 1,
+          unreadCount: isOwnMessage
+            ? targetConv.unreadCount || 0
+            : shouldMarkRead
+              ? 0
+              : (targetConv.unreadCount || 0) + 1,
         };
         const otherConvs = prev.filter((c) => c.id !== eventConversationId);
         return [updatedTarget, ...otherConvs];
@@ -705,6 +755,9 @@ const Chat = () => {
                 id: data.id,
                 timestamp: data.timestamp,
                 status: data.status,
+                content: data.content || msg.content,
+                messageType: data.messageType || msg.messageType || 'text',
+                callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
                 attachment: data.attachment || savedAttachments[0] || msg.attachment,
@@ -932,6 +985,8 @@ const Chat = () => {
                       lastMessage.attachment,
                       lastMessage.isDeleted,
                       lastMessage.attachments,
+                      lastMessage.messageType,
+                      lastMessage.callDetails,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -1060,6 +1115,10 @@ const Chat = () => {
       senderName: user.username || 'Bạn',
       senderAvatar: user.avatar || '',
       content: cleanContent,
+      messageType: getMessageAttachments({ attachment: primaryAttachment, attachments: messageAttachments }).length
+        ? 'file'
+        : 'text',
+      callDetails: null,
       timestamp: new Date().toISOString(),
       status: 'sending',
       attachment: primaryAttachment,
