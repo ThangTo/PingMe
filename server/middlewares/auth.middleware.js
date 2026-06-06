@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
+import Session from '../models/Session.js'
 
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
     try {
         const token = req.cookies?.accessToken || req.headers.authorization?.split(' ')[1]
 
@@ -10,7 +11,19 @@ export const authMiddleware = (req, res, next) => {
 
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
 
-        req.user = { id: decoded.userId, username: decoded.username };
+        if (decoded.sid) {
+            const activeSession = await Session.exists({
+                sessionId: decoded.sid,
+                user: decoded.userId,
+                revokedAt: null,
+                expiresAt: { $gt: new Date() },
+            })
+            if (!activeSession) {
+                return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi' })
+            }
+        }
+
+        req.user = { id: decoded.userId, username: decoded.username, sessionId: decoded.sid || null };
         
         next();
     } catch (error) {

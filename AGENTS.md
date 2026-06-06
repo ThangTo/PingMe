@@ -24,15 +24,15 @@ Mỗi lần làm phần realtime, ưu tiên giải thích theo thứ tự:
 
 ## Trạng Thái Dự Án Hiện Tại
 
-Tính đến 2026-05-31:
+Tính đến 2026-06-06:
 
 - PingMe là app chat realtime full-stack: React 19 + Vite ở `client/`, Express 5 + MongoDB/Mongoose + Socket.IO ở `server/`.
 - UI hiện theo hướng minimalist warm monochrome: nền giấy ấm, chữ charcoal, ít shadow, radius 8-12px, tránh neon/gradient và nút giả chức năng.
 - Roadmap nằm trong `.claude/specs/ROADMAP.md`.
-- Phase 1 đã hoàn thành: authentication, core messaging, friend management, UI chat chính.
-- Phase 2 đang làm: media/file sharing. Đã có upload route, multer middleware, preview UI, message attachment UI, reactions và media gallery, nhưng cần kiểm tra lại việc lưu/relay attachment qua Socket.IO.
-- Phase 3 đang làm: voice/video calls. Đã có `CallContext`, `IncomingCallModal`, `CallOverlay`, nút call trên header, nhưng WebRTC/signaling còn đang TODO và cần được dạy từng bước.
-- Group chat, push notifications, encryption, stories/status updates vẫn là planned.
+- Toàn bộ Basic Pipelines 0-10 đã được implement; các flow mới vẫn cần user acceptance test theo `TEST_PIPELINE.md`.
+- Basic hiện có: auth/session devices, contacts realtime, block/report, chat 1-1/group, media/file/audio, search+jump, notification center/Web Push, voice/video calls và operations docs/smoke test.
+- Hướng tiếp theo nằm trong Advanced Pipelines: pagination/virtualization, multi-device sync sâu hơn, privacy nâng cao, channels, stories và scale.
+- `PIPELINE.md` là nguồn trạng thái chính; không dùng các phase cũ trong `.claude/specs/ROADMAP.md` để kết luận feature chưa làm.
 
 ## File Nên Đọc Trước Khi Làm
 

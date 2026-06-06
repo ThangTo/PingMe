@@ -32,33 +32,22 @@ const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user từ localStorage khi app khởi động
+  // Cookie/session phía server là nguồn sự thật; localStorage chỉ là cache UI.
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const storedUser = localStorage.getItem('pingme_user');
+        const response = await api.get('/users/me');
+        const verifiedUser = response.data?.user;
+        if (!verifiedUser) throw new Error('Không tìm thấy phiên đăng nhập');
 
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          setUser(user);
-          setIsAuthenticated(true);
-
-          // Optional: Verify token với server
-          // try {
-          //   const response = await apiGet('/api/auth/verify');
-          //   if (response.success) {
-          //     setUser(response.user);
-          //   }
-          // } catch (error) {
-          //   // Token invalid, clear storage
-          //   localStorage.removeItem('pingme_user');
-          //   setUser(null);
-          //   setIsAuthenticated(false);
-          // }
-        }
+        localStorage.setItem('pingme_user', JSON.stringify(verifiedUser));
+        setUser(verifiedUser);
+        setIsAuthenticated(true);
       } catch (error) {
-        console.error('Error loading user from localStorage:', error);
+        if (import.meta.env.DEV) console.info('Không có phiên đăng nhập hợp lệ:', error.message);
         localStorage.removeItem('pingme_user');
+        setUser(null);
+        setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
       }

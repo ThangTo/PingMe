@@ -149,6 +149,7 @@ const ChatDetailsPanel = ({
   onRemoveGroupMember,
   onUpdateGroupMemberRole,
   onUpdateConversationNotifications,
+  onBlocked,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('media');
@@ -166,6 +167,7 @@ const ChatDetailsPanel = ({
   const [serverGallery, setServerGallery] = useState(emptyGallery);
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState('');
+  const [socialActionError, setSocialActionError] = useState('');
   const isGroup = Boolean(user?.isGroup);
   const { callState, initiateCall } = useCall();
   const canStartDirectCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
@@ -194,6 +196,41 @@ const ChatDetailsPanel = ({
       );
     } finally {
       setIsUpdatingNotifications(false);
+    }
+  };
+
+  const handleBlockUser = async () => {
+    if (!user?.peerId) return;
+    const confirmed = window.confirm(
+      `Chặn ${user.name}? Hai người sẽ bị hủy kết bạn và không thể nhắn tin hoặc gọi trực tiếp.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setSocialActionError('');
+      await api.post(`/social/${user.peerId}/block`);
+      onBlocked?.(user.peerId);
+      onClose?.();
+    } catch (error) {
+      setSocialActionError(error.response?.data?.error || 'Không thể chặn người dùng.');
+    }
+  };
+
+  const handleReportUser = async () => {
+    if (!user?.peerId) return;
+    const details = window.prompt('Mô tả ngắn lý do báo cáo người dùng này:');
+    if (details === null) return;
+
+    try {
+      setSocialActionError('');
+      await api.post(`/social/${user.peerId}/report`, {
+        reason: 'other',
+        details: details.trim(),
+        conversationId: user.id,
+      });
+      window.alert('Đã gửi báo cáo.');
+    } catch (error) {
+      setSocialActionError(error.response?.data?.error || 'Không thể gửi báo cáo.');
     }
   };
 
@@ -509,6 +546,31 @@ const ChatDetailsPanel = ({
           <p className="mx-6 mt-3 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant">
             Bạn đã tắt thông báo cho cuộc trò chuyện này.
           </p>
+        )}
+
+        {!isGroup && (
+          <section className="mx-6 mt-5 rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+            <p className="text-xs font-semibold uppercase text-on-surface-variant">An toàn</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleReportUser}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-outline-variant text-sm hover:bg-surface-container-low"
+              >
+                <AppIcon name="shield_person" className="text-[18px]" />
+                Báo cáo
+              </button>
+              <button
+                type="button"
+                onClick={handleBlockUser}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-error/30 text-sm text-error hover:bg-error-container"
+              >
+                <AppIcon name="block" className="text-[18px]" />
+                Chặn
+              </button>
+            </div>
+            {socialActionError && <p className="mt-2 text-xs text-error">{socialActionError}</p>}
+          </section>
         )}
 
         {isGroup && (

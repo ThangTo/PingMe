@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
+import { getUserRoomId } from '../services/conversation.service.js';
+import { createNotification } from '../services/notification.service.js';
+
+const emitToUser = (req, userId, eventName, payload) => {
+  req.app.get('io')?.to(getUserRoomId(userId)).emit(eventName, payload);
+};
 
 const getMessageAttachments = (message) => {
   if (!message || message.isDeleted) return [];
@@ -307,9 +313,15 @@ const userController = {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
       }
 
+      const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user.id }).distinct('_id');
       const users = await User.find({
         $and: [
-          { _id: { $ne: req.user.id } },
+          {
+            _id: {
+              $ne: req.user.id,
+              $nin: [...currentUser.blockedUsers, ...usersWhoBlockedCurrent],
+            },
+          },
           {
             $or: [
               { username: { $regex: escapedQuery, $options: 'i' } },
@@ -358,6 +370,12 @@ const userController = {
       const currentUser = await User.findById(req.user.id);
       const targetUser = await User.findById(recipientId);
       if (!targetUser) return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      if (
+        currentUser.blockedUsers.some((id) => id.toString() === recipientId) ||
+        targetUser.blockedUsers.some((id) => id.toString() === req.user.id)
+      ) {
+        return res.status(403).json({ error: 'Không thể gửi lời mời đến người dùng này' });
+      }
       if (currentUser.friends.some((id) => id.toString() === recipientId)) {
         return res.status(400).json({ error: 'Hai người đã là bạn bè' });
       }
@@ -366,6 +384,22 @@ const userController = {
       }
       targetUser.friendRequests.push(req.user.id);
       await targetUser.save();
+
+      const requester = {
+        _id: currentUser._id,
+        username: currentUser.username,
+        avatar: currentUser.avatar,
+        isOnline: currentUser.isOnline,
+      };
+      emitToUser(req, recipientId, 'friend_request_received', { requester });
+      void createNotification({
+        io: req.app.get('io'),
+        recipientId,
+        actorId: req.user.id,
+        type: 'friend_request',
+        title: `${currentUser.username} đã gửi lời mời kết bạn`,
+        body: 'Mở danh bạ để phản hồi lời mời.',
+      });
 
       res.status(200).json({ success: true, message: 'Đã gửi lời mời kết bạn' });
     } catch (error) {
@@ -408,6 +442,31 @@ const userController = {
 
       await currentUser.save();
       await requesterUser.save();
+      emitToUser(req, requesterId, 'friend_request_accepted', {
+        friendId: req.user.id,
+        friend: {
+          _id: currentUser._id,
+          username: currentUser.username,
+          avatar: currentUser.avatar,
+          isOnline: currentUser.isOnline,
+        },
+      });
+      emitToUser(req, req.user.id, 'friend_request_accepted', {
+        friendId: requesterId,
+        friend: {
+          _id: requesterUser._id,
+          username: requesterUser.username,
+          avatar: requesterUser.avatar,
+          isOnline: requesterUser.isOnline,
+        },
+      });
+      void createNotification({
+        io: req.app.get('io'),
+        recipientId: requesterId,
+        actorId: req.user.id,
+        type: 'friend_accepted',
+        title: `${currentUser.username} đã chấp nhận lời mời kết bạn`,
+      });
       res.status(200).json({ success: true, message: 'Đã kết bạn thành công' });
     } catch (error) {
       res.status(500).json({ error: 'Lỗi chấp nhận lời mời' });
@@ -432,6 +491,7 @@ const userController = {
         (id) => id.toString() !== requesterId,
       );
       await currentUser.save();
+      emitToUser(req, requesterId, 'friend_request_rejected', { userId: req.user.id });
 
       res.status(200).json({ success: true, message: 'Đã từ chối lời mời' });
     } catch (error) {
@@ -458,6 +518,7 @@ const userController = {
         (id) => id.toString() !== req.user.id,
       );
       await recipient.save();
+      emitToUser(req, recipientId, 'friend_request_cancelled', { requesterId: req.user.id });
 
       res.status(200).json({ success: true, message: 'Đã hủy lời mời' });
     } catch (error) {

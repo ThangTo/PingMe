@@ -32,6 +32,9 @@ const SettingsPanel = ({ onBack }) => {
   const [isNotificationSaving, setIsNotificationSaving] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [notificationError, setNotificationError] = useState('');
+  const [sessions, setSessions] = useState([]);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [accountControlError, setAccountControlError] = useState('');
   const notificationsMuted = Boolean(profile.notificationSettings?.muteAll);
 
   useEffect(() => {
@@ -53,6 +56,23 @@ const SettingsPanel = ({ onBack }) => {
     fetchProfile();
     // Chỉ fetch một lần khi mở settings.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const fetchAccountControls = async () => {
+      try {
+        const [sessionsResponse, blockedResponse] = await Promise.all([
+          api.get('/auth/sessions'),
+          api.get('/social/blocked'),
+        ]);
+        setSessions(sessionsResponse.data.sessions || []);
+        setBlockedUsers(blockedResponse.data.users || []);
+      } catch (error) {
+        setAccountControlError(error.response?.data?.error || 'Không thể tải dữ liệu bảo mật.');
+      }
+    };
+
+    fetchAccountControls();
   }, []);
 
   const handleProfileSubmit = async (event) => {
@@ -130,6 +150,42 @@ const SettingsPanel = ({ onBack }) => {
       );
     } finally {
       setIsNotificationSaving(false);
+    }
+  };
+
+  const handleRevokeSession = async (session) => {
+    const confirmed = window.confirm(
+      session.current ? 'Thu hồi phiên hiện tại và đăng xuất?' : 'Thu hồi phiên đăng nhập này?',
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await api.delete(`/auth/sessions/${encodeURIComponent(session.id)}`);
+      if (response.data.currentSessionRevoked) {
+        await logout();
+        return;
+      }
+      setSessions((prev) => prev.filter((item) => item.id !== session.id));
+    } catch (error) {
+      setAccountControlError(error.response?.data?.error || 'Không thể thu hồi phiên đăng nhập.');
+    }
+  };
+
+  const handleRevokeOtherSessions = async () => {
+    try {
+      await api.delete('/auth/sessions/others');
+      setSessions((prev) => prev.filter((session) => session.current));
+    } catch (error) {
+      setAccountControlError(error.response?.data?.error || 'Không thể thu hồi các phiên khác.');
+    }
+  };
+
+  const handleUnblock = async (blockedUserId) => {
+    try {
+      await api.delete(`/social/${blockedUserId}/block`);
+      setBlockedUsers((prev) => prev.filter((blockedUser) => blockedUser._id !== blockedUserId));
+    } catch (error) {
+      setAccountControlError(error.response?.data?.error || 'Không thể bỏ chặn người dùng.');
     }
   };
 
@@ -305,6 +361,92 @@ const SettingsPanel = ({ onBack }) => {
               {notificationMessage && (
                 <p className="mt-4 text-sm text-secondary">{notificationMessage}</p>
               )}
+            </section>
+
+            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-on-surface">Thiết bị đăng nhập</h2>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Kiểm tra và thu hồi các phiên đang còn hiệu lực.
+                  </p>
+                </div>
+                {sessions.some((session) => !session.current) && (
+                  <button
+                    type="button"
+                    onClick={handleRevokeOtherSessions}
+                    className="shrink-0 rounded-lg border border-error/30 px-3 py-2 text-xs font-semibold text-error hover:bg-error-container"
+                  >
+                    Thu hồi phiên khác
+                  </button>
+                )}
+              </div>
+              <div className="mt-4 divide-y divide-outline-variant rounded-lg border border-outline-variant">
+                {sessions.length === 0 && (
+                  <p className="p-4 text-sm text-on-surface-variant">
+                    Phiên hiện tại sẽ xuất hiện sau lần đăng nhập tiếp theo.
+                  </p>
+                )}
+                {sessions.map((session) => (
+                  <div key={session.id} className="flex items-center gap-3 p-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-container">
+                      <AppIcon name="desktop_windows" className="text-[19px]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-on-surface">
+                        {session.userAgent || 'Thiết bị không xác định'}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-on-surface-variant">
+                        {session.current ? 'Phiên hiện tại · ' : ''}
+                        {session.ip || 'IP không xác định'} ·{' '}
+                        {new Date(session.lastUsedAt).toLocaleString('vi-VN')}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRevokeSession(session)}
+                      className="rounded-lg p-2 text-error hover:bg-error-container"
+                      aria-label="Thu hồi phiên đăng nhập"
+                    >
+                      <AppIcon name="delete" className="text-[18px]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+              <h2 className="text-lg font-semibold text-on-surface">Người đã chặn</h2>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Người bị chặn không thể nhắn tin hoặc gọi trực tiếp cho bạn.
+              </p>
+              <div className="mt-4 divide-y divide-outline-variant rounded-lg border border-outline-variant">
+                {blockedUsers.length === 0 && (
+                  <p className="p-4 text-sm text-on-surface-variant">Bạn chưa chặn ai.</p>
+                )}
+                {blockedUsers.map((blockedUser) => (
+                  <div key={blockedUser._id} className="flex items-center gap-3 p-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container">
+                      {blockedUser.avatar ? (
+                        <img src={blockedUser.avatar} alt={blockedUser.username} className="h-full w-full object-cover" />
+                      ) : (
+                        <AppIcon name="person" className="text-[18px]" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-on-surface">
+                      {blockedUser.username}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleUnblock(blockedUser._id)}
+                      className="rounded-lg border border-outline-variant px-3 py-2 text-xs font-semibold hover:bg-surface-container-low"
+                    >
+                      Bỏ chặn
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {accountControlError && <p className="mt-4 text-sm text-error">{accountControlError}</p>}
             </section>
 
             <form

@@ -1,6 +1,6 @@
 # PingMe Test Pipeline
 
-Cập nhật: 2026-06-02
+Cập nhật: 2026-06-06
 
 Mục tiêu: test các flow cơ bản sau mỗi mốc implement để biết app đang ổn trước khi chuyển sang feature realtime tiếp theo.
 
@@ -297,3 +297,52 @@ Các mục dưới đây thuộc realtime/WebRTC hoặc stage riêng, sẽ có c
 - Notification push/service worker.
 - Voice/video call signaling và WebRTC.
 - Multi-device session revoke.
+## Stage 16 - Basic Completion: Session, Social, Search, Notification
+
+### Session Và Thiết Bị
+
+- Login cùng một account trên Brave thường và cửa sổ ẩn danh hoặc Chrome.
+- Mở `Cài đặt > Thiết bị đăng nhập`, kiểm tra thấy các phiên và đánh dấu đúng phiên hiện tại.
+- Thu hồi một phiên khác, kiểm tra tab tương ứng bị mất socket và không refresh token được nữa.
+- Bấm `Thu hồi phiên khác`, kiểm tra chỉ phiên hiện tại còn hoạt động.
+- Thu hồi phiên hiện tại, kiểm tra app đăng xuất.
+
+### Realtime Friend Và Block/Report
+
+- A gửi lời mời cho B khi B đang mở app, badge/lời mời của B phải xuất hiện không reload.
+- A hủy lời mời, lời mời phải biến mất realtime ở B.
+- B accept/reject, trạng thái ở A phải cập nhật không reload.
+- A mở chi tiết chat 1-1 với B, báo cáo B và kiểm tra UI báo thành công.
+- A chặn B, conversation 1-1 phải đóng; B không thể gửi message, typing hoặc gọi A.
+- A vào `Cài đặt > Người đã chặn`, bỏ chặn B; hai người có thể gửi lời mời kết bạn lại.
+
+### Global Search Và Jump
+
+- Gửi một message có keyword hiếm và một file có tên dễ nhận biết.
+- Mở `Tìm kiếm` từ rail desktop và nút search mobile.
+- Search keyword text và tên file, kiểm tra đúng conversation/sender.
+- Click kết quả cũ không nằm trong 50 message mới nhất, app phải mở đúng conversation, tải window quanh message và highlight.
+
+### Notification Center Và Mention
+
+- A nhắn B khi B đang online; bell badge của B tăng realtime.
+- B mở notification center, click notification message và kiểm tra jump đúng message.
+- B bấm `Đánh dấu đã đọc`, badge về 0 và giữ nguyên sau reload.
+- Trong group, A gửi `@Tên người dùng` đúng username của B.
+- B phải nhận notification loại mention; các thành viên khác nhận notification message thường.
+- Tạo cuộc gọi nhỡ, người nhận kiểm tra có notification cuộc gọi nhỡ.
+
+### Operations
+
+- Chạy `npm run check` trong `server/`.
+- Chạy `npm run lint` và `npm run build` trong `client/`.
+- Với server đang chạy và seed account đã có, chạy:
+
+```powershell
+$env:SMOKE_USER_EMAIL='lan.anh.test@pingme.local'
+$env:SMOKE_USER_PASSWORD='123456'
+npm run smoke
+```
+
+- Mở `GET /health`, kiểm tra có `status`, `database`, `uptimeSeconds`, `socketConnections`.
+- Kiểm tra `.env.example` không chứa secret thật và `.env` không xuất hiện trong git status.

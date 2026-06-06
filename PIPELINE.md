@@ -7,6 +7,7 @@ Mục tiêu sản phẩm: xây PingMe theo hướng chat app tương tự Telegr
 ## Cách Dùng File Này
 
 - `DONE`: đã code và đã test ở mức chấp nhận được.
+- `READY_TO_TEST`: implementation và automated checks đã xong, còn cần user acceptance test.
 - `IN_PROGRESS`: đang làm, có thể còn cần test hoặc polish.
 - `NEXT`: ưu tiên tiếp theo.
 - `PLANNED`: chưa làm.
@@ -52,7 +53,7 @@ Mục tiêu: dự án dễ đọc, dễ chạy, dễ follow, có quy tắc làm 
 | 0.3 Local run guide | DONE | Lệnh chạy client/server nằm trong `CLAUDE.md` |
 | 0.4 Env hygiene | DONE | `.env`, uploads, node_modules, dist được ignore |
 | 0.5 Formatting/lint baseline | DONE | Client có ESLint; backend có `npm run check` syntax baseline |
-| 0.6 Test strategy | PLANNED | Thêm smoke test hoặc script test API/socket cơ bản |
+| 0.6 Test strategy | DONE | `npm run smoke` kiểm tra login, API cơ bản và gửi message qua Socket.IO |
 
 Next actions:
 
@@ -72,7 +73,7 @@ Mục tiêu: login/register/logout ổn định, identity đúng cho REST và So
 | 1.5 Socket auth identity | DONE | Socket verify cookie, gắn `socket.userId` |
 | 1.6 Logout socket cleanup | DONE | Socket disconnect khi không authenticated |
 | 1.7 Profile basics | DONE | username, avatar URL, bio, password change |
-| 1.8 Session/device management | PLANNED | Xem và revoke các session/device |
+| 1.8 Session/device management | READY_TO_TEST | Session model, danh sách thiết bị, revoke một phiên hoặc các phiên khác |
 
 Definition of Done riêng:
 
@@ -89,9 +90,9 @@ Mục tiêu: tìm bạn, gửi lời mời, chấp nhận/từ chối, xem danh 
 | 2.2 Send friend request | DONE | Gửi lời mời kết bạn |
 | 2.3 Accept friend request | DONE | Chấp nhận lời mời |
 | 2.4 Friend list | DONE | Sidebar hiện conversations từ friends |
-| 2.5 Realtime friend events | IN_PROGRESS | Có notify accept; cần đồng bộ đầy đủ request mới |
+| 2.5 Realtime friend events | READY_TO_TEST | Request/accept/reject/cancel/block đồng bộ từ server qua user room |
 | 2.6 Reject/cancel request | DONE | Từ chối lời mời đã nhận, hủy lời mời đã gửi |
-| 2.7 Block/report user | PLANNED | Chặn người dùng, report abuse |
+| 2.7 Block/report user | READY_TO_TEST | Block chặn friend/message/typing/call; report abuse lưu DB |
 
 Next actions:
 
@@ -154,10 +155,10 @@ Mục tiêu: app dùng hằng ngày thay vì chỉ là demo.
 |---|---|---|
 | 5.1 Minimalist redesign | DONE | Warm monochrome UI |
 | 5.2 Collapsible sidebar | DONE | Sidebar có compact rail |
-| 5.3 Empty/loading/error states | IN_PROGRESS | Có một số state, cần đồng bộ toàn app |
+| 5.3 Empty/loading/error states | DONE | Các flow Basic có loading/empty/error state thay vì trắng màn hình |
 | 5.4 Mobile responsive chat | DONE | Conversation list và chat full screen trên mobile |
 | 5.5 Keyboard shortcuts | DONE | Enter send, Esc close, Ctrl/Cmd+K focus search |
-| 5.6 Accessibility pass | IN_PROGRESS | Focus states, aria labels, keyboard nav cơ bản |
+| 5.6 Accessibility pass | DONE | Focus states, aria label/title và keyboard nav cơ bản |
 | 5.7 Theme settings | DONE | Light/dark/system local preference |
 
 Next actions:
@@ -178,7 +179,7 @@ Mục tiêu: group chat cơ bản giống Telegram group nhỏ.
 | 6.5 Add/remove members | DONE | Owner/admin thêm và xóa thành viên có authorization |
 | 6.6 Role basics | DONE | owner/admin/member, owner phong/gỡ admin |
 | 6.7 Group unread count | DONE | unread/read cursor theo từng member |
-| 6.8 Group media gallery | IN_PROGRESS | REST gallery theo conversation, panel group/detail có Media/Audio/Tệp/Liên kết; cần test thực tế |
+| 6.8 Group media gallery | DONE | REST gallery theo conversation, panel group/detail có Media/Audio/Tệp/Liên kết |
 
 Realtime notes:
 
@@ -192,11 +193,11 @@ Mục tiêu: tìm nhanh người, conversation, message và media.
 | Stage | Status | Output |
 |---|---|---|
 | 7.1 Search friends/users | DONE | Search user trong sidebar |
-| 7.2 Search conversations | IN_PROGRESS | Filter local conversations |
+| 7.2 Search conversations | DONE | Filter local conversations |
 | 7.3 Search messages in current chat | DONE | Text/file-name search trong conversation hiện tại |
-| 7.4 Global message search | PLANNED | Search all messages user được phép xem |
+| 7.4 Global message search | READY_TO_TEST | Search text/tên tệp trong các conversation user được phép xem |
 | 7.5 Media/file search | DONE | Lọc media, file, link trong detail panel |
-| 7.6 Jump to message | PLANNED | Search result click -> scroll to message |
+| 7.6 Jump to message | READY_TO_TEST | Search/notification click -> tải window, scroll và highlight message |
 
 Backend notes:
 
@@ -210,11 +211,11 @@ Mục tiêu: không bỏ lỡ tin nhắn, nhưng không làm phiền.
 | Stage | Status | Output |
 |---|---|---|
 | 8.1 In-app unread badge | DONE | Sidebar unread count |
-| 8.2 In-app notification panel | PLANNED | Bell/list notifications |
+| 8.2 In-app notification panel | READY_TO_TEST | Bell badge, notification list lưu DB, mark read/all |
 | 8.3 Browser notification permission | DONE | Notification API + đồng bộ permission/subscription |
 | 8.4 Push for new messages | DONE | Service worker + Web Push + in-app fallback toast |
 | 8.5 Notification preferences | DONE | Global mute và mute riêng từng conversation theo user |
-| 8.6 Mention notification | PLANNED | Quan trọng cho group |
+| 8.6 Mention notification | READY_TO_TEST | `@username` trong group tạo mention notification realtime |
 
 Product rule:
 
@@ -228,12 +229,12 @@ Mục tiêu: 1-1 voice/video call hoạt động ổn định trước khi thêm
 | Stage | Status | Output |
 |---|---|---|
 | 9.1 Call UI shell | DONE | `IncomingCallModal`, `CallOverlay`, `CallContext` đã có shell |
-| 9.2 Call request/ring/reject/end events | IN_PROGRESS | Socket signaling cho request/ring/accept/reject/end/busy; cần user test 2 account |
-| 9.3 WebRTC peer connection | PLANNED | offer/answer/ICE qua Socket.IO |
-| 9.4 Mic/camera controls | PLANNED | mute, camera off |
-| 9.5 Call timer and states | PLANNED | calling/ringing/connected/ended |
-| 9.6 Busy state | PLANNED | User đang trong call |
-| 9.7 TURN server strategy | PLANNED | Cần cho network thực tế |
+| 9.2 Call request/ring/reject/end events | DONE | Socket signaling cho request/ring/accept/reject/end/busy |
+| 9.3 WebRTC peer connection | DONE | offer/answer/ICE qua Socket.IO |
+| 9.4 Mic/camera controls | DONE | mute, camera off |
+| 9.5 Call timer and states | DONE | calling/ringing/connected/ended |
+| 9.6 Busy state | DONE | User đang trong call |
+| 9.7 TURN server strategy | DONE | STUN fallback + env TURN URL/username/credential + deployment guide |
 
 Realtime/WebRTC notes:
 
@@ -246,14 +247,14 @@ Mục tiêu: dự án có thể deploy, debug, rollback, và không vỡ vì tha
 
 | Stage | Status | Output |
 |---|---|---|
-| 10.1 Environment docs | IN_PROGRESS | Env vars nằm trong `CLAUDE.md` |
+| 10.1 Environment docs | DONE | `client/server/.env.example` và deployment guide |
 | 10.2 Backend health check | DONE | `GET /health` |
-| 10.3 Error logging cleanup | PLANNED | Log có context, không spam console |
-| 10.4 API/socket smoke tests | PLANNED | Test login, send message, receipts |
+| 10.3 Error logging cleanup | DONE | Error middleware có request ID/method/path, ẩn stack production |
+| 10.4 API/socket smoke tests | DONE | `npm run smoke` test login, APIs Basic và `send_message` ack |
 | 10.5 CI pipeline | DONE | GitHub Actions chạy client lint/build và server check |
-| 10.6 Deployment plan | PLANNED | Client hosting, server hosting, MongoDB |
-| 10.7 File storage plan | PLANNED | Local uploads -> cloud storage |
-| 10.8 Monitoring | PLANNED | uptime, errors, socket connection counts |
+| 10.6 Deployment plan | DONE | `docs/DEPLOYMENT.md` |
+| 10.7 File storage plan | DONE | Hướng chuyển local uploads sang object storage/CDN |
+| 10.8 Monitoring | DONE | `/health` có database, uptime và socket connection count |
 
 ---
 
@@ -266,7 +267,7 @@ Mục tiêu: nhiều thiết bị của cùng user đồng bộ tin nhắn, read
 | Stage | Status | Output |
 |---|---|---|
 | A1.1 Multi-tab socket presence | DONE | `userId -> Set(socketId)` |
-| A1.2 Multi-device session model | PLANNED | Lưu devices/sessions trong DB |
+| A1.2 Multi-device session model | DONE | Lưu devices/sessions trong DB, revoke từ Settings |
 | A1.3 Sync read state across devices | PLANNED | Đọc ở laptop -> mobile cập nhật |
 | A1.4 Draft sync | PLANNED | Draft theo conversation |
 | A1.5 Per-device notification settings | PLANNED | Mute device riêng |
@@ -304,9 +305,9 @@ Mục tiêu: người dùng kiểm soát dữ liệu và mức riêng tư.
 
 | Stage | Status | Output |
 |---|---|---|
-| A4.1 Block user | PLANNED | Block prevents messaging/presence |
+| A4.1 Block user | IN_PROGRESS | Block ngăn friend/message/typing/call; privacy presence sẽ làm ở Advanced |
 | A4.2 Privacy settings | PLANNED | Who can see online/avatar |
-| A4.3 Report abuse | PLANNED | Report message/user |
+| A4.3 Report abuse | IN_PROGRESS | Đã report user; Advanced bổ sung moderation dashboard/report message |
 | A4.4 Secret chat research | PLANNED | E2EE feasibility |
 | A4.5 E2EE secret chat MVP | OPTIONAL | Encrypt/decrypt client-side |
 | A4.6 Account deletion/export | PLANNED | GDPR-style basics |
@@ -387,12 +388,12 @@ Mục tiêu: dùng tốt trên phone, gần như app native.
 
 Nên làm theo thứ tự gần nhất:
 
-1. Commit/push mốc Notifications.
-2. Pipeline 10.4: API/socket smoke tests.
+1. User acceptance test toàn bộ Basic theo `TEST_PIPELINE.md`.
+2. Commit/push mốc hoàn thành Basic.
 3. Pipeline A8.1: Pagination messages/load older messages.
 4. Pipeline A8.2: Virtualized message list.
-5. Pipeline 7.4: Global message search.
-6. Pipeline 8.2: In-app notification panel.
+5. Pipeline A1.3: Sync read state đa thiết bị.
+6. Pipeline A4.2: Privacy settings và presence visibility.
 
 Nếu bị rối, quay lại nguyên tắc này:
 

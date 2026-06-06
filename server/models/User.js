@@ -135,6 +135,13 @@ const userSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     // Tự động thêm createdAt và updatedAt
@@ -163,15 +170,22 @@ userSchema.methods.toJSON = function () {
 };
 
 // Method: Tạo JWT tokens cho authentication
-userSchema.methods.generateAuthTokens = function () {
+userSchema.methods.generateAuthTokens = function (sessionId = null) {
+  const payload = {
+    userId: this._id,
+    username: this.username,
+    email: this.email,
+    ...(sessionId ? { sid: sessionId } : {}),
+  };
+
   const accessToken = jwt.sign(
-    { userId: this._id, username: this.username, email: this.email },
+    payload,
     process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m' },
   );
 
   const refreshToken = jwt.sign(
-    { userId: this._id, username: this.username, email: this.email },
+    payload,
     process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d' },
   );

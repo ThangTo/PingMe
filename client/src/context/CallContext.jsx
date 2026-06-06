@@ -5,8 +5,23 @@ import { useAuth } from './AuthContext';
 import incomingCallRingtoneUrl from '../assets/audio/incoming-call-soft.wav';
 import { requestNotificationPermission } from '../services/pushNotifications';
 
+const turnUrls = (import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL || '')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
 const rtcConfig = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    ...(turnUrls.length > 0
+      ? [
+          {
+            urls: turnUrls,
+            username: import.meta.env.VITE_TURN_USERNAME || '',
+            credential: import.meta.env.VITE_TURN_CREDENTIAL || '',
+          },
+        ]
+      : []),
+  ],
 };
 
 const CallContext = createContext(null);

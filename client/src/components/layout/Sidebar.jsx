@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
+import socket from '../../socket';
 import AppIcon from '../ui/AppIcon';
 
 const fallbackAvatar =
@@ -40,6 +41,7 @@ const getInitials = (name = '') =>
 
 const Sidebar = ({
   conversations = [],
+  viewMode = 'messages',
   onSelectConversation,
   selectedConversationId,
   onFriendAdded,
@@ -48,6 +50,9 @@ const Sidebar = ({
   error = '',
   focusSearchSignal = 0,
   onOpenSettings,
+  onOpenNotifications,
+  onOpenGlobalSearch,
+  notificationCount = 0,
   onConversationCreated,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,6 +67,18 @@ const Sidebar = ({
   const searchInputRef = useRef(null);
 
   const isDirectoryMode = activeTab === 'search' || activeTab === 'requests';
+
+  useEffect(() => {
+    if (viewMode === 'contacts') {
+      setActiveTab('search');
+      return;
+    }
+    if (viewMode === 'groups') {
+      setActiveTab('group');
+      return;
+    }
+    if (viewMode === 'messages') setActiveTab('all');
+  }, [viewMode]);
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -82,6 +99,42 @@ const Sidebar = ({
       searchInputRef.current?.select();
     }
   }, [focusSearchSignal]);
+
+  useEffect(() => {
+    const refreshRequests = async () => {
+      try {
+        const response = await api.get('/users/requests');
+        setFriendRequests(response.data.requests || []);
+      } catch (error) {
+        console.error('Không thể đồng bộ lời mời kết bạn:', error);
+      }
+    };
+    const handleRequestReceived = ({ requester }) => {
+      if (!requester?._id) {
+        refreshRequests();
+        return;
+      }
+      setFriendRequests((prev) => [
+        requester,
+        ...prev.filter((request) => request._id !== requester._id),
+      ]);
+    };
+    const handleRequestCancelled = ({ requesterId }) => {
+      setFriendRequests((prev) => prev.filter((request) => request._id !== requesterId));
+    };
+
+    socket.on('friend_request_received', handleRequestReceived);
+    socket.on('friend_request_cancelled', handleRequestCancelled);
+    socket.on('friend_request_accepted', refreshRequests);
+    socket.on('relationship_updated', refreshRequests);
+
+    return () => {
+      socket.off('friend_request_received', handleRequestReceived);
+      socket.off('friend_request_cancelled', handleRequestCancelled);
+      socket.off('friend_request_accepted', refreshRequests);
+      socket.off('relationship_updated', refreshRequests);
+    };
+  }, []);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -245,6 +298,27 @@ const Sidebar = ({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenGlobalSearch}
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-low md:hidden"
+              aria-label="Tìm kiếm toàn bộ tin nhắn"
+            >
+              <AppIcon name="search" className="text-[21px]" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenNotifications}
+              className="relative flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-low md:hidden"
+              aria-label="Mở thông báo"
+            >
+              <AppIcon name="notifications" className="text-[21px]" />
+              {notificationCount > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-semibold text-white">
+                  {notificationCount > 99 ? '99+' : notificationCount}
+                </span>
+              )}
+            </button>
             <button
               type="button"
               onClick={() => setIsGroupComposerOpen(true)}

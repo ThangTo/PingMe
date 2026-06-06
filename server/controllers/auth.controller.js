@@ -1,5 +1,10 @@
 import authService from '../services/auth.service.js';
 
+const getSessionMetadata = (req) => ({
+  userAgent: req.get('user-agent') || '',
+  ip: req.ip || req.socket?.remoteAddress || '',
+});
+
 const authController = {
   register: async (req, res) => {
     try {
@@ -10,7 +15,12 @@ const authController = {
         return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin' });
       }
 
-      const { user, tokens } = await authService.register(username, email, password);
+      const { user, tokens } = await authService.register(
+        username,
+        email,
+        password,
+        getSessionMetadata(req),
+      );
 
       // Set cookies
       res.cookie('accessToken', tokens.accessToken, {
@@ -54,7 +64,7 @@ const authController = {
         return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin' });
       }
 
-      const { user, tokens } = await authService.login(email, password);
+      const { user, tokens } = await authService.login(email, password, getSessionMetadata(req));
 
       // Set cookies
       res.cookie('accessToken', tokens.accessToken, {
@@ -93,7 +103,8 @@ const authController = {
     try {
       // Lấy userId từ token (nếu có middleware verify token)
       // Hoặc từ req.user nếu đã có authentication middleware
-      const userId = req.user?.userId || null;
+      const userId = req.user?.id || null;
+      const refreshToken = req.cookies.refreshToken || null;
 
       // Clear cookies
       res.clearCookie('accessToken', {
@@ -110,7 +121,7 @@ const authController = {
       });
 
       // Update user status trong database
-      const result = await authService.logout(userId);
+      const result = await authService.logout({ userId, refreshToken });
 
       res.status(200).json({
         success: true,
@@ -146,7 +157,7 @@ const authController = {
         user,
         accessToken,
         refreshToken: newRefreshToken,
-      } = await authService.refreshTokens(refreshToken);
+      } = await authService.refreshTokens(refreshToken, getSessionMetadata(req));
 
       // Set lại Cookies mới
       res.cookie('accessToken', accessToken, {
@@ -165,6 +176,58 @@ const authController = {
       res.status(200).json({ success: true, user });
     } catch (error) {
       res.status(401).json({ error: error.message });
+    }
+  },
+
+  getSessions: async (req, res) => {
+    try {
+      const sessions = await authService.getSessions(req.user.id, req.user.sessionId);
+      res.json({ success: true, sessions });
+    } catch (error) {
+      console.error('Lỗi lấy sessions:', error);
+      res.status(500).json({ error: 'Không thể lấy danh sách thiết bị' });
+    }
+  },
+
+  revokeSession: async (req, res) => {
+    try {
+      const revoked = await authService.revokeSession(req.user.id, req.params.sessionId);
+      const io = req.app.get('io');
+      io?.sockets?.sockets?.forEach((socket) => {
+        if (socket.userId === req.user.id && socket.sessionId === req.params.sessionId) {
+          socket.emit('session_revoked');
+          socket.disconnect(true);
+        }
+      });
+      if (!revoked) return res.status(404).json({ error: 'Session không tồn tại' });
+      return res.json({
+        success: true,
+        currentSessionRevoked: req.params.sessionId === req.user.sessionId,
+      });
+    } catch (error) {
+      console.error('Lỗi thu hồi session:', error);
+      return res.status(500).json({ error: 'Không thể thu hồi session' });
+    }
+  },
+
+  revokeOtherSessions: async (req, res) => {
+    try {
+      const revokedCount = await authService.revokeOtherSessions(req.user.id, req.user.sessionId);
+      const io = req.app.get('io');
+      io?.sockets?.sockets?.forEach((socket) => {
+        if (
+          socket.userId === req.user.id &&
+          socket.sessionId &&
+          socket.sessionId !== req.user.sessionId
+        ) {
+          socket.emit('session_revoked');
+          socket.disconnect(true);
+        }
+      });
+      res.json({ success: true, revokedCount });
+    } catch (error) {
+      console.error('Lỗi thu hồi sessions:', error);
+      res.status(500).json({ error: 'Không thể thu hồi các session khác' });
     }
   },
 };

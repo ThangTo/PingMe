@@ -41,7 +41,7 @@ cd client && npm run lint
 | Real-time | Socket.io-client | Socket.io 4 |
 | HTTP | Axios + 401 refresh interceptor | REST API |
 | Database | — | MongoDB + Mongoose 8 |
-| Auth | localStorage + Context API | JWT + bcrypt (httpOnly cookies) |
+| Auth | Context API + server-verified session | JWT + bcrypt + session records (httpOnly cookies) |
 
 ## Project Specs (`.claude/specs/`)
 
@@ -75,9 +75,9 @@ Always read the relevant spec before implementing features. Current active specs
 
 ## Key Patterns
 
-**Auth Flow:** Register/login → server sets `accessToken` (15m) + `refreshToken` (7d) as httpOnly cookies. User object stored in `localStorage` as `pingme_user`. Axios interceptor auto-calls `POST /auth/refresh` on 401 and retries the failed request. `authMiddleware` checks cookies first, then Bearer header. Note: `password` has `select: false` — use `.select('+password')` when comparing.
+**Auth Flow:** Register/login → server creates a revocable session and sets `accessToken` (15m) + `refreshToken` (7d) as httpOnly cookies. `AuthContext` verifies the session with `GET /api/users/me`; `localStorage` is only a UI cache. Axios auto-refreshes on 401. REST and Socket.IO both reject revoked sessions.
 
-**Socket Flow:** `client/src/socket.js` is a singleton (`autoConnect: false`). `SocketProvider` auto-connects on mount. `Chat.jsx` emits `register_user` on mount → server maps `userId → socketId` in its in-memory `onlineUsers`. Friend online/offline broadcasts via `user_status_changed`. Messages are saved to MongoDB then relayed to recipient via `receive_message`. Socket.io `io.use()` middleware is stubbed (accepts all connections).
+**Socket Flow:** `client/src/socket.js` is a singleton (`autoConnect: false`). `SocketProvider` auto-connects on mount. `Chat.jsx` emits `register_user` on mount → server maps `userId → Set(socketId)` and joins `user:<id>`. `io.use()` verifies JWT/session. DB state is saved before server events are emitted.
 
 **Tailwind v4 CSS-first:** Theme tokens (`@theme {}`), custom utilities (`prism-border`, `nebula-bg`, `.animate-message-pop`, `.animate-fade-in`), and font families are defined in `index.css` — **not** in `tailwind.config.js` (does not exist). **Never create `tailwind.config.js`** — extend the theme in `index.css`.
 
@@ -92,8 +92,14 @@ POST /api/auth/register   — No auth   — Create account
 POST /api/auth/login      — No auth   — Login (sets httpOnly cookies)
 POST /api/auth/logout     — Auth      — Clear cookies
 POST /api/auth/refresh    — No auth   — Refresh tokens
+GET/DELETE /api/auth/sessions — Auth — List/revoke sessions
+GET  /api/conversations  — Auth      — Conversation summaries
+GET  /api/messages/conversation/:id — Auth — History/window around target
 GET  /api/messages/:userId — Auth     — Get conversation
 POST /api/messages/upload — Auth      — Multipart file upload (images/files)
+GET  /api/notifications  — Auth      — Notification center + unread count
+GET  /api/search/messages?q= — Auth  — Global message search
+GET/POST/DELETE /api/social/... — Auth — Block/report/unblock
 GET  /api/users           — Auth      — All users except self
 GET  /api/users/friends   — Auth      — Friend list
 GET  /api/users/requests  — Auth      — Pending friend requests
@@ -107,27 +113,26 @@ GET  /health              — No auth   — Health check
 
 ```
 Client → Server: register_user, send_message, typing, stop_typing,
-                  mark_messages_read, send_friend_request, accept_friend_request,
-                  add_reaction, remove_reaction,
-                  call_request, call_cancelled, call_accepted, call_rejected, call_ended,
-                  offer, answer, ice_candidate
+                  mark_messages_read, add_reaction, edit_message, delete_message,
+                  pin_message, unpin_message,
+                  call_request, call_accept, call_reject, call_end,
+                  webrtc_offer, webrtc_answer, webrtc_ice_candidate
 Server → Client: get_online_friends, user_status_changed, receive_message,
                   message_sent, user_typing, user_stopped_typing, messages_were_read,
-                  receive_friend_request, friend_request_accepted, connection_success,
-                  reaction_added, reaction_removed,
-                  incoming_call, call_cancelled, call_accepted, call_rejected,
-                  call_ended, offer, answer, ice_candidate, user_busy
+                  friend_request_received, friend_request_accepted,
+                  friend_request_rejected, friend_request_cancelled, relationship_updated,
+                  notification_created, reaction_added, message_updated, message_deleted,
+                  call_incoming, call_ringing, call_accepted, call_rejected, call_ended,
+                  webrtc_offer, webrtc_answer, webrtc_ice_candidate
 ```
 
-## Known Gaps / TODOs
+## Current Status / Next Work
 
-- ⚠️ Media & File Sharing — in progress (backend: multer upload, frontend: lightbox, reactions)
-- ⚠️ Voice & Video Calls — in progress (WebRTC + Socket.io signaling)
-- "Reject friend request" button exists in `Sidebar.jsx` — no backend route
-- Persistent unread counts are client-side only (not stored in DB)
-- No tests, no backend ESLint, no Prettier, no Docker, no CI/CD
-- `.env` files are tracked in git — **do not commit secrets**
-- Google OAuth is defined in requirements but not implemented
+- Basic Pipelines 0-10 are implemented. Run the user acceptance checklist in `TEST_PIPELINE.md`.
+- `npm run smoke` in `server/` covers login, Basic APIs and Socket.IO send acknowledgement.
+- Advanced priorities: message pagination/virtualization, deeper multi-device sync, privacy settings, channels and scale.
+- Google OAuth, Docker and production object storage are not implemented.
+- Never commit real `.env` values; use `client/server/.env.example`.
 
 ## Env Vars
 

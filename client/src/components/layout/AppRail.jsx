@@ -3,18 +3,17 @@ import { useAuth } from '../../context/AuthContext';
 import AppIcon from '../ui/AppIcon';
 
 const railItems = [
+  { key: 'search', label: 'Tìm kiếm', icon: 'search' },
+  { key: 'notifications', label: 'Thông báo', icon: 'notifications' },
   { key: 'messages', label: 'Tin nhắn', icon: 'chat_bubble' },
   { key: 'contacts', label: 'Danh bạ', icon: 'person_add' },
   { key: 'groups', label: 'Nhóm', icon: 'groups' },
-  { key: 'channels', label: 'Kênh', icon: 'campaign' },
-  { key: 'archive', label: 'Lưu trữ', icon: 'inventory_2' },
-  { key: 'favorites', label: 'Yêu thích', icon: 'star' },
 ];
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
 
-const AppRail = ({ activeItem = 'messages', onNavigate }) => {
+const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -52,7 +51,14 @@ const AppRail = ({ activeItem = 'messages', onNavigate }) => {
               }`}
               title={item.label}
             >
-              <AppIcon name={item.icon} className="text-[24px]" />
+              <span className="relative">
+                <AppIcon name={item.icon} className="text-[24px]" />
+                {item.key === 'notifications' && notificationCount > 0 && (
+                  <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-semibold text-white">
+                    {notificationCount > 99 ? '99+' : notificationCount}
+                  </span>
+                )}
+              </span>
               <span>{item.label}</span>
             </button>
           );

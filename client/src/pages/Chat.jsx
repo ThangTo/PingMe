@@ -7,6 +7,8 @@ import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
 import ChatDetailsPanel from '../components/layout/ChatDetailsPanel';
 import SettingsPanel from '../components/layout/SettingsPanel';
+import NotificationPanel from '../components/layout/NotificationPanel';
+import GlobalSearchPanel from '../components/layout/GlobalSearchPanel';
 import IncomingCallModal from '../components/call/IncomingCallModal';
 import CallOverlay from '../components/call/CallOverlay';
 import { useAuth } from '../context/AuthContext';
@@ -350,8 +352,10 @@ const Chat = () => {
   const [jumpToMessageSignal, setJumpToMessageSignal] = useState(null);
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
   const [appNotifications, setAppNotifications] = useState([]);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const messagesRef = useRef(messages);
   const conversationsRef = useRef(conversations);
+  const messageTargetRef = useRef(null);
   const appNotificationTimersRef = useRef(new Map());
 
   useEffect(() => {
@@ -361,6 +365,24 @@ const Chat = () => {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      try {
+        const response = await api.get('/notifications', { params: { limit: 1 } });
+        setNotificationUnreadCount(response.data.unreadCount || 0);
+      } catch (error) {
+        console.error('Không thể tải số thông báo chưa đọc:', error);
+      }
+    };
+    const handleNotificationCreated = () => {
+      setNotificationUnreadCount((count) => count + 1);
+    };
+
+    if (user) fetchNotificationCount();
+    socket.on('notification_created', handleNotificationCreated);
+    return () => socket.off('notification_created', handleNotificationCreated);
+  }, [user]);
 
   useEffect(
     () => () => {
@@ -751,12 +773,22 @@ const Chat = () => {
       try {
         setIsMessagesLoading(true);
         setMessagesError('');
-        const response = await api.get(`/messages/conversation/${selectedConversationId}`);
+        const targetMessageId =
+          messageTargetRef.current?.conversationId === selectedConversationId
+            ? messageTargetRef.current.messageId
+            : null;
+        const response = await api.get(`/messages/conversation/${selectedConversationId}`, {
+          params: targetMessageId ? { targetMessageId } : undefined,
+        });
         if (response.data.success) {
           const normalizedMessages = response.data.messages.map((msg) =>
             normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
           );
           setMessages(normalizedMessages);
+          if (targetMessageId) {
+            messageTargetRef.current = null;
+            setPendingJumpMessageId(targetMessageId);
+          }
 
           const unreadMessageIds = normalizedMessages
             .filter((msg) => msg.senderId !== user.id && !msg.isDeleted && msg.status !== 'read')
@@ -781,6 +813,9 @@ const Chat = () => {
         }
       } catch (error) {
         console.error('Lỗi khi lấy tin nhắn:', error);
+        if (messageTargetRef.current?.conversationId === selectedConversationId) {
+          messageTargetRef.current = null;
+        }
         setMessagesError('Không thể tải lịch sử tin nhắn');
       } finally {
         setIsMessagesLoading(false);
@@ -922,8 +957,22 @@ const Chat = () => {
       console.log('✅ Đã được đồng ý kết bạn:', data);
       fetchFriends();
     };
+    const handleRelationshipUpdated = (data) => {
+      fetchFriends();
+      if (data?.type !== 'blocked') return;
+
+      const otherUserId = data.actorId === user?.id ? data.targetUserId : data.actorId;
+      const selectedConversation = conversationsRef.current.find(
+        (conversation) => conversation.id === selectedConversationId,
+      );
+      if (selectedConversation?.peerId === otherUserId) {
+        setSelectedConversationId(null);
+        setShowDetails(false);
+      }
+    };
 
     socket.on('friend_request_accepted', handleFriendAccepted);
+    socket.on('relationship_updated', handleRelationshipUpdated);
 
     const handleConversationCreated = (data) => {
       if (!data?.conversation) return;
@@ -1328,6 +1377,7 @@ const Chat = () => {
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('friend_request_accepted', handleFriendAccepted);
+      socket.off('relationship_updated', handleRelationshipUpdated);
       socket.off('conversation_created', handleConversationCreated);
       socket.off('conversation_members_updated', handleConversationMembersUpdated);
       socket.off(
@@ -1514,6 +1564,24 @@ const Chat = () => {
     );
   }, []);
 
+  const handleOpenMessageTarget = async ({ conversationId, messageId, type }) => {
+    if (!conversationId) {
+      if (type === 'friend_request' || type === 'friend_accepted') {
+        setActiveRailItem('contacts');
+      }
+      return;
+    }
+
+    if (conversationId === selectedConversationId && messageId) {
+      handleSelectConversation(conversationId);
+      await handleJumpToPinnedMessage({ id: messageId });
+      return;
+    }
+
+    messageTargetRef.current = messageId ? { conversationId, messageId } : null;
+    handleSelectConversation(conversationId);
+  };
+
   useEffect(() => {
     const handleOpenConversation = (event) => {
       const conversationId = event.detail?.conversationId;
@@ -1658,15 +1726,32 @@ const Chat = () => {
       />
 
       <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface shadow-[0_18px_60px_rgba(40,37,32,0.08)]">
-        <AppRail activeItem={activeRailItem} onNavigate={handleRailNavigate} />
+        <AppRail
+          activeItem={activeRailItem}
+          notificationCount={notificationUnreadCount}
+          onNavigate={handleRailNavigate}
+        />
 
         <main className="relative flex min-w-0 flex-1 overflow-hidden bg-surface">
           {activeRailItem === 'settings' ? (
             <SettingsPanel onBack={() => setActiveRailItem('messages')} />
+          ) : activeRailItem === 'notifications' ? (
+            <NotificationPanel
+              onBack={() => setActiveRailItem('messages')}
+              onUnreadCountChange={setNotificationUnreadCount}
+              onOpen={handleOpenMessageTarget}
+            />
+          ) : activeRailItem === 'search' ? (
+            <GlobalSearchPanel
+              conversations={conversations}
+              onBack={() => setActiveRailItem('messages')}
+              onOpenResult={handleOpenMessageTarget}
+            />
           ) : (
             <>
               <Sidebar
                 conversations={conversations}
+                viewMode={activeRailItem}
                 onSelectConversation={handleSelectConversation}
                 selectedConversationId={selectedConversationId}
                 onFriendAdded={fetchFriends}
@@ -1677,6 +1762,9 @@ const Chat = () => {
                 isLoading={isFriendsLoading}
                 error={friendsError}
                 focusSearchSignal={focusSearchSignal}
+                notificationCount={notificationUnreadCount}
+                onOpenNotifications={() => setActiveRailItem('notifications')}
+                onOpenGlobalSearch={() => setActiveRailItem('search')}
                 onOpenSettings={() => {
                   setEditingMessage(null);
                   setReplyingMessage(null);
@@ -1731,6 +1819,11 @@ const Chat = () => {
                       onRemoveGroupMember={handleRemoveGroupMember}
                       onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
                       onUpdateConversationNotifications={handleUpdateConversationNotifications}
+                      onBlocked={() => {
+                        setSelectedConversationId(null);
+                        setShowDetails(false);
+                        fetchFriends();
+                      }}
                       onClose={() => setShowDetails(false)}
                     />
                   )}

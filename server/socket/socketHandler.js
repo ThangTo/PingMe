@@ -3,8 +3,10 @@ import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
+import Session from '../models/Session.js';
 import User from '../models/User.js';
 import { updateMessageLinkPreview } from '../services/linkPreview.service.js';
+import { createNotification } from '../services/notification.service.js';
 import { sendMessagePushToUsers } from '../services/pushNotification.service.js';
 import {
   getConversationRoomId,
@@ -70,6 +72,88 @@ const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, con
     senderUser,
   }).catch((error) => {
     console.warn('Khong the gui push notification cho tin nhan:', error.message || error);
+  });
+};
+
+const areUsersBlocked = async (firstUserId, secondUserId) =>
+  Boolean(
+    await User.exists({
+      $or: [
+        { _id: firstUserId, blockedUsers: secondUserId },
+        { _id: secondUserId, blockedUsers: firstUserId },
+      ],
+    }),
+  );
+
+const isDirectConversationBlocked = async (conversation) => {
+  if (conversation?.type !== 'direct') return false;
+
+  const memberIds = getConversationMemberIds(conversation);
+  if (memberIds.length !== 2) return false;
+
+  return areUsersBlocked(memberIds[0], memberIds[1]);
+};
+
+const resolveMentionUserIds = async ({ content, memberIds, senderId }) => {
+  if (!content || memberIds.length === 0) return [];
+
+  const mentionableUsers = await User.find({
+    _id: { $in: memberIds.filter((memberId) => memberId !== senderId) },
+  })
+    .select('username')
+    .lean();
+  const normalizedContent = content.toLocaleLowerCase('vi');
+
+  return mentionableUsers
+    .filter((user) => normalizedContent.includes(`@${user.username.toLocaleLowerCase('vi')}`))
+    .map((user) => user._id.toString());
+};
+
+const getMessageNotificationBody = (messagePayload) => {
+  if (messagePayload.content) return messagePayload.content;
+  if (messagePayload.messageType === 'image') return 'Đã gửi ảnh';
+  if (messagePayload.messageType === 'audio') return 'Đã gửi tin nhắn thoại';
+  if (messagePayload.messageType === 'file') return 'Đã gửi tệp đính kèm';
+  return 'Đã gửi một tin nhắn';
+};
+
+const queueMessageNotifications = ({
+  io,
+  memberIds,
+  senderId,
+  messagePayload,
+  conversation,
+  senderUser,
+  mentionIds,
+}) => {
+  const mentionedUserIds = new Set(mentionIds);
+  const recipientIds = memberIds.filter((memberId) => memberId !== senderId);
+
+  if (recipientIds.length === 0) return;
+
+  void Promise.all(
+    recipientIds.map((recipientId) => {
+      const isMention = mentionedUserIds.has(recipientId);
+      const title = isMention
+        ? `${senderUser?.username || 'Ai đó'} đã nhắc đến bạn`
+        : conversation.type === 'group'
+          ? `${senderUser?.username || 'Ai đó'} · ${conversation.title || 'Nhóm'}`
+          : senderUser?.username || 'Tin nhắn mới';
+
+      return createNotification({
+        io,
+        recipientId,
+        actorId: senderId,
+        type: isMention ? 'mention' : 'message',
+        title,
+        body: getMessageNotificationBody(messagePayload),
+        conversationId: conversation._id,
+        messageId: messagePayload.id,
+        data: { isGroup: conversation.type === 'group' },
+      });
+    }),
+  ).catch((error) => {
+    console.warn('Không thể tạo notification cho tin nhắn:', error.message || error);
   });
 };
 
@@ -605,6 +689,21 @@ const createAndEmitCallLogMessage = async ({ io, session, actorId, reason = 'end
     };
 
     emitToUsers(io, memberIds, 'receive_message', messagePayload);
+    if (status === 'missed') {
+      void createNotification({
+        io,
+        recipientId,
+        actorId: senderId,
+        type: 'missed_call',
+        title: `Cuộc gọi nhỡ từ ${senderUser?.username || 'người dùng'}`,
+        body: callMessage.content,
+        conversationId: conversation._id,
+        messageId: callMessage._id,
+        data: { callType: session.type },
+      }).catch((error) => {
+        console.warn('Không thể tạo thông báo cuộc gọi nhỡ:', error.message || error);
+      });
+    }
     return callMessage;
   } catch (error) {
     console.error('Loi tao call log:', error);
@@ -613,7 +712,7 @@ const createAndEmitCallLogMessage = async ({ io, session, actorId, reason = 'end
 };
 
 const socketHandler = (io) => {
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const token = getSocketToken(socket);
 
@@ -622,8 +721,18 @@ const socketHandler = (io) => {
       }
 
       const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      if (decoded.sid) {
+        const activeSession = await Session.exists({
+          sessionId: decoded.sid,
+          user: decoded.userId,
+          revokedAt: null,
+          expiresAt: { $gt: new Date() },
+        });
+        if (!activeSession) return next(new Error('UNAUTHORIZED'));
+      }
       socket.userId = decoded.userId;
       socket.username = decoded.username;
+      socket.sessionId = decoded.sid || null;
 
       next();
     } catch (error) {
@@ -742,6 +851,18 @@ const socketHandler = (io) => {
           toUserId,
           conversationId,
         });
+
+        const callConversation = resolvedConversationId
+          ? await Conversation.findById(resolvedConversationId).select('type members')
+          : await getOrCreateDirectConversation(callerId, calleeId);
+        if (await isDirectConversationBlocked(callConversation)) {
+          emitCallFailed(socket, {
+            toUserId: calleeId,
+            reason: 'blocked',
+            message: 'Không thể bắt đầu cuộc gọi này.',
+          });
+          return;
+        }
 
         if (getActiveCallId(calleeId)) {
           socket.emit('call_busy', {
@@ -956,7 +1077,16 @@ const socketHandler = (io) => {
         const resolvedRecipientId = getDirectRecipientId(conversation, senderId, recipientId);
         const memberIds = getConversationMemberIds(conversation);
         const senderUser = await User.findById(senderId).select('username avatar').lean();
+        const mentionIds =
+          conversation.type === 'group'
+            ? await resolveMentionUserIds({ content: cleanContent, memberIds, senderId })
+            : [];
         let replyToMessage = null;
+
+        if (await isDirectConversationBlocked(conversation)) {
+          socket.emit('error', { message: 'Không thể gửi tin nhắn trong cuộc trò chuyện này' });
+          return;
+        }
 
         if (replyToId) {
           if (!mongoose.Types.ObjectId.isValid(replyToId)) {
@@ -987,6 +1117,7 @@ const socketHandler = (io) => {
           messageType: getMessageTypeFromAttachments(normalizedAttachments),
           status: 'sent',
           replyTo: replyToMessage?._id || null,
+          mentions: mentionIds,
         });
 
         conversation.lastMessage = newMessage._id;
@@ -1008,6 +1139,7 @@ const socketHandler = (io) => {
           linkPreview: newMessage.linkPreview || null,
           callDetails: newMessage.callDetails || null,
           replyTo: formatReplyPreview(replyToMessage),
+          mentions: mentionIds,
         });
 
         const messagePayload = {
@@ -1027,6 +1159,7 @@ const socketHandler = (io) => {
           status: newMessage.status,
           replyTo: formatReplyPreview(replyToMessage),
           isGroup: conversation.type === 'group',
+          mentions: mentionIds,
         };
 
         queueLinkPreviewUpdate({
@@ -1043,6 +1176,15 @@ const socketHandler = (io) => {
           conversation,
           senderUser,
         });
+        queueMessageNotifications({
+          io,
+          memberIds,
+          senderId,
+          messagePayload,
+          conversation,
+          senderUser,
+          mentionIds,
+        });
 
         if (conversation.type === 'group') {
           const roomId = joinOnlineUsersToConversation(io, memberIds, resolvedConversationId);
@@ -1058,40 +1200,6 @@ const socketHandler = (io) => {
       } catch (error) {
         console.error('Lỗi khi gửi tin nhắn:', error);
         socket.emit('error', { message: 'Không thể gửi tin nhắn!' });
-      }
-    });
-
-    /**
-     * Event: friend_request_sent
-     * Notify the recipient when someone sends them a friend request
-     */
-    socket.on('send_friend_request', (data) => {
-      const { recipientId } = data;
-      const senderId = socket.userId;
-      const senderName = socket.username;
-
-      if (isUserOnline(recipientId)) {
-        emitToUser(io, recipientId, 'receive_friend_request', {
-          senderId,
-          senderName,
-        });
-        console.log(`🔔 Friend request from ${senderName} to ${recipientId} notified.`);
-      }
-    });
-
-    /**
-     * Event: friend_request_accepted
-     * Notify both users to refresh their friend list when a request is accepted
-     */
-    socket.on('accept_friend_request', (data) => {
-      const { friendId } = data;
-      const userId = socket.userId;
-
-      if (isUserOnline(friendId)) {
-        emitToUser(io, friendId, 'friend_request_accepted', {
-          friendId: userId,
-        });
-        console.log(`✅ Friend acceptance between ${userId} and ${friendId} notified.`);
       }
     });
 
@@ -1120,7 +1228,7 @@ const socketHandler = (io) => {
         }
       }
 
-      if (isUserOnline(receiverId)) {
+      if (isUserOnline(receiverId) && !(await areUsersBlocked(senderId, receiverId))) {
         // Chỉ gửi sự kiện 'user_typing' đến đúng người nhận
         emitToUser(io, receiverId, 'user_typing', { senderId, conversationId });
       }
@@ -1151,7 +1259,7 @@ const socketHandler = (io) => {
         }
       }
 
-      if (isUserOnline(receiverId)) {
+      if (isUserOnline(receiverId) && !(await areUsersBlocked(senderId, receiverId))) {
         emitToUser(io, receiverId, 'user_stopped_typing', { senderId, conversationId });
       }
     });
