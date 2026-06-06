@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
 import api from '../config/api';
+import AppIcon from '../components/ui/AppIcon';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -1305,9 +1306,7 @@ const Chat = () => {
                 <section className="relative hidden flex-1 flex-col items-center justify-center bg-surface px-8 md:flex">
                   <div className="max-w-sm animate-fade-in text-center">
                     <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest">
-                      <span className="material-symbols-outlined text-3xl text-on-surface-variant">
-                        forum
-                      </span>
+                      <AppIcon name="forum" className="text-3xl text-on-surface-variant" />
                     </div>
 
                     <div className="space-y-2">

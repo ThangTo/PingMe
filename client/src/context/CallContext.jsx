@@ -3,6 +3,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 
+const rtcConfig = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
+
 const CallContext = createContext(null);
 
 const initialCallState = {
@@ -11,11 +15,13 @@ const initialCallState = {
   type: null, // 'voice' | 'video'
   conversationId: null,
   partner: null, // { id, name, avatar }
+  connectedAt: null,
   isMuted: false,
   isVideoOff: false,
 };
 
 const callNoticeText = {
+  media_error: 'Không thể mở micro/camera.',
   rejected: 'Cuộc gọi đã bị từ chối.',
   ended: 'Cuộc gọi đã kết thúc.',
   missed: 'Cuộc gọi không có phản hồi.',
@@ -42,11 +48,21 @@ export const CallProvider = ({ children }) => {
 
   const callStateRef = useRef(initialCallState);
   const peerConnectionRef = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
   const noticeTimerRef = useRef(null);
 
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
+
+  const setCallStateSnapshot = useCallback((nextStateOrUpdater) => {
+    setCallState((prev) => {
+      const nextState =
+        typeof nextStateOrUpdater === 'function' ? nextStateOrUpdater(prev) : nextStateOrUpdater;
+      callStateRef.current = nextState;
+      return nextState;
+    });
+  }, []);
 
   const showCallNotice = useCallback((message) => {
     if (!message) return;
@@ -57,11 +73,49 @@ export const CallProvider = ({ children }) => {
   }, []);
 
   const closePeerConnection = useCallback(() => {
+    pendingIceCandidatesRef.current = [];
+
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
   }, []);
+
+  const startLocalMedia = useCallback(async (type) => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: type === 'video',
+    });
+
+    setLocalStream(stream);
+    return stream;
+  }, []);
+
+  const createPeerConnection = useCallback(
+    ({ callId, partnerId }) => {
+      closePeerConnection();
+      const pc = new RTCPeerConnection(rtcConfig);
+
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+
+        socket.emit('webrtc_ice_candidate', {
+          callId,
+          toUserId: partnerId,
+          candidate: event.candidate,
+        });
+      };
+
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        setRemoteStream(stream);
+      };
+
+      peerConnectionRef.current = pc;
+      return pc;
+    },
+    [closePeerConnection, socket],
+  );
 
   const stopLocalMedia = useCallback(() => {
     setLocalStream((stream) => {
@@ -75,10 +129,10 @@ export const CallProvider = ({ children }) => {
     (notice) => {
       closePeerConnection();
       stopLocalMedia();
-      setCallState(initialCallState);
+      setCallStateSnapshot(initialCallState);
       showCallNotice(notice);
     },
-    [closePeerConnection, showCallNotice, stopLocalMedia],
+    [closePeerConnection, setCallStateSnapshot, showCallNotice, stopLocalMedia],
   );
 
   const getNoticeFromPayload = useCallback((payload, fallbackReason = 'ended') => {
@@ -108,7 +162,7 @@ export const CallProvider = ({ children }) => {
         return;
       }
 
-      setCallState({
+      setCallStateSnapshot({
         ...initialCallState,
         status: 'calling',
         type,
@@ -126,7 +180,7 @@ export const CallProvider = ({ children }) => {
         conversationId: partnerInfo.conversationId || null,
       });
     },
-    [showCallNotice, socket, user?.id],
+    [setCallStateSnapshot, showCallNotice, socket, user?.id],
   );
 
   const acceptCall = useCallback(() => {
@@ -161,35 +215,68 @@ export const CallProvider = ({ children }) => {
   }, [resetCall, socket]);
 
   const toggleMute = useCallback(() => {
-    setCallState((prev) => {
+    setCallStateSnapshot((prev) => {
       const nextMuted = !prev.isMuted;
       localStream?.getAudioTracks?.().forEach((track) => {
         track.enabled = !nextMuted;
       });
       return { ...prev, isMuted: nextMuted };
     });
-  }, [localStream]);
+  }, [localStream, setCallStateSnapshot]);
 
   const toggleVideo = useCallback(() => {
-    setCallState((prev) => {
+    setCallStateSnapshot((prev) => {
       const nextVideoOff = !prev.isVideoOff;
       localStream?.getVideoTracks?.().forEach((track) => {
         track.enabled = !nextVideoOff;
       });
       return { ...prev, isVideoOff: nextVideoOff };
     });
-  }, [localStream]);
+  }, [localStream, setCallStateSnapshot]);
 
   useEffect(() => {
     if (!socket) return undefined;
 
     const isCurrentCall = (payload = {}) => {
       const currentCall = callStateRef.current;
-      return !payload.callId || !currentCall.callId || payload.callId === currentCall.callId;
+      if (!payload.callId) return currentCall.status !== 'idle';
+      return Boolean(currentCall.callId) && payload.callId === currentCall.callId;
+    };
+
+    const isActiveRtcCall = (payload = {}) => {
+      const currentCall = callStateRef.current;
+      return (
+        Boolean(payload.callId) &&
+        currentCall.callId === payload.callId &&
+        currentCall.status === 'connected'
+      );
+    };
+
+    const flushPendingIceCandidates = async () => {
+      const pc = peerConnectionRef.current;
+      if (!pc?.remoteDescription) return;
+
+      const candidates = pendingIceCandidatesRef.current;
+      pendingIceCandidatesRef.current = [];
+
+      for (const candidate of candidates) {
+        await pc.addIceCandidate(candidate);
+      }
+    };
+
+    const handleRtcError = (error, callId, notice = 'Không thể thiết lập cuộc gọi.') => {
+      console.error('Lỗi WebRTC:', error);
+      if (callId) {
+        socket.emit('call_end', {
+          callId,
+          reason: 'media_error',
+        });
+      }
+      resetCall(notice);
     };
 
     const handleCallRinging = (payload) => {
-      setCallState((prev) => {
+      setCallStateSnapshot((prev) => {
         if (prev.status !== 'calling') return prev;
         return {
           ...prev,
@@ -212,7 +299,7 @@ export const CallProvider = ({ children }) => {
         return;
       }
 
-      setCallState({
+      setCallStateSnapshot({
         ...initialCallState,
         status: 'ringing',
         callId: payload.callId,
@@ -226,29 +313,63 @@ export const CallProvider = ({ children }) => {
       });
     };
 
-    const handleCallAccepted = (payload) => {
+    const handleCallAccepted = async (payload) => {
       if (!isCurrentCall(payload)) return;
+      const callId = payload.callId;
+      const type = payload.type || callStateRef.current.type;
+      const partnerId = payload.fromUserId;
 
-      setCallState((prev) => ({
+      setCallStateSnapshot((prev) => ({
         ...prev,
         status: 'connected',
-        callId: payload.callId || prev.callId,
-        type: payload.type || prev.type,
+        callId: callId || prev.callId,
+        type: type || prev.type,
         conversationId: payload.conversationId || prev.conversationId,
         partner: payload.partner || prev.partner,
+        connectedAt: Date.now(),
       }));
+
+      try {
+        const stream = await startLocalMedia(type);
+        if (callStateRef.current.callId !== callId) {
+          stream.getTracks().forEach((track) => track.stop());
+          setLocalStream(null);
+          return;
+        }
+
+        const pc = createPeerConnection({
+          callId,
+          partnerId,
+        });
+
+        stream.getTracks().forEach((track) => {
+          pc.addTrack(track, stream);
+        });
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        socket.emit('webrtc_offer', {
+          callId,
+          toUserId: partnerId,
+          offer,
+        });
+      } catch (error) {
+        handleRtcError(error, callId, 'Không thể mở micro/camera.');
+      }
     };
 
     const handleCallConnected = (payload) => {
       if (!isCurrentCall(payload)) return;
 
-      setCallState((prev) => ({
+      setCallStateSnapshot((prev) => ({
         ...prev,
         status: 'connected',
         callId: payload.callId || prev.callId,
         type: payload.type || prev.type,
         conversationId: payload.conversationId || prev.conversationId,
         partner: payload.partner || prev.partner,
+        connectedAt: prev.connectedAt || Date.now(),
       }));
     };
 
@@ -285,6 +406,74 @@ export const CallProvider = ({ children }) => {
       resetCall();
     };
 
+    const handleWebrtcOffer = async (payload) => {
+      if (!isActiveRtcCall(payload)) return;
+
+      try {
+        const currentCall = callStateRef.current;
+        const stream = await startLocalMedia(currentCall.type);
+        if (callStateRef.current.callId !== payload.callId) {
+          stream.getTracks().forEach((track) => track.stop());
+          setLocalStream(null);
+          return;
+        }
+
+        const pc = createPeerConnection({
+          callId: payload.callId,
+          partnerId: payload.fromUserId,
+        });
+
+        stream.getTracks().forEach((track) => {
+          pc.addTrack(track, stream);
+        });
+
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+        await flushPendingIceCandidates();
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        socket.emit('webrtc_answer', {
+          callId: payload.callId,
+          toUserId: payload.fromUserId,
+          answer,
+        });
+      } catch (error) {
+        handleRtcError(error, payload.callId, 'Không thể thiết lập cuộc gọi.');
+      }
+    };
+
+    const handleWebrtcAnswer = async (payload) => {
+      if (!isActiveRtcCall(payload)) return;
+      if (!peerConnectionRef.current) return;
+
+      try {
+        await peerConnectionRef.current.setRemoteDescription(
+          new RTCSessionDescription(payload.answer),
+        );
+        await flushPendingIceCandidates();
+      } catch (error) {
+        handleRtcError(error, payload.callId, 'Không thể hoàn tất kết nối cuộc gọi.');
+      }
+    };
+
+    const handleWebrtcIceCandidate = async (payload) => {
+      if (!isActiveRtcCall(payload) || !payload.candidate) return;
+
+      try {
+        const candidate = new RTCIceCandidate(payload.candidate);
+
+        if (!peerConnectionRef.current?.remoteDescription) {
+          pendingIceCandidatesRef.current.push(candidate);
+          return;
+        }
+
+        await peerConnectionRef.current.addIceCandidate(candidate);
+      } catch (error) {
+        console.warn('Không thể thêm ICE candidate:', error);
+      }
+    };
+
     socket.on('call_ringing', handleCallRinging);
     socket.on('call_incoming', handleCallIncoming);
     socket.on('call_accepted', handleCallAccepted);
@@ -295,6 +484,9 @@ export const CallProvider = ({ children }) => {
     socket.on('call_failed', handleCallFailed);
     socket.on('call_resolved', handleCallResolved);
     socket.on('disconnect', handleSocketDisconnect);
+    socket.on('webrtc_offer', handleWebrtcOffer);
+    socket.on('webrtc_answer', handleWebrtcAnswer);
+    socket.on('webrtc_ice_candidate', handleWebrtcIceCandidate);
 
     return () => {
       socket.off('call_ringing', handleCallRinging);
@@ -307,8 +499,18 @@ export const CallProvider = ({ children }) => {
       socket.off('call_failed', handleCallFailed);
       socket.off('call_resolved', handleCallResolved);
       socket.off('disconnect', handleSocketDisconnect);
+      socket.off('webrtc_offer', handleWebrtcOffer);
+      socket.off('webrtc_answer', handleWebrtcAnswer);
+      socket.off('webrtc_ice_candidate', handleWebrtcIceCandidate);
     };
-  }, [getNoticeFromPayload, resetCall, socket]);
+  }, [
+    createPeerConnection,
+    getNoticeFromPayload,
+    resetCall,
+    setCallStateSnapshot,
+    socket,
+    startLocalMedia,
+  ]);
 
   useEffect(
     () => () => {
@@ -323,7 +525,7 @@ export const CallProvider = ({ children }) => {
     <CallContext.Provider
       value={{
         callState,
-        setCallState,
+        setCallState: setCallStateSnapshot,
         callNotice,
         localStream,
         remoteStream,

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import AppIcon from '../ui/AppIcon';
 
 const railItems = [
   { key: 'messages', label: 'Tin nhắn', icon: 'chat_bubble' },
@@ -31,9 +32,7 @@ const AppRail = ({ activeItem = 'messages', onNavigate }) => {
         title="PingMe"
       >
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white">
-          <span className="material-symbols-outlined text-[19px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-            mode_comment
-          </span>
+          <AppIcon name="mode_comment" className="text-[19px]" />
         </span>
         <span className="text-[15px] font-semibold tracking-[-0.03em] text-on-surface">PingMe</span>
       </button>
@@ -53,7 +52,7 @@ const AppRail = ({ activeItem = 'messages', onNavigate }) => {
               }`}
               title={item.label}
             >
-              <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
+              <AppIcon name={item.icon} className="text-[24px]" />
               <span>{item.label}</span>
             </button>
           );
@@ -67,7 +66,7 @@ const AppRail = ({ activeItem = 'messages', onNavigate }) => {
           className="flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-lg text-xs text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
           title="Cài đặt"
         >
-          <span className="material-symbols-outlined text-[24px]">settings</span>
+          <AppIcon name="settings" className="text-[24px]" />
           <span>Cài đặt</span>
         </button>
       </nav>

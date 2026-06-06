@@ -1,4 +1,5 @@
 import { useCall } from '../../context/CallContext';
+import AppIcon from '../ui/AppIcon';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -61,7 +62,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low md:hidden"
           title="Quay lại"
         >
-          <span className="material-symbols-outlined text-[24px]">arrow_back</span>
+          <AppIcon name="arrow_back" className="text-[24px]" />
         </button>
 
         <div className="relative h-12 w-12 shrink-0">
@@ -101,7 +102,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
             }`}
             title={item.label}
           >
-            <span className="material-symbols-outlined text-[23px]">{item.icon}</span>
+            <AppIcon name={item.icon} className="text-[23px]" />
           </button>
         ))}
 
@@ -111,7 +112,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
           className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low"
           title="Thông tin cuộc trò chuyện"
         >
-          <span className="material-symbols-outlined text-[23px]">more_vert</span>
+          <AppIcon name="more_vert" className="text-[23px]" />
         </button>
       </div>
     </header>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import AppIcon from '../ui/AppIcon';
 
 const getMessageAttachments = (message = {}) => {
   if (message.isDeleted) return [];
@@ -34,7 +35,7 @@ const MediaGallery = ({ messages = [], onClose }) => {
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
             onClick={() => setLightboxSrc(null)}
           >
-            <span className="material-symbols-outlined text-2xl">close</span>
+            <AppIcon name="close" className="text-2xl" />
           </button>
           <img
             src={lightboxSrc}
@@ -48,9 +49,7 @@ const MediaGallery = ({ messages = [], onClose }) => {
       <div className="flex h-full flex-col border-l border-outline-variant bg-surface">
         <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-xl text-on-surface-variant">
-              photo_library
-            </span>
+            <AppIcon name="photo_library" className="text-xl text-on-surface-variant" />
             <div>
               <h2 className="text-sm font-semibold text-on-surface">Ảnh và file</h2>
               <p className="text-[11px] text-on-surface-variant">{imageMessages.length} mục</p>
@@ -61,16 +60,14 @@ const MediaGallery = ({ messages = [], onClose }) => {
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high"
           >
-            <span className="material-symbols-outlined text-xl">close</span>
+            <AppIcon name="close" className="text-xl" />
           </button>
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto p-4">
           {imageMessages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3">
-              <span className="material-symbols-outlined text-5xl text-on-surface-variant">
-                image_not_supported
-              </span>
+              <AppIcon name="image_not_supported" className="text-5xl text-on-surface-variant" />
               <p className="text-sm text-on-surface-variant">
                 Chưa có ảnh nào được chia sẻ
               </p>

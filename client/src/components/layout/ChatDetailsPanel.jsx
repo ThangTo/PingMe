@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../../config/api';
 import { useCall } from '../../context/CallContext';
 import FileTypeIcon from '../ui/FileTypeIcon';
+import AppIcon from '../ui/AppIcon';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -373,7 +374,7 @@ const ChatDetailsPanel = ({
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
             onClick={() => setLightboxSrc(null)}
           >
-            <span className="material-symbols-outlined text-2xl">close</span>
+            <AppIcon name="close" className="text-2xl" />
           </button>
           <img
             src={lightboxSrc}
@@ -424,7 +425,7 @@ const ChatDetailsPanel = ({
             className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low"
             title="Đóng"
           >
-            <span className="material-symbols-outlined text-[22px]">close</span>
+            <AppIcon name="close" className="text-[22px]" />
           </button>
         </div>
 
@@ -453,7 +454,7 @@ const ChatDetailsPanel = ({
               className={`${isGroup && ['call', 'videocam'].includes(item.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-45`}
               title={item.label}
             >
-              <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
+              <AppIcon name={item.icon} className="text-[24px]" />
               <span className="text-xs">{item.label}</span>
             </button>
           ))}
@@ -473,13 +474,7 @@ const ChatDetailsPanel = ({
                   {user?.memberCount || user?.members?.length || 0} người trong nhóm
                 </span>
               </span>
-              <span
-                className={`material-symbols-outlined text-[22px] text-on-surface-variant transition-transform ${
-                  isMembersOpen ? 'rotate-180' : ''
-                }`}
-              >
-                expand_more
-              </span>
+              <AppIcon name="expand_more" className={`text-[22px] text-on-surface-variant transition-transform ${ isMembersOpen ? 'rotate-180' : '' }`} />
             </button>
 
             <div
@@ -491,7 +486,7 @@ const ChatDetailsPanel = ({
                   onClick={openMemberComposer}
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 text-xs font-medium text-on-surface transition-colors hover:bg-surface-container-low"
                 >
-                  <span className="material-symbols-outlined text-[17px]">person_add</span>
+                  <AppIcon name="person_add" className="text-[17px]" />
                   <span>Thêm</span>
                 </button>
               )}
@@ -556,7 +551,7 @@ const ChatDetailsPanel = ({
                                 : 'border-outline-variant text-transparent'
                             }`}
                           >
-                            <span className="material-symbols-outlined text-[15px]">check</span>
+                            <AppIcon name="check" className="text-[15px]" />
                           </span>
                         </button>
                       );
@@ -621,13 +616,11 @@ const ChatDetailsPanel = ({
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
                         title={member.role === 'admin' ? 'Gỡ quản trị' : 'Phong quản trị'}
                       >
-                        <span className="material-symbols-outlined text-[19px]">
-                          {updatingRoleMemberId === member.id
+                        <AppIcon name={updatingRoleMemberId === member.id
                             ? 'hourglass_empty'
                             : member.role === 'admin'
                               ? 'admin_panel_settings'
-                              : 'shield_person'}
-                        </span>
+                              : 'shield_person'} className="text-[19px]" />
                       </button>
                     )}
 
@@ -639,9 +632,7 @@ const ChatDetailsPanel = ({
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-error-container hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
                         title="Xóa khỏi nhóm"
                       >
-                        <span className="material-symbols-outlined text-[19px]">
-                          {removingMemberId === member.id ? 'hourglass_empty' : 'person_remove'}
-                        </span>
+                        <AppIcon name={removingMemberId === member.id ? 'hourglass_empty' : 'person_remove'} className="text-[19px]" />
                       </button>
                     )}
                   </div>
@@ -671,9 +662,7 @@ const ChatDetailsPanel = ({
 
         <div className="border-b border-outline-variant px-6 py-4">
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">
-              search
-            </span>
+            <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
@@ -782,7 +771,7 @@ const ChatDetailsPanel = ({
                     >
                       <div className="mb-2 flex items-center gap-3">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
-                          <span className="material-symbols-outlined text-[21px]">graphic_eq</span>
+                          <AppIcon name="graphic_eq" className="text-[21px]" />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-on-surface">
@@ -827,9 +816,7 @@ const ChatDetailsPanel = ({
                       rel="noreferrer"
                       className="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-3 transition-colors hover:bg-surface-container-low"
                     >
-                      <span className="material-symbols-outlined text-[24px] text-on-surface-variant">
-                        language
-                      </span>
+                      <AppIcon name="language" className="text-[24px] text-on-surface-variant" />
                       <span className="min-w-0">
                         <span className="block truncate text-sm text-on-surface">{link.host}</span>
                         <span className="block truncate text-xs text-on-surface-variant">

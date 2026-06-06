@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
+import AppIcon from '../ui/AppIcon';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const MAX_ATTACHMENTS = 5;
@@ -151,12 +152,7 @@ const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
         title={isPlaying ? 'Tạm dừng' : 'Nghe lại'}
         aria-label={isPlaying ? 'Tạm dừng ghi âm' : 'Nghe lại ghi âm'}
       >
-        <span
-          className="material-symbols-outlined text-[22px]"
-          style={{ fontVariationSettings: "'FILL' 1" }}
-        >
-          {isPlaying ? 'pause' : 'play_arrow'}
-        </span>
+        <AppIcon name={isPlaying ? 'pause' : 'play_arrow'} className="text-[22px]" />
       </button>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -703,7 +699,7 @@ const MessageInput = ({
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high disabled:opacity-40"
               title="Xóa tất cả"
             >
-              <span className="material-symbols-outlined text-xl">close</span>
+              <AppIcon name="close" className="text-xl" />
             </button>
           </div>
 
@@ -759,7 +755,7 @@ const MessageInput = ({
                   className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#1f1d1a]/70 text-white transition-colors hover:bg-[#1f1d1a] disabled:opacity-40"
                   title="Bỏ file này"
                 >
-                  <span className="material-symbols-outlined text-[17px]">close</span>
+                  <AppIcon name="close" className="text-[17px]" />
                 </button>
 
                 <div className="border-t border-outline-variant bg-surface-container-lowest px-2 py-1.5">
@@ -817,7 +813,7 @@ const MessageInput = ({
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                 title="Hủy ghi âm"
               >
-                <span className="material-symbols-outlined text-xl">close</span>
+                <AppIcon name="close" className="text-xl" />
               </button>
               <button
                 type="button"
@@ -825,7 +821,7 @@ const MessageInput = ({
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-dark"
                 title="Dừng ghi âm"
               >
-                <span className="material-symbols-outlined text-xl">stop</span>
+                <AppIcon name="stop" className="text-xl" />
               </button>
             </div>
           ) : (
@@ -843,19 +839,14 @@ const MessageInput = ({
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
                   title="Bỏ ghi âm"
                 >
-                  <span className="material-symbols-outlined text-xl">close</span>
+                  <AppIcon name="close" className="text-xl" />
                 </button>
               </div>
 
               <div className="hidden gap-3 sm:flex sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
-                    <span
-                      className="material-symbols-outlined text-[22px]"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      graphic_eq
-                    </span>
+                    <AppIcon name="graphic_eq" className="text-[22px]" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-on-surface">Ghi âm sẵn sàng gửi</p>
@@ -876,7 +867,7 @@ const MessageInput = ({
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
                   title="Bỏ ghi âm"
                 >
-                  <span className="material-symbols-outlined text-xl">close</span>
+                  <AppIcon name="close" className="text-xl" />
                 </button>
               </div>
             </>
@@ -914,7 +905,7 @@ const MessageInput = ({
             }}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
           >
-            <span className="material-symbols-outlined text-xl">close</span>
+            <AppIcon name="close" className="text-xl" />
           </button>
         </div>
       )}
@@ -934,7 +925,7 @@ const MessageInput = ({
             onClick={onCancelReplyMessage}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
           >
-            <span className="material-symbols-outlined text-xl">close</span>
+            <AppIcon name="close" className="text-xl" />
           </button>
         </div>
       )}
@@ -960,7 +951,7 @@ const MessageInput = ({
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-30"
           title="Đính kèm"
         >
-          <span className="material-symbols-outlined text-xl">attach_file</span>
+          <AppIcon name="attach_file" className="text-xl" />
         </button>
 
         <input
@@ -990,7 +981,7 @@ const MessageInput = ({
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
           title="Cảm xúc"
         >
-          <span className="material-symbols-outlined text-xl">sentiment_satisfied</span>
+          <AppIcon name="sentiment_satisfied" className="text-xl" />
         </button>
 
         {!canSend && (
@@ -1005,9 +996,7 @@ const MessageInput = ({
             }`}
             title={isRecordingVoice ? 'Dừng ghi âm' : 'Ghi âm'}
           >
-            <span className="material-symbols-outlined text-xl">
-              {isRecordingVoice ? 'stop' : 'mic'}
-            </span>
+            <AppIcon name={isRecordingVoice ? 'stop' : 'mic'} className="text-xl" />
           </button>
         )}
 
@@ -1019,12 +1008,7 @@ const MessageInput = ({
           }`}
           title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi tin nhắn'}
         >
-          <span
-            className="material-symbols-outlined text-xl"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            {editingMessage ? 'check' : 'send'}
-          </span>
+          <AppIcon name={editingMessage ? 'check' : 'send'} className="text-xl" />
         </button>
       </form>
     </footer>

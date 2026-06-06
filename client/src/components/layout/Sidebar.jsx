@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
+import AppIcon from '../ui/AppIcon';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -250,7 +251,7 @@ const Sidebar = ({
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low active:scale-[0.98]"
               title="Tạo nhóm"
             >
-              <span className="material-symbols-outlined text-[22px]">group_add</span>
+              <AppIcon name="group_add" className="text-[22px]" />
             </button>
             <button
               type="button"
@@ -258,7 +259,7 @@ const Sidebar = ({
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low active:scale-[0.98]"
               title="Tìm bạn mới"
             >
-              <span className="material-symbols-outlined text-[21px]">edit_square</span>
+              <AppIcon name="edit_square" className="text-[21px]" />
             </button>
             <button
               type="button"
@@ -266,7 +267,7 @@ const Sidebar = ({
               className="relative flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface md:hidden"
               title="Lời mời"
             >
-              <span className="material-symbols-outlined text-[22px]">person_add</span>
+              <AppIcon name="person_add" className="text-[22px]" />
               {friendRequests.length > 0 && (
                 <span className="absolute right-1 top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">
                   {friendRequests.length}
@@ -277,9 +278,7 @@ const Sidebar = ({
         </div>
 
         <div className="relative">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant">
-            search
-          </span>
+          <AppIcon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant" />
           <input
             ref={searchInputRef}
             className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent"
@@ -459,16 +458,14 @@ const Sidebar = ({
             ) : error ? (
               <div className="flex flex-col items-center justify-center gap-3 px-8 py-14 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-error-container">
-                  <span className="material-symbols-outlined text-[28px] text-error">wifi_off</span>
+                  <AppIcon name="wifi_off" className="text-[28px] text-error" />
                 </div>
                 <p className="text-sm text-error">{error}</p>
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-8 py-14 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-low">
-                  <span className="material-symbols-outlined text-[28px] text-on-surface-variant">
-                    chat_bubble
-                  </span>
+                  <AppIcon name="chat_bubble" className="text-[28px] text-on-surface-variant" />
                 </div>
                 <p className="text-sm text-on-surface-variant">
                   {searchQuery ? 'Không tìm thấy cuộc trò chuyện.' : 'Chưa có cuộc trò chuyện nào.'}
@@ -566,7 +563,7 @@ const Sidebar = ({
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                 title="Đóng"
               >
-                <span className="material-symbols-outlined text-[22px]">close</span>
+                <AppIcon name="close" className="text-[22px]" />
               </button>
             </div>
 
@@ -640,7 +637,7 @@ const Sidebar = ({
                               : 'border-outline-variant text-transparent'
                           }`}
                         >
-                          <span className="material-symbols-outlined text-[18px]">check</span>
+                          <AppIcon name="check" className="text-[18px]" />
                         </span>
                       </button>
                     );
@@ -689,7 +686,7 @@ const Sidebar = ({
               item.active ? 'text-accent' : 'text-on-surface-variant'
             }`}
           >
-            <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+            <AppIcon name={item.icon} className="text-[22px]" />
             <span>{item.label}</span>
           </button>
         ))}

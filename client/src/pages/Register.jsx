@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import AppIcon from '../components/ui/AppIcon';
 
 /**
  * Register Page - Trang đăng ký (Đơn giản hóa)
@@ -189,7 +190,7 @@ const Register = () => {
                   className="flex w-full items-center justify-center gap-2 rounded-md border border-outline-variant bg-surface-container-lowest py-4 font-headline font-semibold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
                 >
                   Đăng nhập
-                  <span className="material-symbols-outlined">login</span>
+                  <AppIcon name="login" />
                 </button>
               </div>
             </div>
@@ -216,9 +217,7 @@ const Register = () => {
               {/* Username Input */}
               <div className="group">
                 <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
-                      account_circle
-                    </span>
+                    <AppIcon name="account_circle" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
                   <input
                     type="text"
                     name="username"
@@ -237,9 +236,7 @@ const Register = () => {
               {/* Email Input */}
               <div className="group">
                 <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
-                      alternate_email
-                    </span>
+                    <AppIcon name="alternate_email" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
                   <input
                     type="email"
                     name="email"
@@ -258,9 +255,7 @@ const Register = () => {
               {/* Password Input */}
               <div className="group">
                 <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
-                      password
-                    </span>
+                    <AppIcon name="password" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
                   <input
                     type="password"
                     name="password"
@@ -279,9 +274,7 @@ const Register = () => {
               {/* Confirm Password Input */}
               <div className="group">
                 <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
-                      verified_user
-                    </span>
+                    <AppIcon name="verified_user" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
                   <input
                     type="password"
                     name="confirmPassword"
@@ -308,7 +301,7 @@ const Register = () => {
                   className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-4 font-headline font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
-                  {!isSubmitting && <span className="material-symbols-outlined">add_moderator</span>}
+                  {!isSubmitting && <AppIcon name="add_moderator" />}
                 </button>
               </div>
 

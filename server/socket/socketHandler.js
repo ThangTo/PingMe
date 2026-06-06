@@ -509,7 +509,9 @@ const socketHandler = (io) => {
         // 2. Tách ra: "Trong đám bạn A, ai đang online?"
         const onlineFriends = friendIds.filter((fId) => isUserOnline(fId));
 
-        const conversations = await Conversation.find({ 'members.user': userId }).select('_id').lean();
+        const conversations = await Conversation.find({ 'members.user': userId })
+          .select('_id')
+          .lean();
         conversations.forEach((conversation) => {
           socket.join(getConversationRoomId(conversation._id));
         });
@@ -568,7 +570,10 @@ const socketHandler = (io) => {
         const { toUserId, type, conversationId } = data || {};
 
         if (!isValidCallType(type)) {
-          emitCallFailed(socket, { reason: 'invalid_type', message: 'Loại cuộc gọi không hợp lệ.' });
+          emitCallFailed(socket, {
+            reason: 'invalid_type',
+            message: 'Loại cuộc gọi không hợp lệ.',
+          });
           return;
         }
 
@@ -1296,7 +1301,7 @@ const socketHandler = (io) => {
                     }),
                 isDeleted: conversationLastMessage.isDeleted,
                 timestamp: conversationLastMessage.createdAt,
-            }
+              }
             : null,
         });
 
@@ -1485,6 +1490,55 @@ const socketHandler = (io) => {
       } catch (error) {
         console.error('Lỗi đánh dấu đã nhận:', error);
       }
+    });
+
+    //Call WebRTC
+    socket.on('webrtc_offer', (data) => {
+      const { callId, toUserId, offer } = data || {};
+      const userId = socket.userId.toString();
+      const session = activeCallSessions.get(callId);
+
+      if (!session || ![session.callerId, session.calleeId].includes(userId)) return;
+      if (session.status !== 'connected') return;
+      if (![session.callerId, session.calleeId].includes(toUserId)) return;
+
+      emitToUser(io, toUserId, 'webrtc_offer', {
+        callId,
+        fromUserId: userId,
+        offer,
+      });
+    });
+
+    socket.on('webrtc_answer', (data) => {
+      const { callId, toUserId, answer } = data || {};
+      const userId = socket.userId.toString();
+      const session = activeCallSessions.get(callId);
+
+      if (!session || ![session.callerId, session.calleeId].includes(userId)) return;
+      if (session.status !== 'connected') return;
+      if (![session.callerId, session.calleeId].includes(toUserId)) return;
+
+      emitToUser(io, toUserId, 'webrtc_answer', {
+        callId,
+        fromUserId: userId,
+        answer,
+      });
+    });
+
+    socket.on('webrtc_ice_candidate', (data) => {
+      const { callId, toUserId, candidate } = data || {};
+      const userId = socket.userId.toString();
+      const session = activeCallSessions.get(callId);
+
+      if (!session || ![session.callerId, session.calleeId].includes(userId)) return;
+      if (session.status !== 'connected') return;
+      if (![session.callerId, session.calleeId].includes(toUserId)) return;
+
+      emitToUser(io, toUserId, 'webrtc_ice_candidate', {
+        callId,
+        fromUserId: userId,
+        candidate,
+      });
     });
 
     /**

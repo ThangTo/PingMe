@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import EmojiPicker from './EmojiPicker';
 import FileTypeIcon from '../ui/FileTypeIcon';
+import AppIcon from '../ui/AppIcon';
 
 const MESSAGE_URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[),.!?:;]+$/;
@@ -221,12 +222,7 @@ const CompactVoicePlayer = ({ src, duration = 0 }) => {
         title={isPlaying ? 'Tạm dừng' : 'Phát'}
         aria-label={isPlaying ? 'Tạm dừng tin nhắn thoại' : 'Phát tin nhắn thoại'}
       >
-        <span
-          className="material-symbols-outlined text-[21px]"
-          style={{ fontVariationSettings: "'FILL' 1" }}
-        >
-          {isPlaying ? 'pause' : 'play_arrow'}
-        </span>
+        <AppIcon name={isPlaying ? 'pause' : 'play_arrow'} className="text-[21px]" />
       </button>
 
       <button
@@ -253,12 +249,7 @@ const CompactVoicePlayer = ({ src, duration = 0 }) => {
 };
 
 const PinGlyph = ({ className = '' }) => (
-  <span
-    className={`material-symbols-outlined -rotate-45 ${className}`}
-    style={{ fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }}
-  >
-    push_pin
-  </span>
+  <AppIcon name="push_pin" className={`-rotate-45 ${className}`} />
 );
 
 const getReceiptAvatarSrc = (receipt) => {
@@ -603,7 +594,7 @@ const MessageBubble = ({
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
             onClick={closeLightbox}
           >
-            <span className="material-symbols-outlined text-2xl">close</span>
+            <AppIcon name="close" className="text-2xl" />
           </button>
 
           {imageAttachments.length > 1 && (
@@ -614,7 +605,7 @@ const MessageBubble = ({
                 onClick={showPrevImage}
                 title="Ảnh trước"
               >
-                <span className="material-symbols-outlined text-[28px]">chevron_left</span>
+                <AppIcon name="chevron_left" className="text-[28px]" />
               </button>
               <button
                 type="button"
@@ -622,7 +613,7 @@ const MessageBubble = ({
                 onClick={showNextImage}
                 title="Ảnh sau"
               >
-                <span className="material-symbols-outlined text-[28px]">chevron_right</span>
+                <AppIcon name="chevron_right" className="text-[28px]" />
               </button>
             </>
           )}
@@ -723,7 +714,7 @@ const MessageBubble = ({
                   isOwn ? 'text-right' : ''
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">block</span>
+                <AppIcon name="block" className="text-[18px]" />
                 <span>{REVOKED_MESSAGE_TEXT}</span>
               </div>
             ) : (
@@ -862,12 +853,7 @@ const MessageBubble = ({
                         <div className="hidden min-w-[250px] flex-col gap-2 px-3 py-3 md:flex">
                           <div className="flex items-center gap-3">
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-on-surface">
-                              <span
-                                className="material-symbols-outlined text-[21px]"
-                                style={{ fontVariationSettings: "'FILL' 1" }}
-                              >
-                                graphic_eq
-                              </span>
+                              <AppIcon name="graphic_eq" className="text-[21px]" />
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-semibold text-on-surface">
@@ -914,9 +900,7 @@ const MessageBubble = ({
                             {formatFileSize(attachment.size)}
                           </p>
                         </div>
-                        <span className="material-symbols-outlined shrink-0 text-xl text-on-surface-variant">
-                          download
-                        </span>
+                        <AppIcon name="download" className="shrink-0 text-xl text-on-surface-variant" />
                       </a>
                     ))}
                   </div>
@@ -948,7 +932,7 @@ const MessageBubble = ({
                 } ${isOwn ? 'right-full mr-1.5' : 'left-full ml-1.5'}`}
                 onClick={togglePicker}
               >
-                <span className="material-symbols-outlined text-[18px]">add_reaction</span>
+                <AppIcon name="add_reaction" className="text-[18px]" />
               </button>
             )}
 
@@ -979,18 +963,7 @@ const MessageBubble = ({
                       item.danger ? 'text-error' : 'text-on-surface'
                     }`}
                   >
-                    <span
-                      className={`material-symbols-outlined text-[20px] ${
-                        item.pinIcon ? '-rotate-45' : ''
-                      }`}
-                      style={
-                        item.pinIcon
-                          ? { fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }
-                          : undefined
-                      }
-                    >
-                      {item.icon}
-                    </span>
+                    <AppIcon name={item.icon} className={`text-[20px] ${ item.pinIcon ? '-rotate-45' : '' }`} />
                     <span>{item.label}</span>
                   </button>
                 ))}
@@ -1041,10 +1014,9 @@ const MessageBubble = ({
               ))}
             </div>
           )}
-
           <span className={`px-1 text-[11px] text-on-surface-variant ${isOwn ? 'text-right' : ''}`}>
             {formatTime(message.timestamp)}
-            {!isRevoked && message.isEdited && <span className="ml-1">Đã sửa</span>}
+            {!isRevoked && message.isEdited && <span className="ml-1">?? s?a</span>}
             {deliveryText && <span className="ml-1">{deliveryText}</span>}
           </span>
 
@@ -1075,13 +1047,7 @@ const MessageBubble = ({
                     +{readReceipts.length - 5}
                   </span>
                 )}
-                <span
-                  className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-[0_12px_28px_rgba(40,37,32,0.2)] transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${
-                    isOwn ? 'right-0' : 'left-0'
-                  }`}
-                >
-                  {receiptSummary}
-                </span>
+                <AppIcon name={receiptSummary} className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-[0_12px_28px_rgba(40,37,32,0.2)] transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${ isOwn ? 'right-0' : 'left-0' }`} />
               </div>
             </div>
           )}
@@ -1112,18 +1078,7 @@ const MessageBubble = ({
                     item.danger ? 'text-error' : 'text-on-surface'
                   }`}
                 >
-                  <span
-                    className={`material-symbols-outlined text-[22px] ${
-                      item.pinIcon ? '-rotate-45' : ''
-                    }`}
-                    style={
-                      item.pinIcon
-                        ? { fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }
-                        : undefined
-                    }
-                  >
-                    {item.icon}
-                  </span>
+                  <AppIcon name={item.icon} className={`text-[22px] ${ item.pinIcon ? '-rotate-45' : '' }`} />
                   <span>{item.label}</span>
                 </button>
               ))}

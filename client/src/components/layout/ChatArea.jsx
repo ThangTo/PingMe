@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './Header';
 import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
+import AppIcon from '../ui/AppIcon';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -32,12 +33,7 @@ const getPinnedPreviewText = (message) => {
 };
 
 const PinGlyph = ({ className = '' }) => (
-  <span
-    className={`material-symbols-outlined -rotate-45 ${className}`}
-    style={{ fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20" }}
-  >
-    push_pin
-  </span>
+  <AppIcon name="push_pin" className={`-rotate-45 ${className}`} />
 );
 
 const ChatArea = ({
@@ -223,9 +219,7 @@ const ChatArea = ({
                 {getPinnedPreviewText(latestPinnedMessage)}
               </p>
             </div>
-            <span className="material-symbols-outlined shrink-0 text-[22px] text-on-surface-variant">
-              {isPinnedOpen ? 'expand_less' : 'expand_more'}
-            </span>
+            <AppIcon name={isPinnedOpen ? 'expand_less' : 'expand_more'} className="shrink-0 text-[22px] text-on-surface-variant" />
           </button>
 
           {isPinnedOpen && (
@@ -273,7 +267,7 @@ const ChatArea = ({
                           }}
                           className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-error transition-colors hover:bg-error-container"
                         >
-                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                          <AppIcon name="delete" className="text-[20px]" />
                           <span>Bỏ ghim</span>
                         </button>
                       </div>
@@ -289,9 +283,7 @@ const ChatArea = ({
       {isSearchOpen && (
         <div className="flex shrink-0 items-center gap-3 border-b border-outline-variant bg-surface px-4 py-3 md:px-7">
           <div className="relative max-w-md flex-1">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[19px] text-on-surface-variant">
-              search
-            </span>
+            <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[19px] text-on-surface-variant" />
             <input
               autoFocus
               value={searchQuery}
@@ -312,7 +304,7 @@ const ChatArea = ({
             className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
             title="Đóng tìm kiếm"
           >
-            <span className="material-symbols-outlined text-[21px]">close</span>
+            <AppIcon name="close" className="text-[21px]" />
           </button>
         </div>
       )}

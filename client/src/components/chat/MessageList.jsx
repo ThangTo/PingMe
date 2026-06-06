@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
+import AppIcon from '../ui/AppIcon';
 
 const getMessageAttachments = (message = {}) => {
   if (message.isDeleted) return [];
@@ -104,7 +105,7 @@ const MessageList = ({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-error-container">
-          <span className="material-symbols-outlined text-3xl text-error">sync_problem</span>
+          <AppIcon name="sync_problem" className="text-3xl text-error" />
         </div>
         <p className="text-sm text-error">{error}</p>
       </div>
@@ -115,9 +116,7 @@ const MessageList = ({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
         <div className="flex h-16 w-16 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest">
-          <span className="material-symbols-outlined text-3xl text-on-surface-variant/50">
-            chat_bubble
-          </span>
+          <AppIcon name="chat_bubble" className="text-3xl text-on-surface-variant/50" />
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-on-surface">Chưa có tin nhắn nào</p>
@@ -138,9 +137,7 @@ const MessageList = ({
       {visibleMessages.length === 0 && searchQuery.trim() ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-low">
-            <span className="material-symbols-outlined text-[28px] text-on-surface-variant">
-              search_off
-            </span>
+            <AppIcon name="search_off" className="text-[28px] text-on-surface-variant" />
           </div>
           <p className="text-sm text-on-surface-variant">Không tìm thấy tin nhắn phù hợp.</p>
         </div>
@@ -191,9 +188,7 @@ const MessageList = ({
       {isTyping && (
         <div className="flex max-w-[72%] items-end gap-2 md:max-w-[58%]">
           <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-outline-variant bg-surface-container-low">
-            <span className="material-symbols-outlined flex h-full w-full items-center justify-center text-sm text-on-surface-variant">
-              person
-            </span>
+            <AppIcon name="person" className="flex h-full w-full items-center justify-center text-sm text-on-surface-variant" />
           </div>
           <div className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)]">
             <span

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import AppIcon from '../components/ui/AppIcon';
 
 /**
  * Login Page - Trang đăng nhập (Đơn giản hóa + Debug)
@@ -169,9 +170,7 @@ const Login = () => {
                     Email <span className="text-error">*</span>
                   </label>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
-                      fingerprint
-                    </span>
+                    <AppIcon name="fingerprint" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
                     <input
                       type="email"
                       name="email"
@@ -193,9 +192,7 @@ const Login = () => {
                     Mật khẩu <span className="text-error">*</span>
                   </label>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface">
-                      key
-                    </span>
+                    <AppIcon name="key" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
                     <input
                       type="password"
                       name="password"
@@ -231,7 +228,7 @@ const Login = () => {
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-primary py-4 font-headline font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
               >
                 {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
-                {!isSubmitting && <span className="material-symbols-outlined">login</span>}
+                {!isSubmitting && <AppIcon name="login" />}
               </button>
             </form>
           </section>
@@ -251,9 +248,7 @@ const Login = () => {
               <div className="space-y-4">
                 <div className="flex items-start gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
                   <div className="rounded-md bg-secondary-container p-2">
-                    <span className="material-symbols-outlined text-secondary">
-                      security
-                    </span>
+                    <AppIcon name="security" className="text-secondary" />
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-on-surface">Cookie httpOnly</h4>
@@ -265,9 +260,7 @@ const Login = () => {
 
                 <div className="flex items-start gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
                   <div className="rounded-md bg-tertiary-container p-2">
-                    <span className="material-symbols-outlined text-tertiary">
-                      speed
-                    </span>
+                    <AppIcon name="speed" className="text-tertiary" />
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-on-surface">Socket.IO realtime</h4>
@@ -285,7 +278,7 @@ const Login = () => {
                   className="flex w-full items-center justify-center gap-2 rounded-md border border-outline-variant bg-surface-container-lowest py-4 font-headline font-semibold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
                 >
                   Tạo tài khoản
-                  <span className="material-symbols-outlined">person_add</span>
+                  <AppIcon name="person_add" />
                 </button>
               </div>
             </div>

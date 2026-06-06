@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
+import AppIcon from '../ui/AppIcon';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -109,7 +110,7 @@ const SettingsPanel = ({ onBack }) => {
           className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low"
           title="Quay lại tin nhắn"
         >
-          <span className="material-symbols-outlined text-[23px]">arrow_back</span>
+          <AppIcon name="arrow_back" className="text-[23px]" />
         </button>
         <div>
           <h1 className="text-xl font-semibold tracking-[-0.04em] text-on-surface">Cài đặt</h1>
@@ -220,7 +221,7 @@ const SettingsPanel = ({ onBack }) => {
                         : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[20px]">{theme.icon}</span>
+                    <AppIcon name={theme.icon} className="text-[20px]" />
                     <span>{theme.label}</span>
                   </button>
                 ))}
