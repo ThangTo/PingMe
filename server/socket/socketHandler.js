@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
@@ -23,6 +24,9 @@ import {
  * @param {Server} io - Socket.io server instance
  */
 const onlineUsers = new Map();
+const activeCallsByUser = new Map();
+const activeCallSessions = new Map();
+const CALL_RING_TIMEOUT_MS = 45_000;
 
 const parseCookieHeader = (cookieHeader = '') =>
   cookieHeader.split(';').reduce((cookies, pair) => {
@@ -57,6 +61,88 @@ const emitToUsers = (io, userIds, eventName, payload) => {
   const uniqueUserIds = new Set(userIds.filter((userId) => Boolean(userId)));
   uniqueUserIds.forEach((userId) => {
     emitToUser(io, userId, eventName, payload);
+  });
+};
+
+const getActiveCallId = (userId) => activeCallsByUser.get(toIdString(userId));
+
+const setActiveCallForUsers = (callId, userIds = []) => {
+  userIds.forEach((userId) => {
+    const normalizedUserId = toIdString(userId);
+    if (normalizedUserId) activeCallsByUser.set(normalizedUserId, callId);
+  });
+};
+
+const clearCallTimeout = (session) => {
+  if (session?.timeout) clearTimeout(session.timeout);
+};
+
+const releaseCallSession = (callId) => {
+  const session = activeCallSessions.get(callId);
+  if (!session) return null;
+
+  clearCallTimeout(session);
+  activeCallsByUser.delete(session.callerId);
+  activeCallsByUser.delete(session.calleeId);
+  activeCallSessions.delete(callId);
+  return session;
+};
+
+const getCallPartnerId = (session, userId) =>
+  session?.callerId === toIdString(userId) ? session.calleeId : session?.callerId;
+
+const formatCallUser = (user) => ({
+  id: user?._id?.toString() || user?.id?.toString() || '',
+  name: user?.username || '',
+  avatar: user?.avatar || '',
+});
+
+const isValidCallType = (type) => ['voice', 'video'].includes(type);
+
+const emitCallFailed = (socket, payload) => {
+  socket.emit('call_failed', {
+    reason: 'failed',
+    message: 'Không thể bắt đầu cuộc gọi.',
+    ...payload,
+  });
+};
+
+const scheduleCallTimeout = (io, callId) => {
+  const session = activeCallSessions.get(callId);
+  if (!session) return;
+
+  session.timeout = setTimeout(() => {
+    const currentSession = activeCallSessions.get(callId);
+    if (!currentSession || currentSession.status !== 'ringing') return;
+
+    releaseCallSession(callId);
+
+    emitToUser(io, currentSession.callerId, 'call_failed', {
+      callId,
+      reason: 'missed',
+      message: 'Cuộc gọi không có phản hồi.',
+    });
+    emitToUser(io, currentSession.calleeId, 'call_ended', {
+      callId,
+      fromUserId: currentSession.calleeId,
+      toUserId: currentSession.callerId,
+      reason: 'missed',
+    });
+  }, CALL_RING_TIMEOUT_MS);
+};
+
+const endActiveCallForUser = (io, userId, reason = 'ended') => {
+  const normalizedUserId = toIdString(userId);
+  const callId = getActiveCallId(normalizedUserId);
+  const session = releaseCallSession(callId);
+  if (!session) return;
+
+  const partnerId = getCallPartnerId(session, normalizedUserId);
+  emitToUser(io, partnerId, 'call_ended', {
+    callId,
+    fromUserId: normalizedUserId,
+    toUserId: partnerId,
+    reason,
   });
 };
 
@@ -100,6 +186,48 @@ const loadConversationForSend = async ({ conversationId, recipientId, senderId }
 const getDirectRecipientId = (conversation, senderId, fallbackRecipientId) => {
   if (conversation?.type !== 'direct') return fallbackRecipientId || null;
   return toIdString(getPeerMember(conversation, senderId)?.user) || fallbackRecipientId || null;
+};
+
+const resolveDirectCallTarget = async ({ callerId, toUserId, conversationId }) => {
+  const normalizedCallerId = toIdString(callerId);
+
+  if (conversationId) {
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      throw new Error('conversationId không hợp lệ');
+    }
+
+    const conversation = await Conversation.findById(conversationId).select('type members');
+    if (!conversation) throw new Error('Cuộc trò chuyện không tồn tại');
+    if (conversation.type !== 'direct') throw new Error('Hiện chỉ hỗ trợ gọi 1-1');
+    if (!isConversationMember(conversation, normalizedCallerId)) {
+      throw new Error('Bạn không thuộc cuộc trò chuyện này');
+    }
+
+    const peerId = toIdString(getPeerMember(conversation, normalizedCallerId)?.user);
+    if (!peerId) throw new Error('Không tìm thấy người nhận cuộc gọi');
+    if (toUserId && toIdString(toUserId) !== peerId) {
+      throw new Error('Người nhận không khớp với cuộc trò chuyện');
+    }
+
+    return {
+      calleeId: peerId,
+      conversationId: conversation._id.toString(),
+    };
+  }
+
+  if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
+    throw new Error('toUserId không hợp lệ');
+  }
+
+  const calleeId = toIdString(toUserId);
+  if (!calleeId || calleeId === normalizedCallerId) {
+    throw new Error('Người nhận cuộc gọi không hợp lệ');
+  }
+
+  return {
+    calleeId,
+    conversationId: null,
+  };
 };
 
 const getMessageMemberIds = async (message) => {
@@ -432,6 +560,203 @@ const socketHandler = (io) => {
       } catch (error) {
         console.error('Loi join_conversation:', error);
       }
+    });
+
+    socket.on('call_request', async (data) => {
+      try {
+        const callerId = socket.userId.toString();
+        const { toUserId, type, conversationId } = data || {};
+
+        if (!isValidCallType(type)) {
+          emitCallFailed(socket, { reason: 'invalid_type', message: 'Loại cuộc gọi không hợp lệ.' });
+          return;
+        }
+
+        if (getActiveCallId(callerId)) {
+          socket.emit('call_busy', {
+            reason: 'self_busy',
+            message: 'Bạn đang ở trong một cuộc gọi khác.',
+          });
+          return;
+        }
+
+        const { calleeId, conversationId: resolvedConversationId } = await resolveDirectCallTarget({
+          callerId,
+          toUserId,
+          conversationId,
+        });
+
+        if (getActiveCallId(calleeId)) {
+          socket.emit('call_busy', {
+            toUserId: calleeId,
+            reason: 'user_busy',
+            message: 'Người này đang bận.',
+          });
+          return;
+        }
+
+        if (!isUserOnline(calleeId)) {
+          emitCallFailed(socket, {
+            toUserId: calleeId,
+            reason: 'offline',
+            message: 'Người này hiện không online.',
+          });
+          return;
+        }
+
+        const [callerUser, calleeUser] = await Promise.all([
+          User.findById(callerId).select('username avatar').lean(),
+          User.findById(calleeId).select('username avatar').lean(),
+        ]);
+
+        if (!calleeUser) {
+          emitCallFailed(socket, {
+            toUserId: calleeId,
+            reason: 'not_found',
+            message: 'Không tìm thấy người nhận cuộc gọi.',
+          });
+          return;
+        }
+
+        const callId = randomUUID();
+        const session = {
+          id: callId,
+          callerId,
+          calleeId,
+          type,
+          conversationId: resolvedConversationId,
+          status: 'ringing',
+          createdAt: new Date(),
+        };
+
+        activeCallSessions.set(callId, session);
+        setActiveCallForUsers(callId, [callerId, calleeId]);
+        scheduleCallTimeout(io, callId);
+
+        socket.emit('call_ringing', {
+          callId,
+          toUserId: calleeId,
+          type,
+          conversationId: resolvedConversationId,
+          partner: formatCallUser(calleeUser),
+        });
+
+        emitToUser(io, calleeId, 'call_incoming', {
+          callId,
+          fromUserId: callerId,
+          toUserId: calleeId,
+          type,
+          conversationId: resolvedConversationId,
+          caller: formatCallUser(callerUser),
+        });
+      } catch (error) {
+        console.error('Lỗi call_request:', error);
+        emitCallFailed(socket, {
+          reason: 'failed',
+          message: error.message || 'Không thể bắt đầu cuộc gọi.',
+        });
+      }
+    });
+
+    socket.on('call_accept', async (data) => {
+      try {
+        const userId = socket.userId.toString();
+        const { callId } = data || {};
+        const session = activeCallSessions.get(callId);
+
+        if (!session || session.calleeId !== userId) {
+          emitCallFailed(socket, {
+            callId,
+            reason: 'stale_call',
+            message: 'Cuộc gọi không còn khả dụng.',
+          });
+          return;
+        }
+
+        session.status = 'connected';
+        session.acceptedAt = new Date();
+        clearCallTimeout(session);
+
+        const [callerUser, calleeUser] = await Promise.all([
+          User.findById(session.callerId).select('username avatar').lean(),
+          User.findById(session.calleeId).select('username avatar').lean(),
+        ]);
+
+        emitToUser(io, session.callerId, 'call_accepted', {
+          callId,
+          fromUserId: userId,
+          toUserId: session.callerId,
+          type: session.type,
+          conversationId: session.conversationId,
+          partner: formatCallUser(calleeUser),
+        });
+
+        socket.emit('call_connected', {
+          callId,
+          fromUserId: session.callerId,
+          toUserId: userId,
+          type: session.type,
+          conversationId: session.conversationId,
+          partner: formatCallUser(callerUser),
+        });
+
+        socket.to(getUserRoomId(userId)).emit('call_resolved', {
+          callId,
+          status: 'accepted',
+        });
+      } catch (error) {
+        console.error('Lỗi call_accept:', error);
+        emitCallFailed(socket, {
+          reason: 'failed',
+          message: 'Không thể nhận cuộc gọi.',
+        });
+      }
+    });
+
+    socket.on('call_reject', (data) => {
+      const userId = socket.userId.toString();
+      const { callId, reason = 'rejected' } = data || {};
+      const session = activeCallSessions.get(callId);
+
+      if (!session || session.calleeId !== userId) return;
+
+      releaseCallSession(callId);
+      emitToUser(io, session.callerId, 'call_rejected', {
+        callId,
+        fromUserId: userId,
+        toUserId: session.callerId,
+        type: session.type,
+        conversationId: session.conversationId,
+        reason,
+      });
+      socket.to(getUserRoomId(userId)).emit('call_resolved', {
+        callId,
+        status: 'rejected',
+      });
+    });
+
+    socket.on('call_end', (data) => {
+      const userId = socket.userId.toString();
+      const { callId, reason = 'ended' } = data || {};
+      const session = activeCallSessions.get(callId);
+
+      if (!session || ![session.callerId, session.calleeId].includes(userId)) return;
+
+      const partnerId = getCallPartnerId(session, userId);
+      releaseCallSession(callId);
+
+      emitToUser(io, partnerId, 'call_ended', {
+        callId,
+        fromUserId: userId,
+        toUserId: partnerId,
+        type: session.type,
+        conversationId: session.conversationId,
+        reason,
+      });
+      socket.to(getUserRoomId(userId)).emit('call_resolved', {
+        callId,
+        status: 'ended',
+      });
     });
 
     /**
@@ -1213,6 +1538,7 @@ const socketHandler = (io) => {
       }
 
       onlineUsers.delete(disconnectedUserId);
+      endActiveCallForUser(io, disconnectedUserId, 'disconnected');
 
       try {
         const user = await User.findById(disconnectedUserId).select('friends');

@@ -1,5 +1,7 @@
+import { useCall } from '../../context/CallContext';
+
 const fallbackAvatar =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
 
 const getInitials = (name = '') =>
   name
@@ -11,15 +13,42 @@ const getInitials = (name = '') =>
     .toUpperCase() || '?';
 
 const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
+  const { callState, initiateCall } = useCall();
   const isGroup = Boolean(user?.isGroup);
+  const canStartCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
   const subtitle = isGroup
     ? `${user?.memberCount || 0} thành viên`
     : user?.isOnline
       ? 'Đang online'
       : 'Ngoại tuyến';
+
+  const handleStartCall = (type) => {
+    if (!canStartCall) return;
+
+    initiateCall(user.peerId, type, {
+      name: user.name,
+      avatar: user.avatar,
+      conversationId: user.id,
+    });
+  };
+
   const actions = [
-    { icon: 'call', label: 'Gọi thoại', desktopOnly: true, directOnly: true },
-    { icon: 'videocam', label: 'Gọi video', desktopOnly: true, directOnly: true },
+    {
+      icon: 'call',
+      label: 'Gọi thoại',
+      desktopOnly: true,
+      directOnly: true,
+      disabled: !canStartCall,
+      onClick: () => handleStartCall('voice'),
+    },
+    {
+      icon: 'videocam',
+      label: 'Gọi video',
+      desktopOnly: true,
+      directOnly: true,
+      disabled: !canStartCall,
+      onClick: () => handleStartCall('video'),
+    },
     { icon: 'search', label: 'Tìm kiếm', onClick: onToggleSearch },
   ].filter((item) => !(isGroup && item.directOnly));
 
@@ -66,7 +95,8 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
             key={item.label}
             type="button"
             onClick={item.onClick}
-            className={`h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low ${
+            disabled={item.disabled}
+            className={`h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-45 ${
               item.desktopOnly ? 'hidden md:flex' : 'flex'
             }`}
             title={item.label}

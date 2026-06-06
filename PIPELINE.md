@@ -227,8 +227,8 @@ Mục tiêu: 1-1 voice/video call hoạt động ổn định trước khi thêm
 
 | Stage | Status | Output |
 |---|---|---|
-| 9.1 Call UI shell | IN_PROGRESS | `IncomingCallModal`, `CallOverlay`, `CallContext` đã có scaffold |
-| 9.2 Call request/ring/reject/end events | PLANNED | Signaling state cơ bản |
+| 9.1 Call UI shell | DONE | `IncomingCallModal`, `CallOverlay`, `CallContext` đã có shell |
+| 9.2 Call request/ring/reject/end events | IN_PROGRESS | Socket signaling cho request/ring/accept/reject/end/busy; cần user test 2 account |
 | 9.3 WebRTC peer connection | PLANNED | offer/answer/ICE qua Socket.IO |
 | 9.4 Mic/camera controls | PLANNED | mute, camera off |
 | 9.5 Call timer and states | PLANNED | calling/ringing/connected/ended |

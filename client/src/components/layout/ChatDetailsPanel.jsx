@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../config/api';
+import { useCall } from '../../context/CallContext';
 import FileTypeIcon from '../ui/FileTypeIcon';
 
 const fallbackAvatar =
@@ -162,6 +163,18 @@ const ChatDetailsPanel = ({
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState('');
   const isGroup = Boolean(user?.isGroup);
+  const { callState, initiateCall } = useCall();
+  const canStartDirectCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
+
+  const handleStartCall = (type) => {
+    if (!canStartDirectCall) return;
+
+    initiateCall(user.peerId, type, {
+      name: user.name,
+      avatar: user.avatar,
+      conversationId: user.id,
+    });
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -417,15 +430,27 @@ const ChatDetailsPanel = ({
 
         <div className={`grid gap-2 px-6 ${isGroup ? 'grid-cols-2' : 'grid-cols-4'}`}>
           {[
-            { icon: 'call', label: 'Gọi thoại' },
-            { icon: 'videocam', label: 'Gọi video' },
+            {
+              icon: 'call',
+              label: 'Gọi thoại',
+              disabled: !canStartDirectCall,
+              onClick: () => handleStartCall('voice'),
+            },
+            {
+              icon: 'videocam',
+              label: 'Gọi video',
+              disabled: !canStartDirectCall,
+              onClick: () => handleStartCall('video'),
+            },
             { icon: 'search', label: 'Tìm kiếm' },
             { icon: 'notifications_off', label: 'Tắt thông báo' },
           ].map((item) => (
             <button
               key={item.label}
               type="button"
-              className={`${isGroup && ['call', 'videocam'].includes(item.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low`}
+              onClick={item.onClick}
+              disabled={item.disabled}
+              className={`${isGroup && ['call', 'videocam'].includes(item.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-45`}
               title={item.label}
             >
               <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
