@@ -668,9 +668,10 @@ export const CallProvider = ({ children }) => {
       closePeerConnection();
       stopLocalMedia();
       const audioContext = ringtoneAudioContextRef.current;
-      if (audioContext?.state !== 'closed') {
+      if (audioContext && audioContext.state !== 'closed') {
         void audioContext.close();
       }
+      ringtoneAudioContextRef.current = null;
     },
     [closePeerConnection, stopLocalMedia, stopRingtone],
   );
