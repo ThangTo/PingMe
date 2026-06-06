@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
+import incomingCallRingtoneUrl from '../assets/audio/incoming-call-soft.wav';
 
 const rtcConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -33,9 +34,6 @@ const callNoticeText = {
   failed: 'Không thể bắt đầu cuộc gọi.',
 };
 
-const RINGTONE_BEEP_MS = 420;
-const RINGTONE_LOOP_MS = 1350;
-
 export const useCall = () => {
   const context = useContext(CallContext);
   if (!context) throw new Error('useCall must be used within CallProvider');
@@ -54,11 +52,7 @@ export const CallProvider = ({ children }) => {
   const peerConnectionRef = useRef(null);
   const pendingIceCandidatesRef = useRef([]);
   const noticeTimerRef = useRef(null);
-  const ringtoneAudioContextRef = useRef(null);
-  const ringtoneTimersRef = useRef([]);
-  const ringtoneNodesRef = useRef([]);
-  const ringtonePlayingRef = useRef(false);
-  const playRingtonePulseRef = useRef(null);
+  const ringtoneAudioRef = useRef(null);
 
   useEffect(() => {
     callStateRef.current = callState;
@@ -81,127 +75,57 @@ export const CallProvider = ({ children }) => {
     noticeTimerRef.current = setTimeout(() => setCallNotice(''), 2600);
   }, []);
 
-  const getRingtoneAudioContext = useCallback(() => {
-    if (typeof window === 'undefined') return null;
+  const getRingtoneAudio = useCallback(() => {
+    if (typeof Audio === 'undefined') return null;
 
-    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextConstructor) return null;
-
-    if (!ringtoneAudioContextRef.current) {
-      ringtoneAudioContextRef.current = new AudioContextConstructor();
+    if (!ringtoneAudioRef.current) {
+      const audio = new Audio(incomingCallRingtoneUrl);
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.volume = 0.52;
+      ringtoneAudioRef.current = audio;
     }
 
-    return ringtoneAudioContextRef.current;
+    return ringtoneAudioRef.current;
   }, []);
 
   const unlockRingtoneAudio = useCallback(async () => {
-    const audioContext = getRingtoneAudioContext();
-    if (!audioContext) return false;
+    const audio = getRingtoneAudio();
+    if (!audio) return false;
 
     try {
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-
-      return audioContext.state === 'running';
+      audio.muted = true;
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+      return true;
     } catch (error) {
+      audio.muted = false;
       console.warn('Không thể bật âm thanh chuông:', error);
       return false;
     }
-  }, [getRingtoneAudioContext]);
-
-  const clearRingtoneTimers = useCallback(() => {
-    ringtoneTimersRef.current.forEach((timerId) => clearTimeout(timerId));
-    ringtoneTimersRef.current = [];
-  }, []);
+  }, [getRingtoneAudio]);
 
   const stopRingtone = useCallback(() => {
-    ringtonePlayingRef.current = false;
-    clearRingtoneTimers();
-    ringtoneNodesRef.current.forEach(({ lowTone, highTone, gain }) => {
-      try {
-        lowTone.stop();
-      } catch {
-        // Oscillator có thể đã stop theo lịch trước đó.
-      }
+    const audio = ringtoneAudioRef.current;
+    if (!audio) return;
 
-      try {
-        highTone.stop();
-      } catch {
-        // Oscillator có thể đã stop theo lịch trước đó.
-      }
-
-      lowTone.disconnect();
-      highTone.disconnect();
-      gain.disconnect();
-    });
-    ringtoneNodesRef.current = [];
-  }, [clearRingtoneTimers]);
-
-  const playRingtonePulse = useCallback(() => {
-    if (!ringtonePlayingRef.current) return;
-
-    const audioContext = getRingtoneAudioContext();
-    if (!audioContext || audioContext.state !== 'running') return;
-
-    const startAt = audioContext.currentTime;
-    const stopAt = startAt + RINGTONE_BEEP_MS / 1000;
-    const gain = audioContext.createGain();
-    const lowTone = audioContext.createOscillator();
-    const highTone = audioContext.createOscillator();
-
-    lowTone.type = 'sine';
-    highTone.type = 'sine';
-    lowTone.frequency.setValueAtTime(880, startAt);
-    highTone.frequency.setValueAtTime(1174.66, startAt);
-
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(0.12, startAt + 0.04);
-    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
-
-    lowTone.connect(gain);
-    highTone.connect(gain);
-    gain.connect(audioContext.destination);
-    const activeNodes = { lowTone, highTone, gain };
-    ringtoneNodesRef.current.push(activeNodes);
-
-    lowTone.start(startAt);
-    highTone.start(startAt);
-    lowTone.stop(stopAt);
-    highTone.stop(stopAt);
-
-    const cleanupTimerId = setTimeout(() => {
-      lowTone.disconnect();
-      highTone.disconnect();
-      gain.disconnect();
-      ringtoneNodesRef.current = ringtoneNodesRef.current.filter((nodes) => nodes !== activeNodes);
-    }, RINGTONE_BEEP_MS + 80);
-    const nextPulseTimerId = setTimeout(() => {
-      playRingtonePulseRef.current?.();
-    }, RINGTONE_LOOP_MS);
-
-    ringtoneTimersRef.current.push(cleanupTimerId, nextPulseTimerId);
-  }, [getRingtoneAudioContext]);
-
-  useEffect(() => {
-    playRingtonePulseRef.current = playRingtonePulse;
-  }, [playRingtonePulse]);
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
 
   const startRingtone = useCallback(() => {
-    if (ringtonePlayingRef.current) return;
+    const audio = getRingtoneAudio();
+    if (!audio || !audio.paused) return;
 
-    ringtonePlayingRef.current = true;
-    void unlockRingtoneAudio().then((canPlay) => {
-      if (!ringtonePlayingRef.current) return;
-
-      if (!canPlay) {
-        stopRingtone();
-        return;
-      }
-
-      playRingtonePulse();
+    audio.currentTime = 0;
+    audio.muted = false;
+    audio.volume = 0.52;
+    void audio.play().catch((error) => {
+      console.warn('Không thể phát âm thanh chuông:', error);
     });
-  }, [playRingtonePulse, stopRingtone, unlockRingtoneAudio]);
+  }, [getRingtoneAudio]);
 
   const closePeerConnection = useCallback(() => {
     pendingIceCandidatesRef.current = [];
@@ -667,11 +591,7 @@ export const CallProvider = ({ children }) => {
       stopRingtone();
       closePeerConnection();
       stopLocalMedia();
-      const audioContext = ringtoneAudioContextRef.current;
-      if (audioContext && audioContext.state !== 'closed') {
-        void audioContext.close();
-      }
-      ringtoneAudioContextRef.current = null;
+      ringtoneAudioRef.current = null;
     },
     [closePeerConnection, stopLocalMedia, stopRingtone],
   );
