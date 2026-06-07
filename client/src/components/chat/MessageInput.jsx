@@ -5,6 +5,8 @@ import AppIcon from '../ui/AppIcon';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const MAX_ATTACHMENTS = 5;
+const TYPING_IDLE_TIMEOUT_MS = 1500;
+const TYPING_KEEPALIVE_MS = 2500;
 const ACCEPTED_FILE_TYPES =
   'image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv,.json,.js,.jsx,.ts,.tsx,.html,.css,.md';
 const AUDIO_MIME_TYPES = [
@@ -208,6 +210,8 @@ const MessageInput = ({
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
   const wasEditingRef = useRef(false);
+  const isTypingRef = useRef(false);
+  const lastTypingEmitAtRef = useRef(0);
   const typingTimeoutRef = useRef(null);
   const previewsRef = useRef([]);
   const voicePreviewRef = useRef(null);
@@ -309,17 +313,37 @@ const MessageInput = ({
   }, [replyingMessage, editingMessage]);
 
   const stopTypingNow = () => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    if (onTypingStop) onTypingStop();
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (isTypingRef.current && onTypingStop) onTypingStop();
+    isTypingRef.current = false;
+    lastTypingEmitAtRef.current = 0;
   };
 
   const handleTextChange = (e) => {
-    setMessage(e.target.value);
-    if (onTypingStart) onTypingStart();
+    const nextMessage = e.target.value;
+    setMessage(nextMessage);
+
+    if (!nextMessage.trim()) {
+      stopTypingNow();
+      return;
+    }
+
+    const now = Date.now();
+    const shouldEmitTypingStart =
+      !isTypingRef.current || now - lastTypingEmitAtRef.current >= TYPING_KEEPALIVE_MS;
+    if (shouldEmitTypingStart && onTypingStart) {
+      onTypingStart();
+      isTypingRef.current = true;
+      lastTypingEmitAtRef.current = now;
+    }
+
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      if (onTypingStop) onTypingStop();
-    }, 1500);
+      stopTypingNow();
+    }, TYPING_IDLE_TIMEOUT_MS);
   };
 
   const handleKeyDown = (e) => {

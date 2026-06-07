@@ -1,7 +1,7 @@
 /**
  * Chat Page - Layout tổng theo hướng tối giản, giữ nguyên realtime flow.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AppRail from '../components/layout/AppRail';
 import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
@@ -22,6 +22,8 @@ const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
 const OPEN_CONVERSATION_EVENT = 'pingme:open-conversation';
 const MESSAGE_PAGE_LIMIT = 40;
+const MESSAGE_VIRTUAL_INDEX_BASE = 100000;
+const TYPING_USER_EXPIRE_MS = 4500;
 const EMPTY_MESSAGE_PAGINATION = {
   hasMoreBefore: false,
   nextBefore: null,
@@ -260,6 +262,16 @@ const mergeMessagesById = (currentMessages, nextMessages) => {
   return [...merged.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 };
 
+const getPrependedMessageCount = (currentMessages, mergedMessages) => {
+  if (currentMessages.length === 0) return 0;
+
+  const firstCurrentMessageId = currentMessages[0]?.id;
+  if (!firstCurrentMessageId) return 0;
+
+  const firstCurrentIndex = mergedMessages.findIndex((message) => message.id === firstCurrentMessageId);
+  return Math.max(0, firstCurrentIndex);
+};
+
 const formatConversationSummary = (conversation, onlineUsers = []) => {
   const pinnedMessages = conversation.pinnedMessages || [];
   const latestPinnedMessage =
@@ -344,9 +356,10 @@ const Chat = () => {
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagePagination, setMessagePagination] = useState(EMPTY_MESSAGE_PAGINATION);
+  const [messageFirstItemIndex, setMessageFirstItemIndex] = useState(MESSAGE_VIRTUAL_INDEX_BASE);
   const [conversations, setConversations] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
   const [activeRailItem, setActiveRailItem] = useState('messages');
   const [focusSearchSignal, setFocusSearchSignal] = useState(0);
@@ -365,6 +378,75 @@ const Chat = () => {
   const conversationsRef = useRef(conversations);
   const messageTargetRef = useRef(null);
   const appNotificationTimersRef = useRef(new Map());
+  const typingExpiryTimersRef = useRef(new Map());
+
+  const resetMessageWindow = useCallback((nextMessages = []) => {
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+    setMessageFirstItemIndex(MESSAGE_VIRTUAL_INDEX_BASE);
+  }, []);
+
+  const mergeMessageWindow = useCallback((incomingMessages = []) => {
+    const currentMessages = messagesRef.current;
+    const mergedMessages = mergeMessagesById(currentMessages, incomingMessages);
+    const prependedCount = getPrependedMessageCount(currentMessages, mergedMessages);
+
+    messagesRef.current = mergedMessages;
+    setMessages(mergedMessages);
+
+    if (prependedCount > 0) {
+      setMessageFirstItemIndex((currentIndex) => Math.max(1, currentIndex - prependedCount));
+    }
+  }, []);
+
+  const clearTypingExpiryTimer = useCallback((senderId) => {
+    const timer = typingExpiryTimersRef.current.get(senderId);
+    if (!timer) return;
+
+    clearTimeout(timer);
+    typingExpiryTimersRef.current.delete(senderId);
+  }, []);
+
+  const removeTypingUser = useCallback(
+    (senderId) => {
+      if (!senderId) return;
+
+      clearTypingExpiryTimer(senderId);
+      setTypingUsersById((current) => {
+        if (!current[senderId]) return current;
+
+        const { [senderId]: _typingUser, ...rest } = current;
+        return rest;
+      });
+    },
+    [clearTypingExpiryTimer],
+  );
+
+  const refreshTypingUserExpiry = useCallback(
+    (senderId) => {
+      if (!senderId) return;
+
+      clearTypingExpiryTimer(senderId);
+      const timer = window.setTimeout(() => {
+        typingExpiryTimersRef.current.delete(senderId);
+        setTypingUsersById((current) => {
+          if (!current[senderId]) return current;
+
+          const { [senderId]: _typingUser, ...rest } = current;
+          return rest;
+        });
+      }, TYPING_USER_EXPIRE_MS);
+
+      typingExpiryTimersRef.current.set(senderId, timer);
+    },
+    [clearTypingExpiryTimer],
+  );
+
+  const clearAllTypingUsers = useCallback(() => {
+    typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
+    typingExpiryTimersRef.current.clear();
+    setTypingUsersById({});
+  }, []);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -373,6 +455,20 @@ const Chat = () => {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  const typingUsers = useMemo(() => Object.values(typingUsersById), [typingUsersById]);
+
+  useEffect(() => {
+    clearAllTypingUsers();
+  }, [clearAllTypingUsers, selectedConversationId]);
+
+  useEffect(
+    () => () => {
+      typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
+      typingExpiryTimersRef.current.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     const fetchNotificationCount = async () => {
@@ -671,12 +767,12 @@ const Chat = () => {
       if (isCurrentUserRemoved && selectedConversationId === conversationId) {
         setSelectedConversationId(null);
         setShowDetails(false);
-        setMessages([]);
+        resetMessageWindow();
         setEditingMessage(null);
         setReplyingMessage(null);
       }
     },
-    [selectedConversationId, user?.id],
+    [resetMessageWindow, selectedConversationId, user?.id],
   );
 
   const handleAddGroupMembers = useCallback(
@@ -775,7 +871,7 @@ const Chat = () => {
   useEffect(() => {
     const fetchMessages = async () => {
       if (!selectedConversationId) {
-        setMessages([]);
+        resetMessageWindow();
         setMessagePagination(EMPTY_MESSAGE_PAGINATION);
         setIsLoadingOlderMessages(false);
         return;
@@ -796,7 +892,7 @@ const Chat = () => {
           const normalizedMessages = response.data.messages.map((msg) =>
             normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
           );
-          setMessages(normalizedMessages);
+          resetMessageWindow(normalizedMessages);
           setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
           if (targetMessageId) {
             messageTargetRef.current = null;
@@ -835,7 +931,7 @@ const Chat = () => {
       }
     };
     fetchMessages();
-  }, [selectedConversationId, user, currentChatUserName]);
+  }, [selectedConversationId, user, currentChatUserName, resetMessageWindow]);
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -860,7 +956,7 @@ const Chat = () => {
         const normalizedMessages = response.data.messages.map((msg) =>
           normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
         );
-        setMessages((prev) => mergeMessagesById(normalizedMessages, prev));
+        mergeMessageWindow(normalizedMessages);
         setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
       }
     } catch (error) {
@@ -873,26 +969,62 @@ const Chat = () => {
     isLoadingOlderMessages,
     messagePagination.hasMoreBefore,
     messagePagination.nextBefore,
+    mergeMessageWindow,
     selectedConversationId,
     user,
   ]);
 
   useEffect(() => {
     const handleTyping = (data) => {
-      if (
+      if (!data?.senderId || data.senderId === user?.id) return;
+
+      const isCurrentTypingEvent =
         data.conversationId === selectedConversationId ||
-        data.senderId === currentChatUser?.peerId
-      ) {
-        setIsTyping(true);
-      }
+        (!currentChatUser?.isGroup && data.senderId === currentChatUser?.peerId);
+
+      if (!isCurrentTypingEvent) return;
+
+      const member = currentChatUser?.members?.find((item) => item.id === data.senderId);
+      const typingUser = {
+        id: data.senderId,
+        name:
+          data.senderName ||
+          member?.username ||
+          (!currentChatUser?.isGroup ? currentChatUser?.name : '') ||
+          'Người dùng',
+        avatar:
+          data.senderAvatar ||
+          member?.avatar ||
+          (!currentChatUser?.isGroup ? currentChatUser?.avatar : '') ||
+          '',
+      };
+
+      refreshTypingUserExpiry(data.senderId);
+      setTypingUsersById((current) => {
+        const existingTypingUser = current[data.senderId];
+        if (
+          existingTypingUser?.name === typingUser.name &&
+          existingTypingUser?.avatar === typingUser.avatar
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [data.senderId]: typingUser,
+        };
+      });
     };
     const handleStopTyping = (data) => {
-      if (
+      if (!data?.senderId) return;
+
+      const isCurrentTypingEvent =
         data.conversationId === selectedConversationId ||
-        data.senderId === currentChatUser?.peerId
-      ) {
-        setIsTyping(false);
-      }
+        (!currentChatUser?.isGroup && data.senderId === currentChatUser?.peerId);
+
+      if (!isCurrentTypingEvent) return;
+
+      removeTypingUser(data.senderId);
     };
 
     socket.on('user_typing', handleTyping);
@@ -902,7 +1034,17 @@ const Chat = () => {
       socket.off('user_typing', handleTyping);
       socket.off('user_stopped_typing', handleStopTyping);
     };
-  }, [selectedConversationId, currentChatUser?.peerId]);
+  }, [
+    currentChatUser?.avatar,
+    currentChatUser?.isGroup,
+    currentChatUser?.members,
+    currentChatUser?.name,
+    currentChatUser?.peerId,
+    refreshTypingUserExpiry,
+    removeTypingUser,
+    selectedConversationId,
+    user?.id,
+  ]);
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
@@ -969,6 +1111,10 @@ const Chat = () => {
       }
 
       if (isCurrentConversation) {
+        if (data.senderId) {
+          removeTypingUser(data.senderId);
+        }
+
         setMessages((prev) => {
           if (prev.some((message) => message.id === incomingMessage.id)) return prev;
           return [...prev, shouldMarkRead ? { ...incomingMessage, status: 'read' } : incomingMessage];
@@ -1460,6 +1606,7 @@ const Chat = () => {
     fetchFriends,
     upsertConversation,
     applyConversationMembersUpdate,
+    removeTypingUser,
     showAppNotification,
     shouldNotifyConversation,
   ]);
@@ -1593,7 +1740,7 @@ const Chat = () => {
           const normalizedMessages = response.data.messages.map((msg) =>
             normalizeMessage(msg, selectedConversationId, user, currentChatUser),
           );
-          setMessages((prev) => mergeMessagesById(prev, normalizedMessages));
+          mergeMessageWindow(normalizedMessages);
           setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
         }
       } catch (error) {
@@ -1615,7 +1762,7 @@ const Chat = () => {
     setPendingJumpMessageId(null);
 
     if (isChangingConversation) {
-      setMessages([]);
+      resetMessageWindow();
       setMessagePagination(EMPTY_MESSAGE_PAGINATION);
       setIsLoadingOlderMessages(false);
       setMessagesError('');
@@ -1629,7 +1776,7 @@ const Chat = () => {
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
-  }, [selectedConversationId]);
+  }, [resetMessageWindow, selectedConversationId]);
 
   const handleOpenMessageTarget = async ({ conversationId, messageId, type }) => {
     if (!conversationId) {
@@ -1848,7 +1995,7 @@ const Chat = () => {
                     currentUserId={user?.id || 'current'}
                     reactionUsersById={reactionUsersById}
                     onSendMessage={handleSendMessage}
-                    isTyping={isTyping}
+                    typingUsers={typingUsers}
                     onTypingStart={handleTypingStart}
                     onTypingStop={handleTypingStop}
                     onFocusInput={markChatAsRead}
@@ -1875,6 +2022,7 @@ const Chat = () => {
                     isLoadingOlderMessages={isLoadingOlderMessages}
                     hasOlderMessages={Boolean(messagePagination.hasMoreBefore)}
                     onLoadOlderMessages={loadOlderMessages}
+                    messageFirstItemIndex={messageFirstItemIndex}
                     error={messagesError}
                   />
                   {showDetails && currentChatUser && (

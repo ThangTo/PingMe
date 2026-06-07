@@ -1,6 +1,6 @@
 # PingMe Product Pipeline
 
-Cập nhật: 2026-06-06
+Cập nhật: 2026-06-07
 
 Mục tiêu sản phẩm: xây PingMe theo hướng chat app tương tự Telegram: nhanh, ổn định, hỗ trợ nhiều thiết bị, có chat 1-1, nhóm, media, gọi thoại/video, thông báo, tìm kiếm, quyền riêng tư và các tính năng nâng cao. Làm theo thứ tự: hoàn thành tính năng cơ bản trước, sau đó mới mở rộng sang phần nâng cao.
 
@@ -363,7 +363,7 @@ Mục tiêu: sản phẩm chịu dữ liệu lớn hơn demo.
 | Stage | Status | Output |
 |---|---|---|
 | A8.1 Pagination messages | READY_TO_TEST | Cursor pagination, load older messages, keep scroll position |
-| A8.2 Virtualized message list | PLANNED | Render large chat smoothly |
+| A8.2 Virtualized message list | READY_TO_TEST | `react-virtuoso`, auto-load older, giữ vị trí khi prepend |
 | A8.3 Redis adapter for Socket.IO | PLANNED | Scale multi-server |
 | A8.4 Redis presence store | PLANNED | Online state not only in memory |
 | A8.5 Queue for heavy jobs | PLANNED | Upload processing, notifications |
@@ -390,10 +390,10 @@ Nên làm theo thứ tự gần nhất:
 
 1. User acceptance test toàn bộ Basic theo `TEST_PIPELINE.md`.
 2. Commit/push mốc hoàn thành Basic.
-3. Pipeline A8.1: Pagination messages/load older messages.
-4. Pipeline A8.2: Virtualized message list.
-5. Pipeline A1.3: Sync read state đa thiết bị.
-6. Pipeline A4.2: Privacy settings và presence visibility.
+3. User acceptance test Pipeline A8.1/A8.2 với conversation dài.
+4. Pipeline A1.3: Sync read state đa thiết bị.
+5. Pipeline A4.2: Privacy settings và presence visibility.
+6. Pipeline A6.1: Hoàn thiện test link preview nhiều domain.
 
 Nếu bị rối, quay lại nguyên tắc này:
 

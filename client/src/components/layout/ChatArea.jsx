@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './Header';
 import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
@@ -42,7 +42,7 @@ const ChatArea = ({
   currentUserId,
   reactionUsersById,
   onSendMessage,
-  isTyping,
+  typingUsers = [],
   onTypingStart,
   onTypingStop,
   onFocusInput,
@@ -65,6 +65,7 @@ const ChatArea = ({
   isLoadingOlderMessages = false,
   hasOlderMessages = false,
   onLoadOlderMessages,
+  messageFirstItemIndex = 100000,
   error = '',
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -72,8 +73,6 @@ const ChatArea = ({
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const [activePinnedActionId, setActivePinnedActionId] = useState(null);
   const pinnedPanelRef = useRef(null);
-  const messageScrollRef = useRef(null);
-  const scrollRestoreRef = useRef(null);
   const longPressTimerRef = useRef(null);
 
   const pinnedMessages = currentUser?.pinnedMessages || (currentUser?.pinnedMessage ? [currentUser.pinnedMessage] : []);
@@ -148,20 +147,6 @@ const ChatArea = ({
     return () => clearTimeout(longPressTimerRef.current);
   }, []);
 
-  useLayoutEffect(() => {
-    if (!scrollRestoreRef.current || isLoadingOlderMessages) return;
-
-    const scrollContainer = messageScrollRef.current;
-    if (!scrollContainer) {
-      scrollRestoreRef.current = null;
-      return;
-    }
-
-    const { scrollHeight, scrollTop } = scrollRestoreRef.current;
-    scrollContainer.scrollTop = scrollContainer.scrollHeight - scrollHeight + scrollTop;
-    scrollRestoreRef.current = null;
-  }, [isLoadingOlderMessages, messages.length]);
-
   const closePinnedMenu = () => {
     setIsPinnedOpen(false);
     setActivePinnedActionId(null);
@@ -201,20 +186,7 @@ const ChatArea = ({
   const requestOlderMessages = () => {
     if (!hasOlderMessages || isLoadingOlderMessages || searchQuery.trim()) return;
 
-    const scrollContainer = messageScrollRef.current;
-    scrollRestoreRef.current = scrollContainer
-      ? {
-          scrollHeight: scrollContainer.scrollHeight,
-          scrollTop: scrollContainer.scrollTop,
-        }
-      : null;
-
     onLoadOlderMessages?.();
-  };
-
-  const handleMessageScroll = (event) => {
-    if (event.currentTarget.scrollTop > 96) return;
-    requestOlderMessages();
   };
 
   return (
@@ -347,27 +319,24 @@ const ChatArea = ({
         </div>
       )}
 
-      <div
-        ref={messageScrollRef}
-        onScroll={handleMessageScroll}
-        className="no-scrollbar flex-1 overflow-y-auto bg-surface"
-      >
+      <div className="min-h-0 flex-1 bg-surface">
         <MessageList
           messages={messages}
           conversationId={currentUser?.id}
           currentUserId={currentUserId}
           reactionUsersById={reactionUsersById}
-          isTyping={isTyping}
           onReaction={onReaction}
           isLoading={isLoading}
           isLoadingOlderMessages={isLoadingOlderMessages}
           hasOlderMessages={hasOlderMessages}
           onLoadOlderMessages={requestOlderMessages}
+          firstItemIndex={messageFirstItemIndex}
           error={error}
           searchQuery={searchQuery}
           pinnedMessageIds={pinnedMessageIds}
           readReceiptsByMessageId={readReceiptsByMessageId}
           jumpToMessageSignal={jumpToMessageSignal}
+          typingUsers={typingUsers}
           onEditMessage={onStartEditMessage}
           onDeleteMessage={onDeleteMessage}
           onReplyMessage={onStartReplyMessage}

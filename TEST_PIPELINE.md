@@ -361,7 +361,8 @@ npm run smoke
 - Mở conversation dài trên desktop.
 - Ban đầu app chỉ tải page mới nhất, vẫn tự scroll xuống cuối.
 - Kéo lên gần đầu danh sách, app tự tải thêm tin cũ.
-- Bấm nút `Tải tin cũ hơn`, app prepend tin cũ và giữ nguyên vị trí đang đọc, không nhảy xuống cuối.
+- Không còn nút load thủ công; kéo lên gần đầu là cách duy nhất để auto-load tin cũ.
+- Sau khi auto-load, app prepend tin cũ và giữ nguyên vị trí đang đọc, không nhảy xuống cuối.
 - Gửi tin mới trong lúc đang ở cuối chat, message realtime vẫn append và hiển thị như cũ.
 - Jump tới pinned/search result cũ, app vẫn tải window quanh message và highlight đúng message.
 
@@ -370,3 +371,33 @@ npm run smoke
 - Mở cùng conversation dài trên mobile.
 - Kéo lên đầu, kiểm tra load thêm tin cũ không làm input/header bị lệch.
 - Gửi message mới, kiểm tra realtime append và read/avatar marker vẫn đúng.
+
+## Stage 18 - Advanced A8.2 Virtualized Message List
+
+Ghi chú: Stage này dùng `react-virtuoso` để chỉ render các message đang nằm gần viewport. Pagination vẫn giữ nguyên: mở chat lấy page mới nhất, kéo lên đầu để auto-load page cũ.
+
+### Desktop Long Conversation
+
+- Mở conversation có nhiều hơn 80 tin nhắn đã load.
+- Kiểm tra không còn chip/nút `Tải tin cũ hơn`; chỉ có pill `Đang tải...` khi request older đang chạy.
+- Kéo lên/xuống nhanh, message không bị trắng vùng giữa, không nhảy layout mạnh.
+- Kéo lên gần đầu để auto load older, vị trí đang đọc được giữ lại.
+- Gửi tin mới khi đang ở cuối chat, app vẫn append và scroll xuống cuối.
+
+### Jump And Metadata
+
+- Ghim một tin cũ hoặc dùng search/global notification để jump tới tin đã load nhưng đang ngoài viewport.
+- App phải scroll tới đúng message và highlight.
+- Tin nhắn cuối vẫn hiện thời gian/trạng thái mặc định.
+- Tin nhắn cũ vẫn ẩn metadata, click trái vào bubble mới hiện metadata.
+
+### Browser Performance Sanity
+
+- Mở DevTools console và chạy:
+
+```js
+document.querySelectorAll('[data-message-row="true"]').length
+```
+
+- Với conversation dài, số row đang render nên thấp hơn tổng tin đã load rõ rệt.
+- Resize cửa sổ desktop và thử mobile viewport, list vẫn không mất message hoặc lệch input.

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import MessageBubble from './MessageBubble';
 import AppIcon from '../ui/AppIcon';
 
@@ -22,12 +23,92 @@ const messageMatchesSearch = (message, query) => {
 
 const EMPTY_META_MESSAGE_IDS = new Set();
 
+const getInitials = (name = '') =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || '?';
+
+const TypingIndicator = ({ typingUsers = [], floating = false }) => {
+  const visibleUsers = typingUsers.slice(0, 3);
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 ${
+        floating
+          ? 'rounded-full border border-outline-variant bg-surface-container-lowest/95 px-2 py-1.5 shadow-[0_10px_30px_rgba(40,37,32,0.12)] backdrop-blur'
+          : ''
+      }`}
+    >
+      <div className="flex shrink-0 -space-x-2">
+        {visibleUsers.map((typingUser) => (
+          <span
+            key={typingUser.id}
+            className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border-2 border-surface-container-lowest bg-accent-soft text-[10px] font-semibold text-on-surface"
+            title={typingUser.name}
+          >
+            {typingUser.avatar ? (
+              <img
+                src={typingUser.avatar}
+                alt={typingUser.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              getInitials(typingUser.name)
+            )}
+          </span>
+        ))}
+      </div>
+      <span className="flex h-9 shrink-0 items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-3 shadow-[0_2px_10px_rgba(40,37,32,0.04)]">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/55" />
+        <span
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/55"
+          style={{ animationDelay: '150ms' }}
+        />
+        <span
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/55"
+          style={{ animationDelay: '300ms' }}
+        />
+      </span>
+    </div>
+  );
+};
+
+const getDateKey = (timestamp) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+};
+
+const getDateLabel = (timestamp) => {
+  if (!timestamp) return '';
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today - messageDay) / 86400000);
+
+  if (diffDays === 0) return 'Hôm nay';
+  if (diffDays === 1) return 'Hôm qua';
+
+  return date.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
+
 const MessageList = ({
   messages = [],
   conversationId,
   currentUserId,
   reactionUsersById = {},
-  isTyping,
   onReaction,
   onEditMessage,
   onDeleteMessage,
@@ -37,65 +118,77 @@ const MessageList = ({
   isLoadingOlderMessages = false,
   hasOlderMessages = false,
   onLoadOlderMessages,
+  firstItemIndex = 100000,
   error = '',
   searchQuery = '',
   pinnedMessageIds = [],
   readReceiptsByMessageId = {},
   jumpToMessageSignal,
+  typingUsers = [],
 }) => {
-  const messagesEndRef = useRef(null);
-  const messageRefs = useRef(new Map());
+  const virtuosoRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
-  const previousLastMessageIdRef = useRef(null);
-  const previousMessageCountRef = useRef(0);
-  const previousConversationIdRef = useRef(conversationId);
+  const isAtBottomRef = useRef(true);
+  const physicalAtBottomRef = useRef(true);
+  const isLatestMessageVisibleRef = useRef(true);
+  const previousLatestMessageIdRef = useRef(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeActionMessageId, setActiveActionMessageId] = useState(null);
+  const [isNearLatestMessage, setIsNearLatestMessage] = useState(true);
   const [expandedMetaState, setExpandedMetaState] = useState(() => ({
     conversationId,
     ids: new Set(),
   }));
-  const visibleMessages = searchQuery.trim()
-    ? messages.filter((message) => messageMatchesSearch(message, searchQuery.trim()))
-    : messages;
+  const normalizedSearchQuery = searchQuery.trim();
+  const isSearchMode = Boolean(normalizedSearchQuery);
+  const visibleMessages = useMemo(
+    () =>
+      isSearchMode
+        ? messages.filter((message) => messageMatchesSearch(message, normalizedSearchQuery))
+        : messages,
+    [isSearchMode, messages, normalizedSearchQuery],
+  );
+  const messageIndexById = useMemo(() => {
+    const next = new Map();
+    visibleMessages.forEach((message, index) => {
+      if (message.id) next.set(message.id, index);
+    });
+    return next;
+  }, [visibleMessages]);
   const latestMessageId = messages[messages.length - 1]?.id || null;
+  const latestVisibleMessage = visibleMessages[visibleMessages.length - 1] || null;
+  const latestVisibleMessageId = latestVisibleMessage?.id || null;
   const expandedMetaMessageIds =
     expandedMetaState.conversationId === conversationId ? expandedMetaState.ids : EMPTY_META_MESSAGE_IDS;
+  const safeFirstItemIndex = Math.max(0, firstItemIndex);
+  const hasTypingUsers = typingUsers.length > 0;
 
-  useLayoutEffect(() => {
-    if (previousConversationIdRef.current === conversationId) return;
+  const updateNearLatestMessage = useCallback((nextValue) => {
+    isAtBottomRef.current = nextValue;
+    setIsNearLatestMessage((currentValue) => (currentValue === nextValue ? currentValue : nextValue));
+  }, []);
 
-    previousConversationIdRef.current = conversationId;
-    previousLastMessageIdRef.current = null;
-    previousMessageCountRef.current = 0;
-  }, [conversationId]);
+  const scrollToBottom = useCallback(
+    (behavior = 'smooth') => {
+      if (visibleMessages.length === 0) return;
 
-  useLayoutEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    const lastMessageId = lastMessage?.id || null;
-    const previousLastMessageId = previousLastMessageIdRef.current;
-    const previousMessageCount = previousMessageCountRef.current;
-    const shouldScrollToBottom =
-      previousMessageCount === 0 ||
-      (lastMessageId && lastMessageId !== previousLastMessageId) ||
-      isTyping;
+      virtuosoRef.current?.scrollToIndex({
+        index: visibleMessages.length - 1,
+        align: 'end',
+        behavior,
+      });
+    },
+    [visibleMessages.length],
+  );
 
-    previousLastMessageIdRef.current = lastMessageId;
-    previousMessageCountRef.current = messages.length;
-
-    if (!shouldScrollToBottom) return undefined;
-
-    const behavior = previousMessageCount === 0 ? 'auto' : 'smooth';
-    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
-
-    const frameId = requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+  const scrollToListBottom = useCallback((behavior = 'smooth') => {
+    virtuosoRef.current?.scrollTo({
+      top: Number.MAX_SAFE_INTEGER,
+      behavior,
     });
+  }, []);
 
-    return () => cancelAnimationFrame(frameId);
-  }, [messages, isTyping]);
-
-  const toggleMessageMeta = (messageId) => {
+  const toggleMessageMeta = useCallback((messageId) => {
     if (!messageId || messageId === latestMessageId) return;
 
     setExpandedMetaState((current) => {
@@ -109,7 +202,7 @@ const MessageList = ({
       }
       return { conversationId, ids: next };
     });
-  };
+  }, [conversationId, latestMessageId]);
 
   useEffect(() => {
     return () => {
@@ -125,18 +218,25 @@ const MessageList = ({
     setActiveActionMessageId((currentId) => (currentId === messageId ? null : currentId));
   }, []);
 
-  const handleJumpToMessage = useCallback((messageId) => {
-    const target = messageRefs.current.get(messageId);
-    if (!target) return;
+  const handleJumpToMessage = useCallback(
+    (messageId) => {
+      const targetIndex = messageIndexById.get(messageId);
+      if (targetIndex === undefined) return;
 
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setHighlightedMessageId(messageId);
+      virtuosoRef.current?.scrollToIndex({
+        index: targetIndex,
+        align: 'center',
+        behavior: 'smooth',
+      });
+      setHighlightedMessageId(messageId);
 
-    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-    highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedMessageId(null);
-    }, 1400);
-  }, []);
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 1400);
+    },
+    [messageIndexById],
+  );
 
   useEffect(() => {
     if (!jumpToMessageSignal?.messageId) return;
@@ -146,6 +246,211 @@ const MessageList = ({
 
     return () => cancelAnimationFrame(frameId);
   }, [handleJumpToMessage, jumpToMessageSignal]);
+
+  useEffect(() => {
+    if (!hasTypingUsers || !isAtBottomRef.current || isSearchMode) return undefined;
+
+    const frameId = requestAnimationFrame(() => {
+      scrollToListBottom('smooth');
+    });
+    const settleFrameId = requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToListBottom('smooth'));
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(settleFrameId);
+    };
+  }, [hasTypingUsers, isSearchMode, scrollToListBottom]);
+
+  useEffect(() => {
+    const previousLatestMessageId = previousLatestMessageIdRef.current;
+    previousLatestMessageIdRef.current = latestVisibleMessageId;
+
+    if (!latestVisibleMessageId || previousLatestMessageId === latestVisibleMessageId || isSearchMode) {
+      return undefined;
+    }
+
+    const isInitialPage = !previousLatestMessageId;
+    const isOwnMessage = latestVisibleMessage?.senderId === currentUserId;
+    const shouldFollow = isInitialPage || isOwnMessage || isAtBottomRef.current;
+
+    if (!shouldFollow) return undefined;
+
+    const behavior = isInitialPage ? 'auto' : 'smooth';
+    const frameId = requestAnimationFrame(() => {
+      scrollToBottom(behavior);
+    });
+    const settleFrameId = requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom(behavior));
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(settleFrameId);
+    };
+  }, [
+    currentUserId,
+    isSearchMode,
+    latestVisibleMessage,
+    latestVisibleMessageId,
+    scrollToBottom,
+  ]);
+
+  const handleAtTopStateChange = useCallback(
+    (atTop) => {
+      if (!atTop || isSearchMode || !hasOlderMessages || isLoadingOlderMessages) return;
+      onLoadOlderMessages?.();
+    },
+    [hasOlderMessages, isLoadingOlderMessages, isSearchMode, onLoadOlderMessages],
+  );
+
+  const handleAtBottomStateChange = useCallback(
+    (atBottom) => {
+      physicalAtBottomRef.current = atBottom;
+      updateNearLatestMessage(atBottom || isLatestMessageVisibleRef.current);
+    },
+    [updateNearLatestMessage],
+  );
+
+  const handleRangeChanged = useCallback(
+    (range) => {
+      const lastDataIndex = visibleMessages.length - 1;
+      const lastItemIndex = safeFirstItemIndex + lastDataIndex;
+      const isAbsoluteRange = range.endIndex >= safeFirstItemIndex;
+      const isLatestMessageVisible =
+        lastDataIndex < 0 ||
+        (isAbsoluteRange ? range.endIndex >= lastItemIndex : range.endIndex >= lastDataIndex);
+
+      isLatestMessageVisibleRef.current = isLatestMessageVisible;
+      updateNearLatestMessage(physicalAtBottomRef.current || isLatestMessageVisible);
+    },
+    [safeFirstItemIndex, updateNearLatestMessage, visibleMessages.length],
+  );
+
+  const renderHeader = useCallback(
+    () => (
+      <div className="mx-auto max-w-[900px] px-4 pb-2 pt-6 md:px-7">
+        {isLoadingOlderMessages && !isSearchMode && (
+          <div className="flex justify-center">
+            <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest/95 px-3 text-xs font-medium text-on-surface-variant shadow-[0_8px_24px_rgba(40,37,32,0.1)] backdrop-blur">
+              <AppIcon name="hourglass_empty" className="text-[18px] animate-spin" />
+              <span>Đang tải...</span>
+            </div>
+          </div>
+        )}
+      </div>
+    ),
+    [isLoadingOlderMessages, isSearchMode],
+  );
+
+  const renderFooter = useCallback(
+    () => (
+      <div className="mx-auto max-w-[900px] px-4 pb-9 pt-1 md:px-7">
+        {hasTypingUsers && (
+          <div className="flex max-w-[72%] items-end gap-2 md:max-w-[58%]">
+            <TypingIndicator typingUsers={typingUsers} />
+          </div>
+        )}
+      </div>
+    ),
+    [hasTypingUsers, typingUsers],
+  );
+
+  const virtuosoComponents = useMemo(
+    () => ({
+      Header: renderHeader,
+      Footer: renderFooter,
+    }),
+    [renderFooter, renderHeader],
+  );
+
+  const renderMessage = useCallback(
+    (virtualIndex, message) => {
+      const dataIndex =
+        (message.id ? messageIndexById.get(message.id) : undefined) ?? visibleMessages.indexOf(message);
+      if (dataIndex < 0) return null;
+
+      const isOwn = message.senderId === currentUserId;
+      const prevMessage = visibleMessages[dataIndex - 1];
+      const shouldShowDateSeparator =
+        !prevMessage || getDateKey(prevMessage.timestamp) !== getDateKey(message.timestamp);
+      const dateLabel = getDateLabel(message.timestamp);
+      const showAvatar =
+        shouldShowDateSeparator || !prevMessage || prevMessage.senderId !== message.senderId;
+      const isActionMenuOpen = activeActionMessageId === message.id;
+      const readReceipts = readReceiptsByMessageId[message.id] || [];
+      const showMeta = message.id === latestMessageId || expandedMetaMessageIds.has(message.id);
+
+      return (
+        <div
+          data-message-row="true"
+          data-message-index={virtualIndex}
+          className="mx-auto max-w-[900px] px-4 pb-3 md:px-7"
+        >
+          {shouldShowDateSeparator && dateLabel && (
+            <div className="mb-5 mt-2 flex justify-center">
+              <span
+                data-date-separator="true"
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-xs text-on-surface-variant"
+              >
+                {dateLabel}
+              </span>
+            </div>
+          )}
+
+          <div
+            className={`relative rounded-xl transition-colors duration-300 ${
+              isActionMenuOpen ? 'z-[150]' : 'z-0'
+            } ${
+              highlightedMessageId === message.id ? 'bg-accent-soft/70' : ''
+            }`}
+          >
+            <MessageBubble
+              message={message}
+              isOwn={isOwn}
+              showAvatar={showAvatar}
+              reactionUsersById={reactionUsersById}
+              readReceipts={readReceipts}
+              onReaction={onReaction}
+              onEditMessage={onEditMessage}
+              onDeleteMessage={onDeleteMessage}
+              onReplyMessage={onReplyMessage}
+              onPinMessage={onPinMessage}
+              isPinned={pinnedMessageIds.includes(message.id)}
+              showMeta={showMeta}
+              onToggleMeta={toggleMessageMeta}
+              onJumpToMessage={handleJumpToMessage}
+              isActionMenuOpen={isActionMenuOpen}
+              onOpenActionMenu={() => openActionMenu(message.id)}
+              onCloseActionMenu={() => closeActionMenu(message.id)}
+            />
+          </div>
+        </div>
+      );
+    },
+    [
+      activeActionMessageId,
+      currentUserId,
+      expandedMetaMessageIds,
+      handleJumpToMessage,
+      highlightedMessageId,
+      latestMessageId,
+      messageIndexById,
+      onDeleteMessage,
+      onEditMessage,
+      onPinMessage,
+      onReaction,
+      onReplyMessage,
+      openActionMenu,
+      closeActionMenu,
+      pinnedMessageIds,
+      reactionUsersById,
+      readReceiptsByMessageId,
+      toggleMessageMeta,
+      visibleMessages,
+    ],
+  );
 
   if (isLoading) {
     return (
@@ -187,108 +492,44 @@ const MessageList = ({
     );
   }
 
-  return (
-    <div className="mx-auto min-h-full max-w-[900px] space-y-3 px-4 py-6 md:px-7">
-      {!searchQuery.trim() && (hasOlderMessages || isLoadingOlderMessages) && (
-        <div className="flex justify-center pb-1">
-          <button
-            type="button"
-            onClick={onLoadOlderMessages}
-            disabled={isLoadingOlderMessages}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <AppIcon
-              name={isLoadingOlderMessages ? 'hourglass_empty' : 'expand_less'}
-              className={`text-[18px] ${isLoadingOlderMessages ? 'animate-spin' : ''}`}
-            />
-            <span>{isLoadingOlderMessages ? 'Đang tải...' : 'Tải tin cũ hơn'}</span>
-          </button>
+  if (visibleMessages.length === 0 && isSearchMode) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-low">
+          <AppIcon name="search_off" className="text-[28px] text-on-surface-variant" />
         </div>
-      )}
-
-      <div className="mb-5 flex justify-center">
-        <span className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-xs text-on-surface-variant">
-          Hôm nay
-        </span>
+        <p className="text-sm text-on-surface-variant">Không tìm thấy tin nhắn phù hợp.</p>
       </div>
+    );
+  }
 
-      {visibleMessages.length === 0 && searchQuery.trim() ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-low">
-            <AppIcon name="search_off" className="text-[28px] text-on-surface-variant" />
-          </div>
-          <p className="text-sm text-on-surface-variant">Không tìm thấy tin nhắn phù hợp.</p>
-        </div>
-      ) : null}
+  return (
+    <div className="relative h-full bg-surface">
+      <Virtuoso
+        key={conversationId || 'conversation'}
+        ref={virtuosoRef}
+        data={visibleMessages}
+        className="no-scrollbar h-full bg-surface"
+        data-message-total={visibleMessages.length}
+        firstItemIndex={safeFirstItemIndex}
+        initialTopMostItemIndex={isSearchMode ? 0 : { index: 'LAST', align: 'end' }}
+        alignToBottom
+        followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+        atBottomThreshold={160}
+        increaseViewportBy={{ top: 640, bottom: 720 }}
+        atTopStateChange={handleAtTopStateChange}
+        atBottomStateChange={handleAtBottomStateChange}
+        rangeChanged={handleRangeChanged}
+        computeItemKey={(index, message) => message.id || `${conversationId || 'message'}-${index}`}
+        components={virtuosoComponents}
+        itemContent={renderMessage}
+      />
 
-      {visibleMessages.map((message, index) => {
-        const isOwn = message.senderId === currentUserId;
-        const prevMessage = visibleMessages[index - 1];
-        const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
-        const isActionMenuOpen = activeActionMessageId === message.id;
-        const readReceipts = readReceiptsByMessageId[message.id] || [];
-        const showMeta = message.id === latestMessageId || expandedMetaMessageIds.has(message.id);
-
-        return (
-          <div
-            key={message.id || index}
-            ref={(node) => {
-              if (!message.id) return;
-              if (node) messageRefs.current.set(message.id, node);
-              else messageRefs.current.delete(message.id);
-            }}
-            className={`relative rounded-xl transition-colors duration-300 ${
-              isActionMenuOpen ? 'z-[150]' : 'z-0'
-            } ${
-              highlightedMessageId === message.id ? 'bg-accent-soft/70' : ''
-            }`}
-          >
-            <MessageBubble
-              message={message}
-              isOwn={isOwn}
-              showAvatar={showAvatar}
-              reactionUsersById={reactionUsersById}
-              readReceipts={readReceipts}
-              onReaction={onReaction}
-              onEditMessage={onEditMessage}
-              onDeleteMessage={onDeleteMessage}
-              onReplyMessage={onReplyMessage}
-              onPinMessage={onPinMessage}
-              isPinned={pinnedMessageIds.includes(message.id)}
-              showMeta={showMeta}
-              onToggleMeta={toggleMessageMeta}
-              onJumpToMessage={handleJumpToMessage}
-              isActionMenuOpen={isActionMenuOpen}
-              onOpenActionMenu={() => openActionMenu(message.id)}
-              onCloseActionMenu={() => closeActionMenu(message.id)}
-            />
-          </div>
-        );
-      })}
-
-      {isTyping && (
-        <div className="flex max-w-[72%] items-end gap-2 md:max-w-[58%]">
-          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-outline-variant bg-surface-container-low">
-            <AppIcon name="person" className="flex h-full w-full items-center justify-center text-sm text-on-surface-variant" />
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)]">
-            <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50"
-              style={{ animationDelay: '0ms' }}
-            />
-            <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50"
-              style={{ animationDelay: '150ms' }}
-            />
-            <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/50"
-              style={{ animationDelay: '300ms' }}
-            />
-          </div>
+      {hasTypingUsers && !isNearLatestMessage && !isSearchMode && (
+        <div className="pointer-events-none absolute bottom-3 left-4 z-40 md:left-7">
+          <TypingIndicator typingUsers={typingUsers} floating />
         </div>
       )}
-
-      <div ref={messagesEndRef} />
     </div>
   );
 };
