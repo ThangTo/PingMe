@@ -13,6 +13,7 @@ import {
   getPeerMember,
   toIdString,
 } from '../services/conversation.service.js';
+import { getVisibleAvatar, getVisibleOnlineStatus } from '../services/privacy.service.js';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -82,14 +83,14 @@ const getPinnedMessages = (conversation) => {
     : [];
 };
 
-const formatConversationMembers = (conversation) =>
+const formatConversationMembers = (conversation, currentUserId) =>
   (conversation.members || []).map((member) => {
     const memberUser = member.user;
 
     return {
       id: toIdString(memberUser),
       username: memberUser?.username || 'Nguoi dung',
-      avatar: memberUser?.avatar || '',
+      avatar: getVisibleAvatar(currentUserId, memberUser),
       role: member.role || 'member',
     };
   });
@@ -109,14 +110,14 @@ const isActiveMute = (value) => {
   return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
 };
 
-const formatReadStates = (conversation) =>
+const formatReadStates = (conversation, currentUserId) =>
   (conversation.members || []).map((member) => {
     const memberUser = member.user;
 
     return {
       userId: toIdString(memberUser),
       userName: memberUser?.username || '',
-      avatar: memberUser?.avatar || '',
+      avatar: getVisibleAvatar(currentUserId, memberUser),
       lastReadAt: member.lastReadAt || null,
       lastReadMessageId: toIdString(member.lastReadMessage) || null,
     };
@@ -130,15 +131,15 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
   const conversationId = conversation._id.toString();
   const pinnedMessages = getPinnedMessages(conversation);
   const latestPinnedMessage = pinnedMessages[0] || null;
-  const members = formatConversationMembers(conversation);
+  const members = formatConversationMembers(conversation, currentUserId);
 
   return {
     _id: conversation._id,
     type: conversation.type,
     peerId: conversation.type === 'direct' ? toIdString(peer) : null,
     name: conversation.type === 'direct' ? peer?.username || 'Người dùng' : conversation.title,
-    avatar: conversation.type === 'direct' ? peer?.avatar : conversation.avatar,
-    isOnline: conversation.type === 'direct' ? Boolean(peer?.isOnline) : false,
+    avatar: conversation.type === 'direct' ? getVisibleAvatar(currentUserId, peer) : conversation.avatar,
+    isOnline: conversation.type === 'direct' ? getVisibleOnlineStatus(currentUserId, peer) : false,
     members,
     memberCount: members.length,
     lastMessage: getMessagePreview(lastMessage),
@@ -147,7 +148,7 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
     mutedUntil: currentMember?.mutedUntil || null,
     notificationsMuted: isActiveMute(currentMember?.mutedUntil),
     readState: formatReadState(conversation, currentUserId),
-    readStates: formatReadStates(conversation),
+    readStates: formatReadStates(conversation, currentUserId),
     pinnedMessage: latestPinnedMessage,
     latestPinnedMessage,
     pinnedMessages,
@@ -165,7 +166,7 @@ const canRemoveGroupMember = (actorRole, targetRole) => {
 
 const populateConversationSummary = (conversationId) =>
   Conversation.findById(conversationId)
-    .populate('members.user', 'username email avatar isOnline')
+    .populate('members.user', 'username email avatar isOnline friends privacySettings')
     .populate('lastMessage')
     .populate({
       path: 'pinnedMessage',
@@ -182,9 +183,9 @@ const buildMembersPayload = (conversation, action, actorId, extra = {}) => ({
   conversationId: conversation._id.toString(),
   action,
   actorId,
-  members: formatConversationMembers(conversation),
+  members: formatConversationMembers(conversation, actorId),
   memberCount: conversation.members?.length || 0,
-  readStates: formatReadStates(conversation),
+  readStates: formatReadStates(conversation, actorId),
   ...extra,
 });
 
@@ -273,7 +274,7 @@ const conversationController = {
       });
 
       const populatedConversation = await Conversation.findById(conversation._id)
-        .populate('members.user', 'username email avatar isOnline')
+        .populate('members.user', 'username email avatar isOnline friends privacySettings')
         .populate('lastMessage')
         .populate({
           path: 'pinnedMessage',
@@ -296,7 +297,7 @@ const conversationController = {
       if (io) {
         [currentUserId, ...uniqueMemberIds].forEach((memberId) => {
           io.to(getUserRoomId(memberId)).emit('conversation_created', {
-            conversation: formattedConversation,
+            conversation: formatConversation(populatedConversation, memberId, new Map()),
           });
         });
       }
@@ -600,7 +601,7 @@ const conversationController = {
       await Promise.all(directConversations.map((conversation) => attachLegacyDirectMessages(conversation)));
 
       const conversations = await Conversation.find({ 'members.user': currentUserObjectId })
-        .populate('members.user', 'username email avatar isOnline')
+        .populate('members.user', 'username email avatar isOnline friends privacySettings')
         .populate('lastMessage')
         .populate({
           path: 'pinnedMessage',

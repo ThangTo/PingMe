@@ -306,7 +306,7 @@ Mục tiêu: người dùng kiểm soát dữ liệu và mức riêng tư.
 | Stage | Status | Output |
 |---|---|---|
 | A4.1 Block user | IN_PROGRESS | Block ngăn friend/message/typing/call; privacy presence sẽ làm ở Advanced |
-| A4.2 Privacy settings | PLANNED | Who can see online/avatar |
+| A4.2 Privacy settings | READY_TO_TEST | Who can see online/avatar; Settings UI có avatar upload |
 | A4.3 Report abuse | IN_PROGRESS | Đã report user; Advanced bổ sung moderation dashboard/report message |
 | A4.4 Secret chat research | PLANNED | E2EE feasibility |
 | A4.5 E2EE secret chat MVP | OPTIONAL | Encrypt/decrypt client-side |
@@ -391,7 +391,7 @@ Nên làm theo thứ tự gần nhất:
 1. User acceptance test toàn bộ Basic theo `TEST_PIPELINE.md`.
 2. Commit/push mốc hoàn thành Basic.
 3. User acceptance test Pipeline A8.1/A8.2 với conversation dài.
-4. Pipeline A4.2: Privacy settings và presence visibility.
+4. User acceptance test Pipeline A4.2: Privacy settings, presence visibility, avatar upload.
 5. Pipeline A6.1: Hoàn thiện test link preview nhiều domain.
 6. Pipeline A1.4: Draft sync theo conversation.
 

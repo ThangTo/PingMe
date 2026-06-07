@@ -19,6 +19,10 @@ import {
   isConversationMember,
   toIdString,
 } from '../services/conversation.service.js';
+import {
+  canViewOnlineStatus,
+  getVisibleAvatar,
+} from '../services/privacy.service.js';
 
 /**
  * Socket.io Event Handler
@@ -197,10 +201,10 @@ const releaseCallSession = (callId) => {
 const getCallPartnerId = (session, userId) =>
   session?.callerId === toIdString(userId) ? session.calleeId : session?.callerId;
 
-const formatCallUser = (user) => ({
+const formatCallUser = (user, viewerId = null) => ({
   id: user?._id?.toString() || user?.id?.toString() || '',
   name: user?.username || '',
-  avatar: user?.avatar || '',
+  avatar: viewerId ? getVisibleAvatar(viewerId, user) : user?.avatar || '',
 });
 
 const isValidCallType = (type) => ['voice', 'video'].includes(type);
@@ -822,14 +826,24 @@ const socketHandler = (io) => {
       console.log(`👤 User ${userId} is online on ${onlineUsers.get(userId).size} tab(s)`);
 
       try {
+        await User.updateOne(
+          { _id: userId },
+          { $set: { socketId: socket.id, isOnline: true, lastSeen: new Date() } },
+        );
+
         // 1. Tìm User A trong DB, lấy ra cái mảng ID bạn bè của A
-        const user = await User.findById(userId).select('friends');
+        const user = await User.findById(userId).select('friends privacySettings isOnline');
         if (!user) return;
 
         const friendIds = user.friends.map((id) => id.toString());
 
         // 2. Tách ra: "Trong đám bạn A, ai đang online?"
-        const onlineFriends = friendIds.filter((fId) => isUserOnline(fId));
+        const friendUsers = await User.find({ _id: { $in: friendIds } })
+          .select('friends privacySettings isOnline')
+          .lean();
+        const onlineFriends = friendUsers
+          .filter((friend) => isUserOnline(friend._id) && canViewOnlineStatus(userId, friend))
+          .map((friend) => friend._id.toString());
 
         const conversations = await Conversation.find({ 'members.user': userId })
           .select('_id')
@@ -843,10 +857,11 @@ const socketHandler = (io) => {
 
         // 4. Báo cho từng người bạn đang online: "Ê, thằng A vừa online nhé!"
         if (wasOffline) {
-          onlineFriends.forEach((friendId) => {
+          friendIds.forEach((friendId) => {
+            if (!isUserOnline(friendId)) return;
             emitToUser(io, friendId, 'user_status_changed', {
               userId: userId,
-              status: 'online',
+              status: canViewOnlineStatus(friendId, user) ? 'online' : 'offline',
             });
           });
         }
@@ -944,8 +959,8 @@ const socketHandler = (io) => {
         }
 
         const [callerUser, calleeUser] = await Promise.all([
-          User.findById(callerId).select('username avatar').lean(),
-          User.findById(calleeId).select('username avatar').lean(),
+          User.findById(callerId).select('username avatar friends privacySettings').lean(),
+          User.findById(calleeId).select('username avatar friends privacySettings').lean(),
         ]);
 
         if (!calleeUser) {
@@ -977,7 +992,7 @@ const socketHandler = (io) => {
           toUserId: calleeId,
           type,
           conversationId: resolvedConversationId,
-          partner: formatCallUser(calleeUser),
+          partner: formatCallUser(calleeUser, callerId),
         });
 
         emitToUser(io, calleeId, 'call_incoming', {
@@ -986,7 +1001,7 @@ const socketHandler = (io) => {
           toUserId: calleeId,
           type,
           conversationId: resolvedConversationId,
-          caller: formatCallUser(callerUser),
+          caller: formatCallUser(callerUser, calleeId),
         });
       } catch (error) {
         console.error('Lỗi call_request:', error);
@@ -1017,8 +1032,8 @@ const socketHandler = (io) => {
         clearCallTimeout(session);
 
         const [callerUser, calleeUser] = await Promise.all([
-          User.findById(session.callerId).select('username avatar').lean(),
-          User.findById(session.calleeId).select('username avatar').lean(),
+          User.findById(session.callerId).select('username avatar friends privacySettings').lean(),
+          User.findById(session.calleeId).select('username avatar friends privacySettings').lean(),
         ]);
 
         emitToUser(io, session.callerId, 'call_accepted', {
@@ -1027,7 +1042,7 @@ const socketHandler = (io) => {
           toUserId: session.callerId,
           type: session.type,
           conversationId: session.conversationId,
-          partner: formatCallUser(calleeUser),
+          partner: formatCallUser(calleeUser, session.callerId),
         });
 
         socket.emit('call_connected', {
@@ -1036,7 +1051,7 @@ const socketHandler = (io) => {
           toUserId: userId,
           type: session.type,
           conversationId: session.conversationId,
-          partner: formatCallUser(callerUser),
+          partner: formatCallUser(callerUser, userId),
         });
 
         socket.to(getUserRoomId(userId)).emit('call_resolved', {
@@ -2020,12 +2035,18 @@ const socketHandler = (io) => {
       await endActiveCallForUser(io, disconnectedUserId, 'disconnected');
 
       try {
-        const user = await User.findById(disconnectedUserId).select('friends');
+        await User.updateOne(
+          { _id: disconnectedUserId },
+          { $set: { socketId: null, isOnline: false, lastSeen: new Date() } },
+        );
+
+        const user = await User.findById(disconnectedUserId).select('friends privacySettings isOnline');
         if (user) {
           const friendIds = user.friends.map((id) => id.toString());
 
           friendIds.forEach((friendId) => {
             if (isUserOnline(friendId)) {
+              if (!canViewOnlineStatus(friendId, user)) return;
               emitToUser(io, friendId, 'user_status_changed', {
                 userId: disconnectedUserId,
                 status: 'offline',

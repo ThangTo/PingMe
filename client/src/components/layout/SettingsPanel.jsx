@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import AppIcon from '../ui/AppIcon';
@@ -6,8 +6,20 @@ import AppIcon from '../ui/AppIcon';
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
 
+const defaultPrivacySettings = {
+  onlineVisibility: 'friends',
+  avatarVisibility: 'everyone',
+};
+
+const privacyOptions = [
+  { value: 'everyone', label: 'Mọi người' },
+  { value: 'friends', label: 'Bạn bè' },
+  { value: 'nobody', label: 'Không ai' },
+];
+
 const SettingsPanel = ({ onBack }) => {
   const { user, updateUser, logout } = useAuth();
+  const avatarInputRef = useRef(null);
   const [profile, setProfile] = useState({
     username: user?.username || user?.name || '',
     email: user?.email || '',
@@ -15,6 +27,7 @@ const SettingsPanel = ({ onBack }) => {
     bio: user?.bio || '',
     provider: 'local',
     notificationSettings: user?.notificationSettings || { muteAll: false },
+    privacySettings: user?.privacySettings || defaultPrivacySettings,
   });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -27,11 +40,16 @@ const SettingsPanel = ({ onBack }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const [profileError, setProfileError] = useState('');
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isNotificationSaving, setIsNotificationSaving] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [notificationError, setNotificationError] = useState('');
+  const [isPrivacySaving, setIsPrivacySaving] = useState(false);
+  const [privacyMessage, setPrivacyMessage] = useState('');
+  const [privacyError, setPrivacyError] = useState('');
   const [sessions, setSessions] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [accountControlError, setAccountControlError] = useState('');
@@ -43,7 +61,13 @@ const SettingsPanel = ({ onBack }) => {
         setIsLoading(true);
         const response = await api.get('/users/me');
         if (response.data.success) {
-          setProfile(response.data.user);
+          setProfile({
+            ...response.data.user,
+            privacySettings: {
+              ...defaultPrivacySettings,
+              ...(response.data.user.privacySettings || {}),
+            },
+          });
           updateUser(response.data.user);
         }
       } catch (error) {
@@ -84,7 +108,6 @@ const SettingsPanel = ({ onBack }) => {
     try {
       const response = await api.patch('/users/me', {
         username: profile.username,
-        avatar: profile.avatar,
         bio: profile.bio,
       });
 
@@ -97,6 +120,96 @@ const SettingsPanel = ({ onBack }) => {
       setProfileError(error.message || 'Không thể lưu profile');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAvatarFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Vui lòng chọn file ảnh.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Avatar tối đa 5MB.');
+      return;
+    }
+
+    setIsAvatarUploading(true);
+    setAvatarError('');
+    setProfileMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const response = await api.post('/users/me/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (response.data.success) {
+        setProfile({
+          ...response.data.user,
+          privacySettings: {
+            ...defaultPrivacySettings,
+            ...(response.data.user.privacySettings || {}),
+          },
+        });
+        updateUser(response.data.user);
+        setProfileMessage('Đã cập nhật avatar');
+      }
+    } catch (error) {
+      setAvatarError(
+        error.response?.data?.error || error.message || 'Không thể upload avatar.',
+      );
+    } finally {
+      setIsAvatarUploading(false);
+    }
+  };
+
+  const handlePrivacyChange = (key, value) => {
+    setPrivacyMessage('');
+    setPrivacyError('');
+    setProfile((prev) => ({
+      ...prev,
+      privacySettings: {
+        ...defaultPrivacySettings,
+        ...(prev.privacySettings || {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const handlePrivacySubmit = async () => {
+    setIsPrivacySaving(true);
+    setPrivacyMessage('');
+    setPrivacyError('');
+
+    try {
+      const response = await api.patch('/users/me/privacy', {
+        ...defaultPrivacySettings,
+        ...(profile.privacySettings || {}),
+      });
+
+      if (response.data.success) {
+        setProfile({
+          ...response.data.user,
+          privacySettings: {
+            ...defaultPrivacySettings,
+            ...(response.data.user.privacySettings || {}),
+          },
+        });
+        updateUser(response.data.user);
+        setPrivacyMessage('Đã lưu quyền riêng tư');
+      }
+    } catch (error) {
+      setPrivacyError(
+        error.response?.data?.error || error.message || 'Không thể lưu quyền riêng tư.',
+      );
+    } finally {
+      setIsPrivacySaving(false);
     }
   };
 
@@ -244,17 +357,49 @@ const SettingsPanel = ({ onBack }) => {
                   />
                 </label>
 
-                <label className="grid gap-2 text-sm font-medium text-on-surface">
-                  Avatar URL
+                <div className="rounded-lg border border-outline-variant bg-surface px-3 py-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container">
+                        {profile.avatar ? (
+                          <img
+                            src={profile.avatar}
+                            alt={profile.username || 'Avatar'}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <AppIcon name="person" className="text-[20px]" />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-on-surface">
+                          Avatar
+                        </span>
+                        <span className="mt-0.5 block text-xs text-on-surface-variant">
+                          JPG, PNG, GIF hoặc WebP, tối đa 5MB.
+                        </span>
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={isAvatarUploading || isLoading}
+                      className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-outline-variant px-3 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <AppIcon name="photo_library" className="text-[18px]" />
+                      <span>{isAvatarUploading ? 'Đang tải...' : 'Tải ảnh lên'}</span>
+                    </button>
+                  </div>
                   <input
-                    value={profile.avatar || ''}
-                    onChange={(event) =>
-                      setProfile((prev) => ({ ...prev, avatar: event.target.value }))
-                    }
-                    className="h-11 rounded-lg border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-accent"
-                    placeholder="https://..."
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileChange}
+                    className="hidden"
                   />
-                </label>
+                  {avatarError && <p className="mt-3 text-sm text-error">{avatarError}</p>}
+                </div>
 
                 <label className="grid gap-2 text-sm font-medium text-on-surface">
                   Bio
@@ -361,6 +506,77 @@ const SettingsPanel = ({ onBack }) => {
               {notificationMessage && (
                 <p className="mt-4 text-sm text-secondary">{notificationMessage}</p>
               )}
+            </section>
+
+            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
+                    Quyền riêng tư
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+                    Kiểm soát ai có thể thấy trạng thái online và ảnh đại diện của bạn.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePrivacySubmit}
+                  disabled={isPrivacySaving || isLoading}
+                  className="flex h-11 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isPrivacySaving ? 'Đang lưu...' : 'Lưu riêng tư'}
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-5">
+                {[
+                  {
+                    key: 'onlineVisibility',
+                    title: 'Ai thấy trạng thái online',
+                    description: 'Người không được quyền sẽ luôn thấy bạn offline.',
+                  },
+                  {
+                    key: 'avatarVisibility',
+                    title: 'Ai thấy avatar',
+                    description: 'Người không được quyền sẽ thấy avatar mặc định.',
+                  },
+                ].map((item) => (
+                  <div key={item.key} className="grid gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-on-surface">{item.title}</h3>
+                      <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                        {item.description}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {privacyOptions.map((option) => {
+                        const selected =
+                          (profile.privacySettings || defaultPrivacySettings)[item.key] ===
+                          option.value;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => handlePrivacyChange(item.key, option.value)}
+                            className={`h-10 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                              selected
+                                ? 'border-accent bg-accent-soft text-on-surface'
+                                : 'border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {privacyError && <p className="mt-4 text-sm text-error">{privacyError}</p>}
+              {privacyMessage && <p className="mt-4 text-sm text-secondary">{privacyMessage}</p>}
             </section>
 
             <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">

@@ -1,9 +1,17 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
+import fs from 'fs/promises';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import { getUserRoomId } from '../services/conversation.service.js';
 import { createNotification } from '../services/notification.service.js';
+import {
+  PRIVACY_VISIBILITY_VALUES,
+  canViewOnlineStatus,
+  getVisibleAvatar,
+  getVisibleOnlineStatus,
+  normalizePrivacySettings,
+} from '../services/privacy.service.js';
 
 const emitToUser = (req, userId, eventName, payload) => {
   req.app.get('io')?.to(getUserRoomId(userId)).emit(eventName, payload);
@@ -43,16 +51,52 @@ const formatUserProfile = (user) => ({
   notificationSettings: {
     muteAll: Boolean(user.notificationSettings?.muteAll),
   },
+  privacySettings: normalizePrivacySettings(user.privacySettings),
   createdAt: user.createdAt,
 });
+
+const PROFILE_SELECT = 'username email avatar bio provider notificationSettings privacySettings createdAt';
+
+const getUploadedFileUrl = (req, file) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  return `${baseUrl}/uploads/${file.filename}`;
+};
+
+const deleteUploadedFile = async (file) => {
+  if (!file?.path) return;
+  try {
+    await fs.unlink(file.path);
+  } catch (error) {
+    console.warn('Khong the xoa file upload tam:', error.message || error);
+  }
+};
+
+const formatVisibleUser = (user, viewerId) => ({
+  _id: user._id,
+  username: user.username,
+  email: user.email,
+  avatar: getVisibleAvatar(viewerId, user),
+  isOnline: getVisibleOnlineStatus(viewerId, user),
+});
+
+const emitPresenceForPrivacyChange = (req, user) => {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  (user.friends || []).forEach((friendId) => {
+    const canView = canViewOnlineStatus(friendId, user);
+    io.to(getUserRoomId(friendId)).emit('user_status_changed', {
+      userId: user._id.toString(),
+      status: canView && user.isOnline ? 'online' : 'offline',
+    });
+  });
+};
 
 const userController = {
   // Lấy profile hiện tại
   getMe: async (req, res) => {
     try {
-      const user = await User.findById(req.user.id).select(
-        'username email avatar bio provider notificationSettings createdAt',
-      );
+      const user = await User.findById(req.user.id).select(PROFILE_SELECT);
 
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
@@ -101,7 +145,7 @@ const userController = {
       const user = await User.findByIdAndUpdate(req.user.id, updates, {
         new: true,
         runValidators: true,
-      }).select('username email avatar bio provider notificationSettings createdAt');
+      }).select(PROFILE_SELECT);
 
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
@@ -118,6 +162,90 @@ const userController = {
   },
 
   // Đổi mật khẩu cho tài khoản local
+  uploadAvatar: async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Vui lòng chọn ảnh avatar' });
+      }
+
+      const mimeType = req.file.mimetype.split(';')[0].trim().toLowerCase();
+      if (!mimeType.startsWith('image/')) {
+        await deleteUploadedFile(req.file);
+        return res.status(400).json({ error: 'Avatar phải là file ảnh' });
+      }
+
+      if (req.file.size > 5 * 1024 * 1024) {
+        await deleteUploadedFile(req.file);
+        return res.status(400).json({ error: 'Avatar tối đa 5MB' });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.user.id,
+        { $set: { avatar: getUploadedFileUrl(req, req.file) } },
+        { new: true, runValidators: true },
+      ).select(PROFILE_SELECT);
+
+      if (!user) {
+        await deleteUploadedFile(req.file);
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      res.status(200).json({
+        success: true,
+        user: formatUserProfile(user),
+      });
+    } catch (error) {
+      await deleteUploadedFile(req.file);
+      console.error('Lỗi upload avatar:', error);
+      res.status(500).json({ error: 'Không thể upload avatar' });
+    }
+  },
+
+  updatePrivacySettings: async (req, res) => {
+    try {
+      const { onlineVisibility, avatarVisibility } = req.body;
+      const updates = {};
+
+      if (onlineVisibility !== undefined) {
+        if (!PRIVACY_VISIBILITY_VALUES.includes(onlineVisibility)) {
+          return res.status(400).json({ error: 'onlineVisibility không hợp lệ' });
+        }
+        updates['privacySettings.onlineVisibility'] = onlineVisibility;
+      }
+
+      if (avatarVisibility !== undefined) {
+        if (!PRIVACY_VISIBILITY_VALUES.includes(avatarVisibility)) {
+          return res.status(400).json({ error: 'avatarVisibility không hợp lệ' });
+        }
+        updates['privacySettings.avatarVisibility'] = avatarVisibility;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: 'Không có thiết lập riêng tư để cập nhật' });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.user.id,
+        { $set: updates },
+        { new: true, runValidators: true },
+      ).select(`${PROFILE_SELECT} friends isOnline`);
+
+      if (!user) {
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      emitPresenceForPrivacyChange(req, user);
+
+      res.status(200).json({
+        success: true,
+        user: formatUserProfile(user),
+      });
+    } catch (error) {
+      console.error('Lỗi cập nhật riêng tư:', error);
+      res.status(500).json({ error: 'Không thể cập nhật thiết lập riêng tư' });
+    }
+  },
+
   updateNotificationSettings: async (req, res) => {
     try {
       const { muteAll } = req.body;
@@ -134,7 +262,7 @@ const userController = {
           },
         },
         { new: true, runValidators: true },
-      ).select('username email avatar bio provider notificationSettings createdAt');
+      ).select(PROFILE_SELECT);
 
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
@@ -192,12 +320,12 @@ const userController = {
       const currentUserId = req.user.id;
       // Lấy tất cả user trừ chính mình, chỉ lấy các trường cần thiết
       const users = await User.find({ _id: { $ne: currentUserId } }).select(
-        'username email avatar isOnline',
+        'username email avatar isOnline friends privacySettings',
       );
 
       res.status(200).json({
         success: true,
-        users,
+        users: users.map((user) => formatVisibleUser(user, currentUserId)),
       });
     } catch (error) {
       res.status(500).json({ error: 'Không thể lấy danh sách người dùng' });
@@ -209,7 +337,7 @@ const userController = {
     try {
       const currentUserId = req.user.id;
       const user = await User.findById(currentUserId)
-        .populate('friends', 'username email avatar isOnline')
+        .populate('friends', 'username email avatar isOnline friends privacySettings')
         .lean();
 
       if (!user) {
@@ -268,8 +396,8 @@ const userController = {
             _id: friend._id,
             username: friend.username,
             email: friend.email,
-            avatar: friend.avatar,
-            isOnline: friend.isOnline,
+            avatar: getVisibleAvatar(currentUserId, friend),
+            isOnline: getVisibleOnlineStatus(currentUserId, friend),
             lastMessage: getMessagePreview(lastMessage),
             lastMessageAt: lastMessage?.createdAt || null,
             unreadCount: unreadCountByFriend.get(friendId) || 0,
@@ -289,9 +417,12 @@ const userController = {
     try {
       const user = await User.findById(req.user.id).populate(
         'friendRequests',
-        'username email avatar isOnline',
+        'username email avatar isOnline friends privacySettings',
       );
-      res.status(200).json({ success: true, requests: user.friendRequests });
+      res.status(200).json({
+        success: true,
+        requests: user.friendRequests.map((requester) => formatVisibleUser(requester, req.user.id)),
+      });
     } catch (error) {
       res.status(500).json({ error: 'Không thể lấy danh sách lời mời' });
     }
@@ -329,7 +460,7 @@ const userController = {
             ],
           },
         ],
-      }).select('username email avatar isOnline friendRequests');
+      }).select('username email avatar isOnline friendRequests friends privacySettings');
 
       // Gắn trạng thái cho từng kết quả
       const formattedUsers = users.map((u) => {
@@ -343,8 +474,8 @@ const userController = {
         return {
           _id: u._id,
           username: u.username,
-          avatar: u.avatar,
-          isOnline: u.isOnline,
+          avatar: getVisibleAvatar(req.user.id, u),
+          isOnline: getVisibleOnlineStatus(req.user.id, u),
           status: status,
         };
       });
@@ -385,12 +516,7 @@ const userController = {
       targetUser.friendRequests.push(req.user.id);
       await targetUser.save();
 
-      const requester = {
-        _id: currentUser._id,
-        username: currentUser.username,
-        avatar: currentUser.avatar,
-        isOnline: currentUser.isOnline,
-      };
+      const requester = formatVisibleUser(currentUser, recipientId);
       emitToUser(req, recipientId, 'friend_request_received', { requester });
       void createNotification({
         io: req.app.get('io'),
@@ -444,21 +570,11 @@ const userController = {
       await requesterUser.save();
       emitToUser(req, requesterId, 'friend_request_accepted', {
         friendId: req.user.id,
-        friend: {
-          _id: currentUser._id,
-          username: currentUser.username,
-          avatar: currentUser.avatar,
-          isOnline: currentUser.isOnline,
-        },
+        friend: formatVisibleUser(currentUser, requesterId),
       });
       emitToUser(req, req.user.id, 'friend_request_accepted', {
         friendId: requesterId,
-        friend: {
-          _id: requesterUser._id,
-          username: requesterUser.username,
-          avatar: requesterUser.avatar,
-          isOnline: requesterUser.isOnline,
-        },
+        friend: formatVisibleUser(requesterUser, req.user.id),
       });
       void createNotification({
         io: req.app.get('io'),

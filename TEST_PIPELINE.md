@@ -36,8 +36,8 @@ Mục tiêu: test các flow cơ bản sau mỗi mốc implement để biết app
 - Sửa tên hiển thị thành tên hợp lệ từ 3 đến 30 ký tự.
 - Lưu profile và kiểm tra thông báo thành công.
 - Reload app và kiểm tra tên mới vẫn còn.
-- Sửa avatar URL bằng một URL hợp lệ.
-- Lưu profile và kiểm tra avatar cập nhật trong settings.
+- Upload một file ảnh avatar hợp lệ.
+- Kiểm tra avatar cập nhật trong settings.
 - Quay lại chat, kiểm tra avatar user hiện đúng ở rail hoặc nơi hiển thị tài khoản.
 - Sửa bio dưới 160 ký tự.
 - Lưu profile, reload app và kiểm tra bio vẫn còn.
@@ -46,7 +46,7 @@ Mục tiêu: test các flow cơ bản sau mỗi mốc implement để biết app
 
 - Nhập tên dưới 3 ký tự, kiểm tra server/client báo lỗi.
 - Nhập bio hơn 160 ký tự, kiểm tra không lưu được.
-- Nhập avatar không phải URL `http/https`, kiểm tra báo lỗi.
+- Chọn file không phải ảnh hoặc ảnh quá 5MB, kiểm tra báo lỗi.
 
 ### Đổi Mật Khẩu
 
@@ -443,3 +443,33 @@ Mục tiêu: cùng một account đăng nhập nhiều tab/thiết bị phải �
 - Typing indicator không bị ảnh hưởng.
 - Read avatar 1:1 và group không bị nhân đôi.
 - Refresh cả 2 session A, unread count/read cursor vẫn đúng.
+
+## Stage 20 - Advanced A4.2 Privacy Settings And Avatar Upload
+
+### Avatar Upload
+
+- Vào `Cài đặt`.
+- Ở `Profile cơ bản`, bấm `Tải ảnh lên` và chọn file ảnh hợp lệ dưới 5MB.
+- Kiểm tra avatar preview đổi ngay sau khi upload thành công.
+- Reload app, kiểm tra avatar vẫn còn.
+- Quay lại chat, kiểm tra avatar user hiện đúng ở rail hoặc nơi hiển thị tài khoản.
+- Chọn file không phải ảnh hoặc ảnh quá 5MB, kiểm tra báo lỗi và avatar cũ không bị đổi.
+
+### Online Visibility
+
+- Dùng account A và B đã là bạn bè.
+- A đặt `Ai thấy trạng thái online` = `Bạn bè`, B phải thấy A online khi A đang mở app.
+- A đặt `Ai thấy trạng thái online` = `Không ai`, B phải thấy A offline sau khi lưu hoặc sau khi A reconnect.
+- A đặt lại `Mọi người` hoặc `Bạn bè`, B phải thấy online trở lại khi A đang online.
+
+### Avatar Visibility
+
+- A đặt `Ai thấy avatar` = `Mọi người`, B phải thấy avatar A trong search/conversation header/sidebar.
+- A đặt `Ai thấy avatar` = `Bạn bè`, bạn bè vẫn thấy avatar; account không phải bạn bè thấy avatar mặc định hoặc trống.
+- A đặt `Ai thấy avatar` = `Không ai`, B phải thấy avatar mặc định hoặc trống sau khi reload/fetch lại conversation.
+
+### Regression
+
+- Gửi tin nhắn realtime 1:1 và group vẫn append bình thường.
+- Call incoming vẫn hiện đúng tên người gọi.
+- Presence socket không emit duplicate khiến online badge nhấp nháy bất thường.

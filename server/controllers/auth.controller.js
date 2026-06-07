@@ -1,8 +1,21 @@
 import authService from '../services/auth.service.js';
+import { normalizePrivacySettings } from '../services/privacy.service.js';
 
 const getSessionMetadata = (req) => ({
   userAgent: req.get('user-agent') || '',
   ip: req.ip || req.socket?.remoteAddress || '',
+});
+
+const formatAuthUser = (user) => ({
+  id: user._id,
+  username: user.username,
+  email: user.email,
+  avatar: user.avatar,
+  bio: user.bio || '',
+  notificationSettings: {
+    muteAll: Boolean(user.notificationSettings?.muteAll),
+  },
+  privacySettings: normalizePrivacySettings(user.privacySettings),
 });
 
 const authController = {
@@ -39,16 +52,7 @@ const authController = {
 
       res.status(201).json({
         success: true,
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-          bio: user.bio || '',
-          notificationSettings: {
-            muteAll: Boolean(user.notificationSettings?.muteAll),
-          },
-        },
+        user: formatAuthUser(user),
       });
     } catch (error) {
       console.error('Register error:', error);
@@ -83,16 +87,7 @@ const authController = {
 
       res.status(200).json({
         success: true,
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-          bio: user.bio || '',
-          notificationSettings: {
-            muteAll: Boolean(user.notificationSettings?.muteAll),
-          },
-        },
+        user: formatAuthUser(user),
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -173,7 +168,7 @@ const authController = {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      res.status(200).json({ success: true, user });
+      res.status(200).json({ success: true, user: formatAuthUser(user) });
     } catch (error) {
       res.status(401).json({ error: error.message });
     }

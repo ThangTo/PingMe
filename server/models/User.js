@@ -115,6 +115,19 @@ const userSchema = new mongoose.Schema(
       },
     },
 
+    privacySettings: {
+      onlineVisibility: {
+        type: String,
+        enum: ['everyone', 'friends', 'nobody'],
+        default: 'friends',
+      },
+      avatarVisibility: {
+        type: String,
+        enum: ['everyone', 'friends', 'nobody'],
+        default: 'everyone',
+      },
+    },
+
     lastSeen: {
       type: Date,
       default: Date.now,

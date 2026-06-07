@@ -305,7 +305,7 @@ const getPrependedMessageCount = (currentMessages, mergedMessages) => {
   return Math.max(0, firstCurrentIndex);
 };
 
-const formatConversationSummary = (conversation, onlineUsers = []) => {
+const formatConversationSummary = (conversation) => {
   const pinnedMessages = conversation.pinnedMessages || [];
   const latestPinnedMessage =
     conversation.latestPinnedMessage || conversation.pinnedMessage || pinnedMessages[0] || null;
@@ -317,9 +317,7 @@ const formatConversationSummary = (conversation, onlineUsers = []) => {
     type: conversation.type || 'direct',
     name: conversation.name,
     avatar: conversation.avatar,
-    isOnline: !isGroup && conversation.peerId
-      ? onlineUsers.includes(conversation.peerId)
-      : Boolean(conversation.isOnline),
+    isOnline: !isGroup ? Boolean(conversation.isOnline) : false,
     isGroup,
     members: normalizeMembers(conversation.members),
     memberCount: conversation.memberCount || conversation.members?.length || 0,
@@ -391,7 +389,7 @@ const Chat = () => {
   const [messagePagination, setMessagePagination] = useState(EMPTY_MESSAGE_PAGINATION);
   const [messageFirstItemIndex, setMessageFirstItemIndex] = useState(MESSAGE_VIRTUAL_INDEX_BASE);
   const [conversations, setConversations] = useState([]);
-  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [, setOnlineUsers] = useState([]);
   const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
   const [activeRailItem, setActiveRailItem] = useState('messages');
@@ -673,6 +671,13 @@ const Chat = () => {
     const handleGetOnlineFriends = (friendsList) => {
       console.log('👥 Bạn bè đang online:', friendsList);
       setOnlineUsers(friendsList);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.peerId
+            ? { ...conversation, isOnline: friendsList.includes(conversation.peerId) }
+            : conversation,
+        ),
+      );
     };
 
     const handleStatusChanged = (data) => {
@@ -686,6 +691,13 @@ const Chat = () => {
           return prev.filter((id) => id !== userId);
         }
       });
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.peerId === userId
+            ? { ...conversation, isOnline: status === 'online' }
+            : conversation,
+        ),
+      );
     };
 
     socket.on('get_online_friends', handleGetOnlineFriends);
@@ -714,9 +726,7 @@ const Chat = () => {
             type: conversation.type || 'direct',
             name: conversation.name,
             avatar: conversation.avatar,
-            isOnline: conversation.peerId
-              ? onlineUsers.includes(conversation.peerId)
-              : conversation.isOnline,
+            isOnline: conversation.type === 'group' ? false : Boolean(conversation.isOnline),
             isGroup: conversation.type === 'group',
             members: normalizeMembers(conversation.members),
             memberCount: conversation.memberCount || conversation.members?.length || 0,
@@ -739,11 +749,11 @@ const Chat = () => {
     } finally {
       setIsFriendsLoading(false);
     }
-  }, [conversations.length, onlineUsers]);
+  }, [conversations.length]);
 
   const upsertConversation = useCallback(
     (conversation, options = {}) => {
-      const formattedConversation = formatConversationSummary(conversation, onlineUsers);
+      const formattedConversation = formatConversationSummary(conversation);
       if (!formattedConversation.id) return null;
 
       setConversations((prev) => {
@@ -767,7 +777,7 @@ const Chat = () => {
 
       return formattedConversation;
     },
-    [onlineUsers],
+    [],
   );
 
   const applyConversationMembersUpdate = useCallback(
