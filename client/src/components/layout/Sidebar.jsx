@@ -278,23 +278,23 @@ const Sidebar = ({
 
   return (
     <aside
-      className={`h-full w-full shrink-0 flex-col border-r border-outline-variant bg-surface md:w-[376px] ${
+      className={`h-full w-full shrink-0 flex-col border-r border-outline-variant bg-surface md:w-[340px] ${
         isChatOpen ? 'hidden md:flex' : 'flex'
       }`}
     >
-      <div className="shrink-0 border-b border-outline-variant bg-surface px-5 pb-4 pt-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="shrink-0 border-b border-outline-variant bg-surface px-4 pb-4 pt-6">
+        <div className="mb-5 flex items-center justify-between gap-3">
           <div className="min-w-0 md:hidden">
-            <h1 className="truncate text-2xl font-semibold tracking-[-0.04em] text-on-surface">
+            <h1 className="truncate text-[24px] font-medium tracking-tight text-on-surface">
               PingMe
             </h1>
           </div>
 
           <div className="hidden min-w-0 md:block">
-            <h1 className="truncate text-xl font-semibold tracking-[-0.04em] text-on-surface">
+            <h1 className="truncate text-[20px] font-medium tracking-tight text-on-surface">
               {title}
             </h1>
-            <p className="mt-1 text-xs text-on-surface-variant">{subtitle}</p>
+            <p className="mt-1 text-[13px] text-on-surface-variant">{subtitle}</p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -352,10 +352,10 @@ const Sidebar = ({
         </div>
 
         <div className="relative">
-          <AppIcon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant" />
+          <AppIcon name="search" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
           <input
             ref={searchInputRef}
-            className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent"
+            className="h-10 w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest pl-10 pr-4 text-[14px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-outline focus:ring-1 focus:ring-outline"
             placeholder={activeTab === 'search' ? 'Tìm người dùng...' : 'Tìm kiếm'}
             type="text"
             value={searchQuery}
@@ -376,10 +376,10 @@ const Sidebar = ({
                   setActiveTab(tab.key);
                   setSearchQuery('');
                 }}
-                className={`rounded-lg border px-4 py-2.5 text-sm transition-colors ${
+                className={`rounded-[6px] border px-4 py-2 text-[13px] font-medium transition-colors ${
                   activeTab === tab.key
-                    ? 'border-accent bg-accent-soft text-on-surface'
-                    : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:text-on-surface'
+                    ? 'border-outline bg-surface-container-high text-on-surface'
+                    : 'border-transparent bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
                 }`}
               >
                 {tab.label}
@@ -388,16 +388,16 @@ const Sidebar = ({
             ))}
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-4 gap-2">
+          <div className="mt-4 grid grid-cols-4 gap-1">
             {inboxTabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`h-10 rounded-lg text-sm transition-colors ${
+                className={`h-8 rounded-[6px] text-[13px] font-medium transition-colors ${
                   activeTab === tab.key
-                    ? 'border border-accent bg-accent-soft font-medium text-on-surface'
-                    : 'border border-transparent bg-surface-container-low text-on-surface-variant hover:bg-surface-container-lowest hover:text-on-surface'
+                    ? 'bg-surface-container-high text-on-surface'
+                    : 'bg-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
                 }`}
               >
                 {tab.label}
@@ -554,7 +554,7 @@ const Sidebar = ({
                     key={conv.id}
                     type="button"
                     onClick={() => onSelectConversation(conv.id)}
-                    className={`grid w-full grid-cols-[56px_minmax(0,1fr)_auto] gap-3 px-5 py-4 text-left transition-colors ${
+                    className={`group grid w-full grid-cols-[48px_minmax(0,1fr)_auto] gap-3 px-4 py-3 text-left transition-colors ${
                       isSelected ? 'bg-surface-container-low' : 'hover:bg-surface-container-lowest'
                     }`}
                   >
@@ -566,43 +566,43 @@ const Sidebar = ({
                           src={conv.avatar}
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-sm font-semibold text-on-surface">
+                        <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-surface-container-low text-[14px] font-medium text-on-surface">
                           {getInitials(conv.name)}
                         </div>
                       )}
                       {conv.isOnline ? (
-                        <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-surface bg-secondary" />
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
                       ) : null}
                     </div>
 
                     <div className="min-w-0 self-center">
-                      <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-on-surface">
+                      <p className={`truncate text-[15px] tracking-tight ${conv.unreadCount > 0 ? 'font-medium text-on-surface' : 'text-on-surface'}`}>
                         {conv.name}
                       </p>
                       <p
-                        className={`mt-1 truncate text-sm ${
+                        className={`mt-0.5 truncate text-[14px] ${
                           conv.unreadCount > 0
                             ? 'font-medium text-on-surface'
-                            : 'text-on-surface-variant'
+                            : 'text-on-surface-variant group-hover:text-on-surface'
                         }`}
                       >
                         {conv.lastMessage || 'Bắt đầu trò chuyện'}
                       </p>
                     </div>
 
-                    <div className="flex min-w-[44px] flex-col items-end gap-2 self-center">
-                      <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                    <div className="flex min-w-[44px] flex-col items-end gap-1.5 self-center">
+                      <span className="flex items-center gap-1 text-[12px] text-on-surface-variant">
                         {conv.notificationsMuted && (
                           <AppIcon name="notifications_off" className="text-[13px]" />
                         )}
                         <span>{formatConversationTime(conv.lastMessageAt)}</span>
                       </span>
                       {conv.unreadCount > 0 ? (
-                        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-2 text-xs font-semibold text-white">
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-on-surface px-1.5 text-[11px] font-medium text-surface">
                           {conv.unreadCount}
                         </span>
                       ) : (
-                        <span className="h-6 text-xs text-on-surface-variant">
+                        <span className="h-5 text-[13px] text-on-surface-variant">
                           {conv.lastMessageAt ? '✓✓' : ''}
                         </span>
                       )}
@@ -622,7 +622,7 @@ const Sidebar = ({
         >
           <form
             onSubmit={handleCreateGroup}
-            className="w-full rounded-t-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-[0_24px_70px_rgba(40,37,32,0.18)] md:max-w-[460px] md:rounded-xl"
+            className="w-full rounded-t-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm md:max-w-[460px] md:rounded-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-5 flex items-start justify-between gap-3">

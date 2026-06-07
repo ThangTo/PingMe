@@ -66,36 +66,36 @@ const NotificationPanel = ({ onBack, onOpen, onUnreadCountChange }) => {
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-[72px] shrink-0 items-center gap-3 border-b border-outline-variant px-4 md:px-8">
+      <header className="flex h-[64px] shrink-0 items-center gap-3 border-b border-outline-variant px-4 md:px-8">
         <button
           type="button"
           onClick={onBack}
-          className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-surface-container-low"
+          className="flex h-9 w-9 items-center justify-center rounded-[8px] hover:bg-surface-container-low"
           aria-label="Quay lại tin nhắn"
         >
           <AppIcon name="arrow_back" className="text-[22px]" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold text-on-surface">Thông báo</h1>
-          <p className="mt-0.5 text-sm text-on-surface-variant">Tin nhắn, lời mời và lượt nhắc tên</p>
+          <h1 className="text-[18px] font-medium tracking-tight text-on-surface">Thông báo</h1>
+          <p className="mt-0.5 text-[13px] text-on-surface-variant">Tin nhắn, lời mời và lượt nhắc tên</p>
         </div>
         <button
           type="button"
           onClick={markAllRead}
-          className="rounded-lg border border-outline-variant px-3 py-2 text-sm hover:bg-surface-container-low"
+          className="rounded-[8px] border border-outline-variant px-3 py-2 text-[13px] hover:bg-surface-container-lowest"
         >
           Đánh dấu đã đọc
         </button>
       </header>
 
       <div className="no-scrollbar flex-1 overflow-y-auto p-4 md:p-8">
-        <div className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest">
+        <div className="mx-auto max-w-3xl border-t border-outline-variant">
           {isLoading && <p className="p-6 text-sm text-on-surface-variant">Đang tải thông báo...</p>}
           {error && <p className="p-6 text-sm text-error">{error}</p>}
           {!isLoading && !error && notifications.length === 0 && (
             <div className="p-10 text-center">
               <AppIcon name="notifications" className="text-3xl text-on-surface-variant" />
-              <p className="mt-3 text-sm text-on-surface-variant">Chưa có thông báo nào.</p>
+              <p className="mt-3 text-[14px] text-on-surface-variant">Chưa có thông báo nào.</p>
             </div>
           )}
           {notifications.map((notification) => (
@@ -103,11 +103,11 @@ const NotificationPanel = ({ onBack, onOpen, onUnreadCountChange }) => {
               key={notification.id}
               type="button"
               onClick={() => markRead(notification)}
-              className={`flex w-full items-start gap-3 border-b border-outline-variant p-4 text-left last:border-b-0 hover:bg-surface-container-low ${
-                notification.readAt ? '' : 'bg-accent-soft'
+              className={`flex w-full items-start gap-3 border-b border-outline-variant p-4 text-left hover:bg-surface-container-low ${
+                notification.readAt ? '' : 'bg-surface-container-lowest'
               }`}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-low">
                 {notification.actor?.avatar ? (
                   <img
                     src={notification.actor.avatar}
@@ -117,22 +117,22 @@ const NotificationPanel = ({ onBack, onOpen, onUnreadCountChange }) => {
                 ) : (
                   <AppIcon
                     name={notification.type === 'mention' ? 'alternate_email' : 'notifications'}
-                    className="text-[20px]"
+                    className="text-[16px]"
                   />
                 )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-medium text-on-surface">{notification.title}</span>
+                <span className="block text-[14px] font-medium text-on-surface">{notification.title}</span>
                 {notification.body && (
-                  <span className="mt-1 block line-clamp-2 text-sm text-on-surface-variant">
+                  <span className="mt-0.5 block line-clamp-2 text-[14px] text-on-surface-variant">
                     {notification.body}
                   </span>
                 )}
-                <span className="mt-2 block text-xs text-on-surface-variant">
+                <span className="mt-1 block text-[12px] text-on-surface-variant">
                   {formatTime(notification.createdAt)}
                 </span>
               </span>
-              {!notification.readAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" />}
+              {!notification.readAt && <span className="mt-2 h-[8px] w-[8px] shrink-0 rounded-full bg-primary" />}
             </button>
           ))}
         </div>

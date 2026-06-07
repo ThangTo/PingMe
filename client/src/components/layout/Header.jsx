@@ -54,18 +54,18 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
   ].filter((item) => !(isGroup && item.directOnly));
 
   return (
-    <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-4 md:px-6">
+    <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-4 md:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low md:hidden"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-on-surface transition-colors hover:bg-surface-container-low md:hidden"
           title="Quay lại"
         >
-          <AppIcon name="arrow_back" className="text-[24px]" />
+          <AppIcon name="arrow_back" className="text-[22px]" />
         </button>
 
-        <div className="relative h-12 w-12 shrink-0">
+        <div className="relative h-10 w-10 shrink-0">
           {user?.avatar || !isGroup ? (
             <img
               alt={user?.name || 'User'}
@@ -73,20 +73,20 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
               src={user?.avatar || fallbackAvatar}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-sm font-semibold text-on-surface">
+            <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-surface-container-low text-[13px] font-medium text-on-surface">
               {getInitials(user?.name)}
             </div>
           )}
           {!isGroup && user?.isOnline && (
-            <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-surface bg-secondary" />
+            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
           )}
         </div>
 
         <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold leading-tight tracking-[-0.03em] text-on-surface">
+          <h2 className="truncate text-[16px] font-medium tracking-tight text-on-surface">
             {user?.name || 'Cuộc trò chuyện'}
           </h2>
-          <p className="mt-1 truncate text-sm text-on-surface-variant">{subtitle}</p>
+          <p className="mt-0.5 truncate text-[13px] text-on-surface-variant">{subtitle}</p>
         </div>
       </div>
 
@@ -97,22 +97,22 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
             type="button"
             onClick={item.onClick}
             disabled={item.disabled}
-            className={`h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`flex h-9 w-9 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-45 ${
               item.desktopOnly ? 'hidden md:flex' : 'flex'
             }`}
             title={item.label}
           >
-            <AppIcon name={item.icon} className="text-[23px]" />
+            <AppIcon name={item.icon} className="text-[20px]" />
           </button>
         ))}
 
         <button
           type="button"
           onClick={onToggleDetails}
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low"
+          className="flex h-9 w-9 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface"
           title="Thông tin cuộc trò chuyện"
         >
-          <AppIcon name="more_vert" className="text-[23px]" />
+          <AppIcon name="more_vert" className="text-[20px]" />
         </button>
       </div>
     </header>

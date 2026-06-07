@@ -966,16 +966,16 @@ const MessageInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="mx-auto flex h-12 max-w-[860px] items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 transition-colors focus-within:border-accent"
+        className="mx-auto flex min-h-[48px] max-w-[860px] items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest py-1 pl-3 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
       >
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || Boolean(editingMessage) || isRecordingVoice || hasVoicePreview}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-30"
+          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
           title="Đính kèm"
         >
-          <AppIcon name="attach_file" className="text-xl" />
+          <AppIcon name="attach_file" className="text-[20px]" />
         </button>
 
         <input
@@ -987,7 +987,7 @@ const MessageInput = ({
           onFocus={onFocus}
           disabled={disabled || isRecordingVoice}
           autoComplete="off"
-          className="min-w-0 flex-1 border-none bg-transparent py-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant"
+          className="min-w-0 flex-1 border-none bg-transparent px-2 py-2 text-[15px] text-on-surface outline-none placeholder:text-on-surface-variant"
           placeholder={
             editingMessage
               ? 'Chỉnh sửa tin nhắn...'
@@ -1002,10 +1002,10 @@ const MessageInput = ({
         <button
           type="button"
           disabled={isRecordingVoice}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
+          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
           title="Cảm xúc"
         >
-          <AppIcon name="sentiment_satisfied" className="text-xl" />
+          <AppIcon name="sentiment_satisfied" className="text-[20px]" />
         </button>
 
         {!canSend && (
@@ -1013,26 +1013,26 @@ const MessageInput = ({
             type="button"
             onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
             disabled={!isRecordingVoice && !canRecordVoice}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-30 ${
+            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
               isRecordingVoice
-                ? 'bg-error-container text-error hover:bg-error/15'
+                ? 'bg-error text-surface hover:bg-error/90'
                 : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
             }`}
             title={isRecordingVoice ? 'Dừng ghi âm' : 'Ghi âm'}
           >
-            <AppIcon name={isRecordingVoice ? 'stop' : 'mic'} className="text-xl" />
+            <AppIcon name={isRecordingVoice ? 'stop' : 'mic'} className="text-[20px]" />
           </button>
         )}
 
         <button
           type="submit"
           disabled={!canSend}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all ${
-            canSend ? 'bg-accent text-white hover:bg-accent-dark active:scale-[0.98]' : 'hidden'
+          className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-all ${
+            canSend ? 'bg-on-surface text-surface hover:opacity-90 active:scale-[0.96]' : 'hidden'
           }`}
           title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi tin nhắn'}
         >
-          <AppIcon name={editingMessage ? 'check' : 'send'} className="text-xl" />
+          <AppIcon name={editingMessage ? 'check' : 'send'} className="text-[18px]" />
         </button>
       </form>
     </footer>

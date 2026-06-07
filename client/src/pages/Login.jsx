@@ -138,15 +138,15 @@ const Login = () => {
   };
 
   return (
-    <div className="grid w-full overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest md:grid-cols-[1.05fr_0.95fr]">
+    <div className="grid w-full max-w-[1000px] overflow-hidden rounded-[16px] border border-outline-variant bg-surface md:grid-cols-[1.05fr_0.95fr] shadow-sm">
           {/* Left Side: Login */}
-          <section className="relative z-10 flex flex-col justify-center border-b border-outline-variant p-8 md:border-b-0 md:border-r md:p-12 lg:p-16">
+          <section className="relative z-10 flex flex-col justify-center border-b border-outline-variant p-8 md:border-b-0 md:border-r md:p-12 lg:p-16 bg-surface-container-lowest">
             <div className="mb-10">
-              <h1 className="mb-2 font-headline text-4xl font-semibold tracking-[-0.04em] text-on-surface">
+              <h1 className="mb-2 text-[28px] font-medium tracking-tight text-on-surface">
                 PingMe
               </h1>
-              <p className="max-w-sm text-sm leading-6 text-on-surface-variant">
-                Đăng nhập để quay lại danh sách bạn bè và các cuộc trò chuyện realtime.
+              <p className="max-w-sm text-[15px] leading-relaxed text-on-surface-variant">
+                Đăng nhập để tiếp tục trò chuyện.
               </p>
             </div>
 
@@ -179,7 +179,7 @@ const Login = () => {
                       onBlur={handleEmailBlur}
                       autoComplete="email"
                       disabled={isSubmitting}
-                      className={`w-full rounded-lg border bg-surface-container-lowest py-4 pl-12 pr-4 text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.email ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                      className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.email ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
                       placeholder="you@example.com"
                     />
                   </div>
@@ -201,7 +201,7 @@ const Login = () => {
                       onBlur={handlePasswordBlur}
                       autoComplete="current-password"
                       disabled={isSubmitting}
-                      className={`w-full rounded-lg border bg-surface-container-lowest py-4 pl-12 pr-4 text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.password ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                      className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.password ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
                       placeholder="Nhập mật khẩu"
                     />
                   </div>
@@ -225,7 +225,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-primary py-4 font-headline font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-[8px] bg-primary py-3 font-medium text-surface transition-colors hover:opacity-90 active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
               >
                 {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
                 {!isSubmitting && <AppIcon name="login" />}
@@ -237,35 +237,35 @@ const Login = () => {
           <section className="relative z-10 flex flex-col justify-center overflow-hidden bg-surface-container-low p-8 md:p-12 lg:p-16">
             <div className="relative z-10 space-y-10">
               <div>
-                <h2 className="mb-4 font-headline text-3xl font-semibold tracking-[-0.03em] text-on-surface">
+                <h2 className="mb-3 text-[22px] font-medium tracking-tight text-on-surface">
                   Chưa có tài khoản?
                 </h2>
-                <p className="max-w-xs text-sm leading-6 text-on-surface-variant">
-                  Tạo tài khoản mới để nhắn tin, chia sẻ file và theo dõi trạng thái bạn bè theo thời gian thực.
+                <p className="max-w-xs text-[15px] leading-relaxed text-on-surface-variant">
+                  Tạo tài khoản mới để nhắn tin, gọi thoại và theo dõi trạng thái bạn bè theo thời gian thực.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-start gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
-                  <div className="rounded-md bg-secondary-container p-2">
-                    <AppIcon name="security" className="text-secondary" />
+                <div className="flex items-start gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest p-4">
+                  <div className="flex shrink-0 items-center justify-center rounded-[8px] bg-secondary-container p-2">
+                    <AppIcon name="security" className="text-secondary text-[20px]" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-on-surface">Cookie httpOnly</h4>
-                    <p className="mt-1.5 text-xs leading-relaxed text-on-surface-variant">
-                      Phiên đăng nhập được lưu qua cookie bảo mật ở server.
+                    <h4 className="text-[14px] font-medium text-on-surface">Bảo mật nâng cao</h4>
+                    <p className="mt-1 text-[13px] leading-relaxed text-on-surface-variant">
+                      Phiên đăng nhập được mã hóa và lưu trữ an toàn.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
-                  <div className="rounded-md bg-tertiary-container p-2">
-                    <AppIcon name="speed" className="text-tertiary" />
+                <div className="flex items-start gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest p-4">
+                  <div className="flex shrink-0 items-center justify-center rounded-[8px] bg-secondary-container p-2">
+                    <AppIcon name="speed" className="text-secondary text-[20px]" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-on-surface">Socket.IO realtime</h4>
-                    <p className="mt-1.5 text-xs leading-relaxed text-on-surface-variant">
-                      Tin nhắn và trạng thái online được đẩy ngay khi có thay đổi.
+                    <h4 className="text-[14px] font-medium text-on-surface">Realtime nhanh chóng</h4>
+                    <p className="mt-1 text-[13px] leading-relaxed text-on-surface-variant">
+                      Tin nhắn hiển thị tức thời nhờ Socket.IO.
                     </p>
                   </div>
                 </div>
@@ -275,10 +275,10 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/register')}
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-outline-variant bg-surface-container-lowest py-4 font-headline font-semibold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
+                  className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-outline-variant bg-surface-container-lowest py-3 font-medium text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
                 >
                   Tạo tài khoản
-                  <AppIcon name="person_add" />
+                  <AppIcon name="person_add" className="text-[18px]" />
                 </button>
               </div>
             </div>

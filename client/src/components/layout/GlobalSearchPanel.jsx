@@ -39,18 +39,18 @@ const GlobalSearchPanel = ({ conversations = [], onBack, onOpenResult }) => {
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-[72px] shrink-0 items-center gap-3 border-b border-outline-variant px-4 md:px-8">
+      <header className="flex h-[64px] shrink-0 items-center gap-3 border-b border-outline-variant px-4 md:px-8">
         <button
           type="button"
           onClick={onBack}
-          className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-surface-container-low"
+          className="flex h-9 w-9 items-center justify-center rounded-[8px] hover:bg-surface-container-low"
           aria-label="Quay lại tin nhắn"
         >
           <AppIcon name="arrow_back" className="text-[22px]" />
         </button>
         <div>
-          <h1 className="text-xl font-semibold text-on-surface">Tìm kiếm toàn bộ</h1>
-          <p className="mt-0.5 text-sm text-on-surface-variant">Tìm nội dung và tên tệp trong mọi cuộc trò chuyện</p>
+          <h1 className="text-[18px] font-medium tracking-tight text-on-surface">Tìm kiếm toàn bộ</h1>
+          <p className="mt-0.5 text-[13px] text-on-surface-variant">Tìm nội dung và tên tệp trong mọi cuộc trò chuyện</p>
         </div>
       </header>
 
@@ -59,18 +59,18 @@ const GlobalSearchPanel = ({ conversations = [], onBack, onOpenResult }) => {
           <label className="relative block">
             <AppIcon
               name="search"
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant"
             />
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest pl-12 pr-4 text-sm outline-none focus:border-accent"
+              className="h-[40px] w-full rounded-full border border-outline-variant bg-surface-container-lowest pl-10 pr-4 text-[14px] outline-none focus:border-outline focus:ring-1 focus:ring-outline"
               placeholder="Nhập ít nhất 2 ký tự..."
             />
           </label>
 
-          <div className="mt-5 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest">
+          <div className="mt-5 border-t border-outline-variant">
             {isLoading && <p className="p-6 text-sm text-on-surface-variant">Đang tìm kiếm...</p>}
             {error && <p className="p-6 text-sm text-error">{error}</p>}
             {!isLoading && !error && query.trim().length >= 2 && results.length === 0 && (
@@ -86,25 +86,24 @@ const GlobalSearchPanel = ({ conversations = [], onBack, onOpenResult }) => {
                 onClick={() => onOpenResult?.(result)}
                 className="flex w-full items-start gap-3 border-b border-outline-variant p-4 text-left last:border-b-0 hover:bg-surface-container-low"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-low">
                   {result.senderAvatar ? (
                     <img src={result.senderAvatar} alt={result.senderName} className="h-full w-full object-cover" />
                   ) : (
-                    <AppIcon name="chat_bubble" className="text-[19px]" />
+                    <AppIcon name="chat_bubble" className="text-[16px]" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-medium text-on-surface-variant">
-                    {getConversationName(result)} · {result.senderName}
+                  <span className="block text-[13px] font-medium text-on-surface-variant">
+                    {getConversationName(result)} · <span className="font-semibold text-on-surface">{result.senderName}</span>
                   </span>
-                  <span className="mt-1 block line-clamp-2 text-sm text-on-surface">
+                  <span className="mt-0.5 block line-clamp-2 text-[14px] text-on-surface">
                     {result.content || result.attachment?.filename || result.attachments?.[0]?.filename}
                   </span>
-                  <span className="mt-2 block text-xs text-on-surface-variant">
+                  <span className="mt-1 block text-[12px] text-on-surface-variant">
                     {new Date(result.createdAt).toLocaleString('vi-VN')}
                   </span>
                 </span>
-                <AppIcon name="chevron_right" className="mt-2 text-[18px] text-on-surface-variant" />
               </button>
             ))}
           </div>

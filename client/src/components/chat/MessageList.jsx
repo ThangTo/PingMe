@@ -38,7 +38,7 @@ const TypingIndicator = ({ typingUsers = [], floating = false }) => {
     <div
       className={`inline-flex items-center gap-2 ${
         floating
-          ? 'rounded-full border border-outline-variant bg-surface-container-lowest/95 px-2 py-1.5 shadow-[0_10px_30px_rgba(40,37,32,0.12)] backdrop-blur'
+          ? 'rounded-full border border-outline-variant bg-surface-container-lowest/95 px-2 py-1.5 shadow-sm backdrop-blur'
           : ''
       }`}
     >
@@ -61,7 +61,7 @@ const TypingIndicator = ({ typingUsers = [], floating = false }) => {
           </span>
         ))}
       </div>
-      <span className="flex h-9 shrink-0 items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-3 shadow-[0_2px_10px_rgba(40,37,32,0.04)]">
+      <span className="flex h-9 shrink-0 items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-3 shadow-sm">
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/55" />
         <span
           className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/55"
@@ -333,7 +333,7 @@ const MessageList = ({
       <div className="mx-auto max-w-[900px] px-4 pb-2 pt-6 md:px-7">
         {isLoadingOlderMessages && !isSearchMode && (
           <div className="flex justify-center">
-            <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest/95 px-3 text-xs font-medium text-on-surface-variant shadow-[0_8px_24px_rgba(40,37,32,0.1)] backdrop-blur">
+            <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest/95 px-3 text-xs font-medium text-on-surface-variant shadow-sm backdrop-blur">
               <AppIcon name="hourglass_empty" className="text-[18px] animate-spin" />
               <span>Đang tải...</span>
             </div>

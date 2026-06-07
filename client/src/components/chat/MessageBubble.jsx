@@ -115,7 +115,7 @@ const LinkPreviewCard = ({ preview }) => {
       href={preview.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block w-[min(520px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-left shadow-[0_2px_12px_rgba(40,37,32,0.05)] transition-colors hover:bg-surface-container-low"
+      className="block w-[min(520px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-left shadow-sm transition-colors hover:bg-surface-container-low"
       onClick={stopInteractiveBubbleEvent}
       onPointerDown={stopInteractiveBubbleEvent}
       onTouchStart={stopInteractiveBubbleEvent}
@@ -522,7 +522,7 @@ const MessageBubble = ({
   const pinnedBadge =
     isPinned && !isRevoked ? (
       <span
-        className={`absolute -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d7c7b5] bg-accent-soft px-1 text-on-surface shadow-[0_4px_12px_rgba(40,37,32,0.1)] ${
+        className={`absolute -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d7c7b5] bg-accent-soft px-1 text-on-surface shadow-sm ${
           isOwn ? 'right-0.5' : 'left-0.5'
         }`}
         title="Tin nhắn đã ghim"
@@ -668,7 +668,7 @@ const MessageBubble = ({
             </span>
           )}
 
-          <div className="inline-flex max-w-[min(420px,86vw)] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface shadow-[0_4px_18px_rgba(40,37,32,0.05)]">
+          <div className="inline-flex max-w-[min(420px,86vw)] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface shadow-sm">
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-container-low ${callMeta.tone}`}
             >
@@ -817,8 +817,8 @@ const MessageBubble = ({
 
             {isRevoked ? (
               <div
-                className={`inline-flex items-center gap-2 rounded-lg border border-dashed border-outline-variant bg-surface-container-low px-4 py-2.5 text-[14px] italic text-on-surface-variant shadow-[0_2px_10px_rgba(40,37,32,0.02)] ${
-                  isOwn ? 'text-right' : ''
+                className={`inline-flex items-center gap-2 rounded-[12px] border border-dashed border-outline-variant bg-surface-container-low px-4 py-2.5 text-[14px] italic text-on-surface-variant shadow-sm ${
+                  isOwn ? 'text-right rounded-br-[4px]' : 'rounded-bl-[4px]'
                 }`}
               >
                 <AppIcon name="block" className="text-[18px]" />
@@ -836,7 +836,7 @@ const MessageBubble = ({
                         <button
                           type="button"
                           onClick={() => openLightbox(0)}
-                          className="block w-[min(330px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-[0_2px_12px_rgba(40,37,32,0.05)] transition-opacity hover:opacity-90"
+                          className="block w-[min(330px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm transition-opacity hover:opacity-90"
                         >
                           <img
                             src={imageAttachments[0].url}
@@ -852,7 +852,7 @@ const MessageBubble = ({
                           className="relative h-[270px] w-[min(350px,74vw)] overflow-visible px-2 py-3"
                         >
                           {imageAttachments[3] && (
-                            <span className="absolute left-0 top-11 h-[204px] w-[72%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low opacity-65 shadow-[0_8px_22px_rgba(40,37,32,0.1)] -rotate-6">
+                            <span className="absolute left-0 top-11 h-[204px] w-[72%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low opacity-65 shadow-sm -rotate-6">
                               <img
                                 src={imageAttachments[3].url}
                                 alt=""
@@ -862,7 +862,7 @@ const MessageBubble = ({
                             </span>
                           )}
                           {imageAttachments[2] && (
-                            <span className="absolute right-0 top-8 h-[214px] w-[74%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low opacity-75 shadow-[0_8px_22px_rgba(40,37,32,0.12)] rotate-6">
+                            <span className="absolute right-0 top-8 h-[214px] w-[74%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low opacity-75 shadow-sm rotate-6">
                               <img
                                 src={imageAttachments[2].url}
                                 alt=""
@@ -871,7 +871,7 @@ const MessageBubble = ({
                               />
                             </span>
                           )}
-                          <span className="absolute left-7 top-5 h-[222px] w-[76%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest opacity-90 shadow-[0_8px_22px_rgba(40,37,32,0.12)] -rotate-3">
+                          <span className="absolute left-7 top-5 h-[222px] w-[76%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest opacity-90 shadow-sm -rotate-3">
                             <img
                               src={imageAttachments[1]?.url}
                               alt=""
@@ -879,7 +879,7 @@ const MessageBubble = ({
                               loading="lazy"
                             />
                           </span>
-                          <span className="relative z-20 mx-auto block h-[230px] w-[82%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-[0_12px_30px_rgba(40,37,32,0.18)] rotate-1">
+                          <span className="relative z-20 mx-auto block h-[230px] w-[82%] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm rotate-1">
                             <img
                               src={imageAttachments[0].url}
                               alt={imageAttachments[0].filename || 'Ảnh trong tin nhắn'}
@@ -887,10 +887,10 @@ const MessageBubble = ({
                               loading="lazy"
                             />
                           </span>
-                          <span className="absolute right-2 top-2 z-30 rounded-full border border-white/25 bg-[#1f1d1a]/70 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_4px_14px_rgba(0,0,0,0.2)]">
+                          <span className="absolute right-2 top-2 z-30 rounded-full border border-white/25 bg-[#1f1d1a]/70 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
                             1 / {imageAttachments.length}
                           </span>
-                          <span className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1 text-[11px] font-semibold text-on-surface shadow-[0_6px_18px_rgba(40,37,32,0.12)]">
+                          <span className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1 text-[11px] font-semibold text-on-surface shadow-sm">
                             {imageAttachments.length} ảnh
                           </span>
                         </button>
@@ -898,7 +898,7 @@ const MessageBubble = ({
                     </div>
 
                     <div
-                      className={`hidden overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-[0_2px_12px_rgba(40,37,32,0.05)] md:grid ${
+                      className={`hidden overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm md:grid ${
                         imageAttachments.length === 1
                           ? 'w-[min(520px,72vw)] grid-cols-1'
                           : 'w-[min(520px,72vw)] grid-cols-2 gap-1 p-1'
@@ -946,10 +946,10 @@ const MessageBubble = ({
                     {audioAttachments.map((attachment, index) => (
                       <div
                         key={`${attachment.url}-${index}`}
-                        className={`rounded-lg border shadow-[0_2px_10px_rgba(40,37,32,0.03)] ${
+                        className={`rounded-[12px] shadow-sm ${
                           isOwn
-                            ? 'border-[#ded1c1] bg-accent-soft'
-                            : 'border-outline-variant bg-surface-container-lowest'
+                            ? 'bg-surface-container-high rounded-br-[4px]'
+                            : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
                         }`}
                         onClick={(event) => event.stopPropagation()}
                       >
@@ -990,7 +990,9 @@ const MessageBubble = ({
                         key={`${attachment.url}-${index}`}
                         href={attachment.url}
                         download={attachment.filename}
-                        className="flex min-w-[240px] items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-[0_2px_10px_rgba(40,37,32,0.03)] transition-colors hover:bg-surface-container-low"
+                        className={`flex min-w-[240px] items-center gap-3 rounded-[12px] px-4 py-3 shadow-sm transition-colors hover:bg-surface-container-low ${
+                          isOwn ? 'bg-surface-container-high rounded-br-[4px]' : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
+                        }`}
                         onClick={(event) => event.stopPropagation()}
                       >
                         <FileTypeIcon
@@ -1015,10 +1017,10 @@ const MessageBubble = ({
 
                 {message.content || !hasAttachments ? (
                   <div
-                    className={`rounded-lg px-4 py-2.5 text-[15px] leading-relaxed break-words shadow-[0_2px_10px_rgba(40,37,32,0.03)] ${
+                    className={`rounded-[12px] px-4 py-2.5 text-[15px] leading-relaxed break-words shadow-sm ${
                       isOwn
-                        ? 'border border-[#ded1c1] bg-accent-soft text-on-surface'
-                        : 'border border-outline-variant bg-surface-container-lowest text-on-surface'
+                        ? 'bg-surface-container-high text-on-surface rounded-br-[4px]'
+                        : 'border border-outline-variant bg-surface-container-lowest text-on-surface rounded-bl-[4px]'
                     } ${hasAttachments ? 'max-w-[min(520px,72vw)]' : ''}`}
                   >
                     <span className="whitespace-pre-wrap">{renderMessageContent(message.content)}</span>
@@ -1034,7 +1036,7 @@ const MessageBubble = ({
                 type="button"
                 aria-label="Thả cảm xúc"
                 title="Thả cảm xúc"
-                className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant shadow-[0_2px_10px_rgba(40,37,32,0.08)] transition-all hover:bg-surface-container-low hover:text-on-surface focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 group-hover:opacity-100 ${
+                className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant shadow-sm transition-all hover:bg-surface-container-low hover:text-on-surface focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 group-hover:opacity-100 ${
                   showPicker ? 'opacity-100' : 'opacity-0'
                 } ${isOwn ? 'right-full mr-1.5' : 'left-full ml-1.5'}`}
                 onClick={togglePicker}
@@ -1056,7 +1058,7 @@ const MessageBubble = ({
             {showActions && (
               <div
                 ref={actionsRef}
-                className={`absolute top-1/2 z-[200] hidden w-52 -translate-y-1/2 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest py-1 shadow-[0_18px_48px_rgba(40,37,32,0.18)] md:block ${
+                className={`absolute top-1/2 z-[200] hidden w-52 -translate-y-1/2 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest py-1 shadow-sm md:block ${
                   isOwn ? 'right-full mr-3' : 'left-full ml-3'
                 }`}
                 onContextMenu={(event) => event.preventDefault()}
@@ -1088,7 +1090,7 @@ const MessageBubble = ({
                       event.stopPropagation();
                       setActiveReactionEmoji((current) => (current === emoji ? null : emoji));
                     }}
-                    className="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-2 py-0.5 text-xs text-on-surface shadow-[0_1px_4px_rgba(40,37,32,0.04)] transition-colors hover:bg-surface-container-low"
+                    className="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest px-2 py-0.5 text-xs text-on-surface shadow-sm transition-colors hover:bg-surface-container-low"
                     title={users.map((reactionUser) => `${reactionUser.name}: ${emoji}`).join('\n')}
                   >
                     {emoji} {count}
@@ -1096,7 +1098,7 @@ const MessageBubble = ({
 
                   {activeReactionEmoji === emoji && (
                     <div
-                      className={`absolute bottom-full z-30 mb-2 min-w-44 max-w-64 rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-left shadow-[0_14px_34px_rgba(40,37,32,0.14)] ${
+                      className={`absolute bottom-full z-30 mb-2 min-w-44 max-w-64 rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-left shadow-sm ${
                         isOwn ? 'right-0' : 'left-0'
                       }`}
                     >
@@ -1141,7 +1143,7 @@ const MessageBubble = ({
                 {readReceipts.slice(0, 5).map((receipt) => (
                   <span
                     key={receipt.id}
-                    className="block h-4 w-4 min-w-4 max-w-4 flex-none overflow-hidden rounded-full border border-surface bg-surface-container-low shadow-[0_2px_6px_rgba(40,37,32,0.16)]"
+                    className="block h-4 w-4 min-w-4 max-w-4 flex-none overflow-hidden rounded-full border border-surface bg-surface-container-low shadow-sm"
                   >
                     <img
                       src={getReceiptAvatarSrc(receipt)}
@@ -1152,11 +1154,11 @@ const MessageBubble = ({
                   </span>
                 ))}
                 {readReceipts.length > 5 && (
-                  <span className="flex h-4 min-w-4 flex-none items-center justify-center rounded-full border border-surface bg-surface-container-low px-1 text-[9px] font-semibold text-on-surface-variant shadow-[0_2px_6px_rgba(40,37,32,0.12)]">
+                  <span className="flex h-4 min-w-4 flex-none items-center justify-center rounded-full border border-surface bg-surface-container-low px-1 text-[9px] font-semibold text-on-surface-variant shadow-sm">
                     +{readReceipts.length - 5}
                   </span>
                 )}
-                <AppIcon name={receiptSummary} className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-[0_12px_28px_rgba(40,37,32,0.2)] transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${ isOwn ? 'right-0' : 'left-0' }`} />
+                <AppIcon name={receiptSummary} className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${ isOwn ? 'right-0' : 'left-0' }`} />
               </div>
             </div>
           )}
@@ -1177,7 +1179,7 @@ const MessageBubble = ({
             <div className="mb-3 flex justify-center">
               <EmojiPicker emojis={QUICK_EMOJIS} onSelect={handleEmojiSelect} />
             </div>
-            <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-[0_18px_50px_rgba(40,37,32,0.16)]">
+            <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-sm">
               {actionItems.map((item) => (
                 <button
                   key={item.key}
@@ -1195,7 +1197,7 @@ const MessageBubble = ({
             <button
               type="button"
               onClick={closeMenus}
-              className="mt-3 h-14 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest text-[15px] font-semibold text-on-surface shadow-[0_12px_30px_rgba(40,37,32,0.12)]"
+              className="mt-3 h-14 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest text-[15px] font-semibold text-on-surface shadow-sm"
             >
               Hủy
             </button>

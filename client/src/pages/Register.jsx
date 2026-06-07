@@ -169,41 +169,41 @@ const Register = () => {
   };
 
   return (
-    <div className="grid w-full overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest md:grid-cols-[0.95fr_1.05fr]">
+    <div className="grid w-full max-w-[1000px] overflow-hidden rounded-[16px] border border-outline-variant bg-surface md:grid-cols-[0.95fr_1.05fr] shadow-sm">
           {/* Left Side: Notice / Return to Login */}
           <section className="relative z-10 hidden flex-col justify-center overflow-hidden border-r border-outline-variant bg-surface-container-low p-8 md:flex md:p-12 lg:p-16">
             <div className="relative z-10 space-y-10">
               <div>
-                <h2 className="mb-4 font-headline text-3xl font-semibold tracking-[-0.03em] text-on-surface">
+                <h2 className="mb-2 text-[28px] font-medium tracking-tight text-on-surface">
                   PingMe
                 </h2>
-                <p className="text-sm leading-6 text-on-surface-variant">
-                  Một app chat nhỏ để bạn học realtime, socket events và cách đồng bộ trạng thái giữa client với server.
+                <p className="text-[15px] leading-relaxed text-on-surface-variant">
+                  Giao tiếp tức thì, an toàn và tinh tế.
                 </p>
               </div>
 
               <div className="pt-10">
-                <p className="mb-4 text-sm text-on-surface-variant">Đã có tài khoản?</p>
+                <p className="mb-3 text-[14px] text-on-surface-variant">Đã có tài khoản?</p>
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-outline-variant bg-surface-container-lowest py-4 font-headline font-semibold text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
+                  className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-outline-variant bg-surface-container-lowest py-3 font-medium text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
                 >
                   Đăng nhập
-                  <AppIcon name="login" />
+                  <AppIcon name="login" className="text-[18px]" />
                 </button>
               </div>
             </div>
           </section>
 
           {/* Right Side: Register Form */}
-          <section className="relative z-10 flex flex-col justify-center p-8 md:p-12 lg:p-16">
+          <section className="relative z-10 flex flex-col justify-center bg-surface-container-lowest p-8 md:p-12 lg:p-16">
             <div className="mb-8">
-              <h1 className="mb-2 font-headline text-3xl font-semibold tracking-[-0.03em] text-on-surface">
+              <h1 className="mb-2 text-[24px] font-medium tracking-tight text-on-surface">
                 Tạo tài khoản
               </h1>
-              <p className="text-sm leading-6 text-on-surface-variant">
-                Nhập thông tin cơ bản để bắt đầu trò chuyện.
+              <p className="text-[15px] leading-relaxed text-on-surface-variant">
+                Điền thông tin để bắt đầu trò chuyện.
               </p>
             </div>
 
@@ -226,7 +226,7 @@ const Register = () => {
                     onBlur={() => handleBlur('username')}
                     autoComplete="username"
                     disabled={isSubmitting}
-                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.username ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.username ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
                     placeholder="Tên người dùng"
                   />
                 </div>
@@ -245,7 +245,7 @@ const Register = () => {
                     onBlur={() => handleBlur('email')}
                     autoComplete="email"
                     disabled={isSubmitting}
-                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.email ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.email ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
                     placeholder="Email"
                   />
                 </div>
@@ -264,7 +264,7 @@ const Register = () => {
                     onBlur={() => handleBlur('password')}
                     autoComplete="new-password"
                     disabled={isSubmitting}
-                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.password ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.password ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
                     placeholder="Mật khẩu"
                   />
                 </div>
@@ -283,7 +283,7 @@ const Register = () => {
                     onBlur={() => handleBlur('confirmPassword')}
                     autoComplete="new-password"
                     disabled={isSubmitting}
-                    className={`w-full rounded-lg border bg-surface-container-lowest py-3.5 pl-12 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant ${errors.confirmPassword ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.confirmPassword ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
                     placeholder="Xác nhận mã truy cập"
                   />
                 </div>
@@ -298,20 +298,20 @@ const Register = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-4 font-headline font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-primary py-3 font-medium text-surface transition-colors hover:opacity-90 active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
-                  {!isSubmitting && <AppIcon name="add_moderator" />}
+                  {!isSubmitting && <AppIcon name="add_moderator" className="text-[18px]" />}
                 </button>
               </div>
 
               {/* Mobile Only Login Link */}
               <div className="md:hidden mt-6 flex flex-col items-center">
-                <p className="mb-2 text-xs text-on-surface-variant">Đã có tài khoản?</p>
+                <p className="mb-2 text-[14px] text-on-surface-variant">Đã có tài khoản?</p>
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="w-full rounded-md border border-outline-variant py-3 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
+                  className="w-full rounded-[8px] border border-outline-variant py-3 text-[15px] font-medium text-on-surface transition-colors hover:bg-surface-container-low"
                 >
                   Đăng nhập
                 </button>

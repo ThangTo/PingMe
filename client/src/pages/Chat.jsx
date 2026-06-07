@@ -343,7 +343,7 @@ const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="pointer-events-auto overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_18px_50px_rgba(40,37,32,0.18)] ring-1 ring-black/5"
+          className="pointer-events-auto overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm ring-1 ring-black/5"
         >
           <div className="flex items-start gap-3 p-3.5">
             <button
@@ -1991,7 +1991,7 @@ const Chat = () => {
         onDismiss={dismissAppNotification}
       />
 
-      <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface shadow-[0_18px_60px_rgba(40,37,32,0.08)]">
+      <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface shadow-sm">
         <AppRail
           activeItem={activeRailItem}
           notificationCount={notificationUnreadCount}

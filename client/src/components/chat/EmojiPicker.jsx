@@ -1,6 +1,6 @@
 const EmojiPicker = ({ emojis = [], onSelect }) => {
   return (
-    <div className="z-10 flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest p-1.5 shadow-[0_10px_28px_rgba(40,37,32,0.12)]">
+    <div className="z-10 flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-lowest p-1.5 shadow-sm">
       {emojis.map((emoji) => (
         <button
           type="button"

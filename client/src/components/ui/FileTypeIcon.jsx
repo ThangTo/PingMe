@@ -184,7 +184,7 @@ const FileTypeIcon = ({ filename = '', mimeType = '', type = '', size = 'md', cl
       title={meta.label}
     >
       <span
-        className={`relative block overflow-hidden border shadow-[0_7px_18px_rgba(40,37,32,0.09)] ${
+        className={`relative block overflow-hidden border shadow-sm ${
           isWideLabel ? sizeClasses.paperWide : sizeClasses.paper
         } ${meta.paperClassName}`}
       >

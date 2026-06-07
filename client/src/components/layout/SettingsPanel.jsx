@@ -304,18 +304,18 @@ const SettingsPanel = ({ onBack }) => {
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-[72px] shrink-0 items-center gap-3 border-b border-outline-variant px-4 md:px-8">
+      <header className="flex h-[64px] shrink-0 items-center gap-3 border-b border-outline-variant px-4 md:px-8">
         <button
           type="button"
           onClick={onBack}
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low"
+          className="flex h-9 w-9 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface"
           title="Quay lại tin nhắn"
         >
-          <AppIcon name="arrow_back" className="text-[23px]" />
+          <AppIcon name="arrow_back" className="text-[22px]" />
         </button>
         <div>
-          <h1 className="text-xl font-semibold tracking-[-0.04em] text-on-surface">Cài đặt</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">Profile, mật khẩu và tài khoản</p>
+          <h1 className="text-[18px] font-medium tracking-tight text-on-surface">Cài đặt</h1>
+          <p className="mt-0.5 text-[13px] text-on-surface-variant">Profile, mật khẩu và tài khoản</p>
         </div>
       </header>
 
@@ -324,7 +324,7 @@ const SettingsPanel = ({ onBack }) => {
           <div className="space-y-6">
             <form
               onSubmit={handleProfileSubmit}
-              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6"
+              className="border-b border-outline-variant pb-8"
             >
               <div className="mb-6 flex items-center gap-4">
                 <img
@@ -343,14 +343,14 @@ const SettingsPanel = ({ onBack }) => {
               </div>
 
               <div className="grid gap-4">
-                <label className="grid gap-2 text-sm font-medium text-on-surface">
+                <label className="grid gap-2 text-[14px] font-medium text-on-surface">
                   Tên hiển thị
                   <input
                     value={profile.username || ''}
                     onChange={(event) =>
                       setProfile((prev) => ({ ...prev, username: event.target.value }))
                     }
-                    className="h-11 rounded-lg border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-accent"
+                    className="h-[40px] rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] outline-none transition-colors hover:bg-surface-container-lowest focus:border-outline focus:ring-1 focus:ring-outline"
                     maxLength={30}
                     minLength={3}
                     required
@@ -401,18 +401,18 @@ const SettingsPanel = ({ onBack }) => {
                   {avatarError && <p className="mt-3 text-sm text-error">{avatarError}</p>}
                 </div>
 
-                <label className="grid gap-2 text-sm font-medium text-on-surface">
+                <label className="grid gap-2 text-[14px] font-medium text-on-surface">
                   Bio
                   <textarea
                     value={profile.bio || ''}
                     onChange={(event) =>
                       setProfile((prev) => ({ ...prev, bio: event.target.value }))
                     }
-                    className="min-h-24 resize-none rounded-lg border border-outline-variant bg-surface px-3 py-3 text-sm outline-none transition-colors focus:border-accent"
+                    className="min-h-24 resize-none rounded-[8px] border border-outline-variant bg-surface px-3 py-3 text-[15px] outline-none transition-colors hover:bg-surface-container-lowest focus:border-outline focus:ring-1 focus:ring-outline"
                     maxLength={160}
                     placeholder="Một câu giới thiệu ngắn..."
                   />
-                  <span className="text-xs font-normal text-on-surface-variant">
+                  <span className="text-[12px] font-normal text-on-surface-variant">
                     {(profile.bio || '').length}/160
                   </span>
                 </label>
@@ -430,7 +430,7 @@ const SettingsPanel = ({ onBack }) => {
               </button>
             </form>
 
-            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+            <section className="border-b border-outline-variant pb-8">
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
                 Giao diện
               </h2>
@@ -461,7 +461,7 @@ const SettingsPanel = ({ onBack }) => {
               </div>
             </section>
 
-            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+            <section className="border-b border-outline-variant pb-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
@@ -508,7 +508,7 @@ const SettingsPanel = ({ onBack }) => {
               )}
             </section>
 
-            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+            <section className="border-b border-outline-variant pb-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
@@ -579,7 +579,7 @@ const SettingsPanel = ({ onBack }) => {
               {privacyMessage && <p className="mt-4 text-sm text-secondary">{privacyMessage}</p>}
             </section>
 
-            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+            <section className="border-b border-outline-variant pb-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-on-surface">Thiết bị đăng nhập</h2>
@@ -631,7 +631,7 @@ const SettingsPanel = ({ onBack }) => {
               </div>
             </section>
 
-            <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6">
+            <section className="border-b border-outline-variant pb-8">
               <h2 className="text-lg font-semibold text-on-surface">Người đã chặn</h2>
               <p className="mt-1 text-sm text-on-surface-variant">
                 Người bị chặn không thể nhắn tin hoặc gọi trực tiếp cho bạn.
@@ -667,7 +667,7 @@ const SettingsPanel = ({ onBack }) => {
 
             <form
               onSubmit={handlePasswordSubmit}
-              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 md:p-6"
+              className="pb-8"
             >
               <h2 className="text-lg font-semibold tracking-[-0.03em] text-on-surface">
                 Đổi mật khẩu
@@ -677,7 +677,7 @@ const SettingsPanel = ({ onBack }) => {
               </p>
 
               <div className="mt-5 grid gap-4">
-                <label className="grid gap-2 text-sm font-medium text-on-surface">
+                <label className="grid gap-2 text-[14px] font-medium text-on-surface">
                   Mật khẩu hiện tại
                   <input
                     type="password"
@@ -685,11 +685,11 @@ const SettingsPanel = ({ onBack }) => {
                     onChange={(event) =>
                       setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))
                     }
-                    className="h-11 rounded-lg border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-accent"
+                    className="h-[40px] rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] outline-none transition-colors hover:bg-surface-container-lowest focus:border-outline focus:ring-1 focus:ring-outline"
                   />
                 </label>
 
-                <label className="grid gap-2 text-sm font-medium text-on-surface">
+                <label className="grid gap-2 text-[14px] font-medium text-on-surface">
                   Mật khẩu mới
                   <input
                     type="password"
@@ -697,7 +697,7 @@ const SettingsPanel = ({ onBack }) => {
                     onChange={(event) =>
                       setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))
                     }
-                    className="h-11 rounded-lg border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-accent"
+                    className="h-[40px] rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] outline-none transition-colors hover:bg-surface-container-lowest focus:border-outline focus:ring-1 focus:ring-outline"
                     minLength={6}
                   />
                 </label>
@@ -715,7 +715,7 @@ const SettingsPanel = ({ onBack }) => {
             </form>
           </div>
 
-          <aside className="h-fit rounded-xl border border-outline-variant bg-surface-container-lowest p-5">
+          <aside className="h-fit rounded-[12px] border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-on-surface">Tài khoản</h2>
             <dl className="mt-4 space-y-3 text-sm">
               <div>

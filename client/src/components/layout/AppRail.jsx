@@ -23,20 +23,19 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
   };
 
   return (
-    <aside className="hidden h-full w-[112px] shrink-0 flex-col border-r border-outline-variant bg-background px-4 py-6 md:flex">
+    <aside className="hidden h-full w-[80px] shrink-0 flex-col border-r border-outline-variant bg-surface py-6 md:flex">
       <button
         type="button"
-        className="mb-10 flex items-center gap-2 text-left"
+        className="mb-8 flex flex-col items-center gap-2 text-center"
         onClick={() => onNavigate?.('messages')}
         title="PingMe"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white">
-          <AppIcon name="mode_comment" className="text-[19px]" />
+        <span className="flex h-[42px] w-[42px] items-center justify-center rounded-[12px] bg-primary text-surface shadow-sm transition-transform active:scale-95">
+          <AppIcon name="forum" className="text-[22px]" />
         </span>
-        <span className="text-[15px] font-semibold tracking-[-0.03em] text-on-surface">PingMe</span>
       </button>
 
-      <nav className="flex flex-1 flex-col gap-2">
+      <nav className="flex flex-1 flex-col items-center gap-2 px-2">
         {railItems.map((item) => {
           const isActive = activeItem === item.key;
           return (
@@ -44,43 +43,43 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
               key={item.key}
               type="button"
               onClick={() => onNavigate?.(item.key)}
-              className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-lg text-xs transition-colors ${
+              className={`relative flex h-[56px] w-[56px] flex-col items-center justify-center gap-1 rounded-[12px] text-[10px] font-medium transition-all ${
                 isActive
-                  ? 'bg-surface-container text-on-surface shadow-[0_2px_10px_rgba(40,37,32,0.04)]'
-                  : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                  ? 'bg-surface-container-high text-on-surface shadow-sm'
+                  : 'text-on-surface-variant hover:bg-surface-container-lowest hover:text-on-surface'
               }`}
               title={item.label}
             >
               <span className="relative">
-                <AppIcon name={item.icon} className="text-[24px]" />
+                <AppIcon name={item.icon} className="text-[22px]" />
                 {item.key === 'notifications' && notificationCount > 0 && (
-                  <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-semibold text-white">
+                  <span className="absolute -right-2 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-on-surface px-1 text-[10px] font-medium text-surface ring-2 ring-surface">
                     {notificationCount > 99 ? '99+' : notificationCount}
                   </span>
                 )}
               </span>
-              <span>{item.label}</span>
+              <span className="scale-90 opacity-80">{item.label}</span>
             </button>
           );
         })}
 
-        <div className="my-3 h-px bg-outline-variant" />
+        <div className="my-2 h-px w-8 bg-outline-variant" />
 
         <button
           type="button"
           onClick={() => onNavigate?.('settings')}
-          className="flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-lg text-xs text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+          className="flex h-[56px] w-[56px] flex-col items-center justify-center gap-1 rounded-[12px] text-[10px] font-medium text-on-surface-variant transition-all hover:bg-surface-container-lowest hover:text-on-surface"
           title="Cài đặt"
         >
-          <AppIcon name="settings" className="text-[24px]" />
-          <span>Cài đặt</span>
+          <AppIcon name="settings" className="text-[22px]" />
+          <span className="scale-90 opacity-80">Cài đặt</span>
         </button>
       </nav>
 
       <button
         type="button"
         onClick={handleLogout}
-        className="relative mx-auto mt-4 h-11 w-11 overflow-hidden rounded-full border border-outline-variant bg-surface-container"
+        className="relative mx-auto mt-4 h-10 w-10 overflow-hidden rounded-full border border-outline-variant bg-surface-container shadow-sm transition-transform active:scale-95"
         title="Đăng xuất"
       >
         <img
@@ -88,7 +87,7 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
           src={user?.avatar || fallbackAvatar}
           className="h-full w-full object-cover"
         />
-        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-secondary" />
+        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-[#10b981]" />
       </button>
     </aside>
   );

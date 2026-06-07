@@ -233,7 +233,7 @@ const ChatArea = ({
           </button>
 
           {isPinnedOpen && (
-            <div className="absolute left-4 right-4 top-full z-30 mt-2 max-h-[min(420px,55vh)] overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-2 shadow-[0_18px_48px_rgba(40,37,32,0.16)] md:left-7 md:right-auto md:w-[460px]">
+            <div className="absolute left-4 right-4 top-full z-30 mt-2 max-h-[min(420px,55vh)] overflow-y-auto rounded-[12px] border border-outline-variant bg-surface-container-lowest p-2 shadow-sm md:left-7 md:right-auto md:w-[460px]">
               <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                 {pinnedMessageCount} tin nhắn đã ghim
               </div>
@@ -254,21 +254,21 @@ const ChatArea = ({
                         if (activePinnedActionId === message.id) return;
                         handlePinnedSelect(message);
                       }}
-                      className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-surface-container-low"
+                      className="flex w-full items-start gap-3 rounded-[8px] px-3 py-2.5 text-left transition-colors hover:bg-surface-container-low"
                     >
                       <PinGlyph className="mt-0.5 text-[16px] text-on-surface-variant" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-medium text-on-surface-variant">
+                        <span className="block truncate text-[13px] font-medium text-on-surface-variant">
                           {message.senderName || 'Tin nhắn'}
                         </span>
-                        <span className="block truncate text-sm text-on-surface">
+                        <span className="block truncate text-[14px] text-on-surface">
                           {getPinnedPreviewText(message)}
                         </span>
                       </span>
                     </button>
 
                     {activePinnedActionId === message.id && (
-                      <div className="mx-3 mb-2 overflow-hidden rounded-lg border border-outline-variant bg-surface shadow-[0_10px_28px_rgba(40,37,32,0.12)]">
+                      <div className="mx-3 mb-2 overflow-hidden rounded-[8px] border border-outline-variant bg-surface shadow-sm">
                         <button
                           type="button"
                           onClick={(event) => {
@@ -293,13 +293,13 @@ const ChatArea = ({
       {isSearchOpen && (
         <div className="flex shrink-0 items-center gap-3 border-b border-outline-variant bg-surface px-4 py-3 md:px-7">
           <div className="relative max-w-md flex-1">
-            <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[19px] text-on-surface-variant" />
+            <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
             <input
               autoFocus
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Tìm trong cuộc trò chuyện..."
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest pl-10 pr-3 text-sm outline-none transition-colors focus:border-accent"
+              className="h-[36px] w-full rounded-full border border-outline-variant bg-surface-container-lowest pl-9 pr-3 text-[14px] outline-none transition-colors focus:border-outline focus:ring-1 focus:ring-outline"
             />
           </div>
           <span className="hidden text-xs text-on-surface-variant sm:block">

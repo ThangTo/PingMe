@@ -451,19 +451,19 @@ const ChatDetailsPanel = ({
                 <img
                   src={user?.avatar || fallbackAvatar}
                   alt={user?.name || 'User'}
-                  className="h-full w-full rounded-full border border-outline-variant object-cover"
+                  className="h-full w-full rounded-full object-cover"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-base font-semibold text-on-surface">
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-surface-container-low text-base font-medium text-on-surface">
                   {getInitials(user?.name)}
                 </div>
               )}
               {!isGroup && user?.isOnline && (
-                <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-surface bg-secondary" />
+                <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-[2px] border-surface bg-[#10b981]" />
               )}
             </div>
             <div className="min-w-0 pt-1">
-              <h2 className="truncate text-lg font-semibold tracking-[-0.03em] text-on-surface">
+              <h2 className="truncate text-[18px] font-medium tracking-tight text-on-surface">
                 {user?.name || 'Cuộc trò chuyện'}
               </h2>
               {isGroup && (
@@ -471,7 +471,7 @@ const ChatDetailsPanel = ({
                   {user?.memberCount || 0} thành viên
                 </p>
               )}
-              <p className={`mt-1 text-sm text-secondary ${isGroup ? 'hidden' : ''}`}>
+              <p className={`mt-1 text-[13px] text-on-surface-variant ${isGroup ? 'hidden' : ''}`}>
                 {user?.isOnline ? 'Đang online' : 'Ngoại tuyến'}
               </p>
             </div>
@@ -480,7 +480,7 @@ const ChatDetailsPanel = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface transition-colors hover:bg-surface-container-low"
+            className="flex h-9 w-9 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface"
             title="Đóng"
           >
             <AppIcon name="close" className="text-[22px]" />
@@ -522,15 +522,15 @@ const ChatDetailsPanel = ({
                 type="button"
                 onClick={actionItem.onClick}
                 disabled={actionItem.disabled}
-                className={`${isGroup && ['call', 'videocam'].includes(actionItem.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                className={`${isGroup && ['call', 'videocam'].includes(actionItem.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-[8px] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
                   actionItem.active
-                    ? 'border-accent bg-accent-soft text-on-surface'
-                    : 'border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low'
+                    ? 'bg-surface-container-high text-on-surface'
+                    : 'bg-surface-container-lowest text-on-surface hover:bg-surface-container-low'
                 }`}
                 title={actionItem.label}
               >
                 <AppIcon name={actionItem.icon} className="text-[24px]" />
-                <span className="text-xs">{actionItem.label}</span>
+                <span className="text-[13px]">{actionItem.label}</span>
               </button>
             );
           })}
@@ -549,13 +549,13 @@ const ChatDetailsPanel = ({
         )}
 
         {!isGroup && (
-          <section className="mx-6 mt-5 rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
-            <p className="text-xs font-semibold uppercase text-on-surface-variant">An toàn</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+          <section className="mx-6 mt-5 border-t border-outline-variant pt-5">
+            <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-on-surface-variant">An toàn</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleReportUser}
-                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-outline-variant text-sm hover:bg-surface-container-low"
+                className="flex h-[40px] items-center justify-center gap-2 rounded-[8px] border border-outline-variant text-[14px] font-medium hover:bg-surface-container-lowest"
               >
                 <AppIcon name="shield_person" className="text-[18px]" />
                 Báo cáo
@@ -563,7 +563,7 @@ const ChatDetailsPanel = ({
               <button
                 type="button"
                 onClick={handleBlockUser}
-                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-error/30 text-sm text-error hover:bg-error-container"
+                className="flex h-[40px] items-center justify-center gap-2 rounded-[8px] bg-error/10 text-[14px] font-medium text-error hover:bg-error/20"
               >
                 <AppIcon name="block" className="text-[18px]" />
                 Chặn
@@ -578,12 +578,12 @@ const ChatDetailsPanel = ({
             <button
               type="button"
               onClick={toggleMembersSection}
-              className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left transition-colors hover:bg-surface-container-low"
+              className="flex w-full items-center justify-between gap-3 rounded-[8px] px-1 py-2 text-left transition-colors hover:bg-surface-container-lowest"
               aria-expanded={isMembersOpen}
             >
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-on-surface">Thành viên</span>
-                <span className="mt-0.5 block text-xs text-on-surface-variant">
+                <span className="block text-[14px] font-medium text-on-surface">Thành viên</span>
+                <span className="mt-0.5 block text-[13px] text-on-surface-variant">
                   {user?.memberCount || user?.members?.length || 0} người trong nhóm
                 </span>
               </span>

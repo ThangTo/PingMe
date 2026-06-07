@@ -1,153 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /* Tailwind CSS v4 core */
 @import 'tailwindcss';
 
 /* Theme tokens (Tailwind v4) */
 @theme {
-  --color-primary: #282520;
-  --color-primary-dark: #1e1b18;
-  --color-primary-light: #4d4740;
-  --color-accent: #b49473;
-  --color-accent-dark: #9c7b58;
-  --color-accent-soft: #eee6dc;
+  /* LIGHT MODE TOKENS (Default - Quiet Signal) */
+  --color-background: #F4F3EF;
+  --color-surface: #FBFAF7;
 
-  --color-dark-default: #f7f3ed;
-  --color-dark-secondary: #fbfaf7;
-  --color-dark-tertiary: #eee7dc;
+  --color-surface-container-lowest: #FBFAF7;
+  --color-surface-container-low: #F4F3EF;
+  --color-surface-container: #FFFFFF;
+  --color-surface-container-high: #EEECE6;
+  --color-surface-container-highest: #DDDCD5;
 
-  --font-family-body: 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
-  --font-family-headline: 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
-  --font-family-label: 'Geist Mono', 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+  --color-on-background: #222320;
+  --color-on-surface: #222320;
+  --color-on-surface-variant: #73756F;
 
-  --color-on-secondary-container: #282520;
-  --color-secondary-dim: #edf3ec;
-  --color-on-tertiary-fixed: #282520;
-  --color-secondary-container: #edf3ec;
-  --color-secondary-fixed: #edf3ec;
-  --color-on-background: #282520;
-  --color-surface-container-lowest: #ffffff;
-  --color-primary-fixed-dim: #4d4740;
-  --color-on-tertiary: #282520;
-  --color-error: #9f2f2d;
-  --color-surface-container-highest: #e6ded2;
-  --color-tertiary: #956400;
-  --color-on-secondary-fixed: #346538;
-  --color-on-primary-fixed: #ffffff;
-  --color-on-tertiary-fixed-variant: #787774;
-  --color-tertiary-fixed-dim: #fbf3db;
-  --color-surface: #fbfaf7;
-  --color-on-primary-container: #282520;
-  --color-on-error-container: #9f2f2d;
-  --color-surface-container-high: #eee7dc;
-  --color-error-container: #fdebec;
-  --color-surface-dim: #f7f3ed;
-  --color-surface-container-low: #f3eee6;
-  --color-inverse-primary: #ffffff;
-  --color-on-primary: #ffffff;
-  --color-on-secondary-fixed-variant: #346538;
-  --color-primary-dim: #1e1b18;
-  --color-tertiary-container: #fbf3db;
-  --color-primary-fixed: #282520;
-  --color-surface-bright: #ffffff;
-  --color-tertiary-dim: #fbf3db;
-  --color-tertiary-fixed: #fbf3db;
-  --color-on-secondary: #346538;
-  --color-surface-variant: #f7f3ed;
-  --color-on-error: #ffffff;
-  --color-on-surface-variant: #787774;
-  --color-background: #f7f3ed;
-  --color-secondary: #346538;
-  --color-inverse-on-surface: #f7f3ed;
-  --color-primary-container: #282520;
-  --color-inverse-surface: #282520;
-  --color-on-tertiary-container: #956400;
-  --color-surface-container: #ffffff;
-  --color-on-surface: #282520;
-  --color-on-primary-fixed-variant: #f7f3ed;
-  --color-error-dim: #fdebec;
-  --color-secondary-fixed-dim: #edf3ec;
-  --color-surface-tint: #eaeaea;
-  --color-outline: #c9bdae;
-  --color-primary-original: #282520;
-  --color-outline-variant: #e6ded2;
+  --color-outline: #DDDCD5;
+  --color-outline-variant: #EEECE6;
+
+  --color-primary: #222320;
+  --color-secondary: #2F8A63;
+  --color-secondary-container: #E1F1E8;
+  --color-error: #D85E4A;
+  --color-error-container: #F8E7E2;
+  --color-accent: #356F92;
+  --color-accent-soft: #EEECE6;
+
+  --font-family-body: 'Inter', 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-headline: 'Inter', 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-label: 'Inter', 'Geist Mono', 'SF Mono', monospace;
 }
 
 /* Custom color utilities cho Tailwind v4 */
 @layer utilities {
-  .bg-primary {
-    background-color: var(--color-primary);
-  }
+  .bg-primary { background-color: var(--color-primary); }
+  .bg-secondary { background-color: var(--color-secondary); }
+  .bg-accent { background-color: var(--color-accent); }
+  .bg-accent-soft { background-color: var(--color-accent-soft); }
 
-  .bg-primary-dark {
-    background-color: var(--color-primary-dark);
-  }
+  .text-primary { color: var(--color-primary); }
+  .text-secondary { color: var(--color-secondary); }
+  .text-accent { color: var(--color-accent); }
 
-  .bg-primary-light {
-    background-color: var(--color-primary-light);
-  }
+  .border-primary { border-color: var(--color-primary); }
+  .border-accent { border-color: var(--color-accent); }
 
-  .bg-accent {
-    background-color: var(--color-accent);
-  }
-
-  .bg-accent-soft {
-    background-color: var(--color-accent-soft);
-  }
-
-  .text-primary {
-    color: var(--color-primary);
-  }
-
-  .text-primary-light {
-    color: var(--color-primary-light);
-  }
-
-  .text-accent {
-    color: var(--color-accent);
-  }
-
-  .border-primary {
-    border-color: var(--color-primary);
-  }
-
-  .border-accent {
-    border-color: var(--color-accent);
-  }
-
-  .ring-primary {
-    --tw-ring-color: var(--color-primary);
-  }
+  .ring-primary { --tw-ring-color: var(--color-primary); }
 }
 
 /* Base styles (apply cho toàn app) */
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 
   html[data-theme='dark'] {
-    --color-primary: #f4eee6;
-    --color-primary-dark: #ffffff;
-    --color-primary-light: #d8cbbd;
-    --color-accent: #c6a47d;
-    --color-accent-dark: #d6b98f;
-    --color-accent-soft: #3a332d;
-    --color-background: #171512;
-    --color-surface: #1d1a17;
-    --color-surface-container: #211e1a;
-    --color-surface-container-lowest: #24211d;
-    --color-surface-container-low: #2b2722;
-    --color-surface-container-high: #342f29;
-    --color-surface-container-highest: #413a32;
-    --color-surface-dim: #171512;
-    --color-surface-variant: #24211d;
-    --color-on-background: #eee7dc;
-    --color-on-surface: #eee7dc;
-    --color-on-surface-variant: #aaa095;
-    --color-outline: #5c5248;
-    --color-outline-variant: #3b352f;
-    --color-secondary: #74b27d;
-    --color-error: #ffb4ab;
-    --color-error-container: #4c1f1c;
+    /* DARK MODE TOKENS (Quiet Signal) */
+    --color-background: #111311;
+    --color-surface: #171A17;
+
+    --color-surface-container-lowest: #171A17;
+    --color-surface-container-low: #111311;
+    --color-surface-container: #1D211E;
+    --color-surface-container-high: #262B27;
+    --color-surface-container-highest: #303630;
+
+    --color-on-background: #F2F1EC;
+    --color-on-surface: #F2F1EC;
+    --color-on-surface-variant: #A5AAA3;
+
+    --color-outline: #303630;
+    --color-outline-variant: #262B27;
+
+    --color-primary: #F2F1EC;
+    --color-secondary: #5BC18D;
+    --color-secondary-container: #1E3B2C;
+    --color-error: #F07A68;
+    --color-error-container: #482923;
+    --color-accent: #77B4D5;
+    --color-accent-soft: #262B27;
   }
 
   body {
@@ -160,39 +92,20 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
+  html { scroll-behavior: smooth; }
 }
 
 /* Custom utility classes */
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .text-balance { text-wrap: balance; }
+  .font-headline { font-family: var(--font-family-headline); }
+  .font-body { font-family: var(--font-family-body); }
+  .font-label { font-family: var(--font-family-label); }
 
-  .font-headline {
-    font-family: var(--font-family-headline);
-  }
-  .font-body {
-    font-family: var(--font-family-body);
-  }
-  .font-label {
-    font-family: var(--font-family-label);
-  }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .prism-border {
-    position: relative;
-  }
+  .prism-border { position: relative; }
   .prism-border::before {
     content: "";
     position: absolute;
@@ -217,23 +130,13 @@
 
   /* Giữ nguyên Animation của bạn vì nó xử lý UX rất tốt */
   @keyframes messagePop {
-    0% {
-      opacity: 0;
-      transform: scale(0.92) translateY(12px);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
+    0% { opacity: 0; transform: scale(0.92) translateY(12px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .animate-message-pop {
