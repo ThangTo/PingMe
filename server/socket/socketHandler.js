@@ -545,6 +545,67 @@ const migrateLegacyPinnedMessage = (conversation, actorId) => {
 const getLatestMessageByCreatedAt = (messages) =>
   [...messages].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
 
+const getReadThroughMessage = async ({
+  conversation,
+  readerId,
+  messageIds = [],
+  readThroughMessageId = null,
+}) => {
+  const candidateIds = [
+    ...new Set(
+      [...messageIds, readThroughMessageId].filter((messageId) =>
+        mongoose.Types.ObjectId.isValid(messageId),
+      ),
+    ),
+  ];
+
+  if (candidateIds.length === 0) return null;
+
+  return Message.findOne({
+    _id: { $in: candidateIds },
+    conversation: conversation._id,
+    sender: { $ne: readerId },
+    isDeleted: false,
+  })
+    .sort({ createdAt: -1 })
+    .select('_id sender conversation createdAt')
+    .lean();
+};
+
+const countUnreadMessagesForReader = async ({ conversation, readerId, readCutoff = null }) => {
+  if (!conversation || !readerId) return 0;
+
+  if (conversation.type === 'group') {
+    const cutoff =
+      readCutoff ||
+      getMemberReadCutoff(getConversationMember(conversation, readerId));
+    const unreadQuery = {
+      conversation: conversation._id,
+      sender: { $ne: readerId },
+      isDeleted: false,
+    };
+
+    if (cutoff) {
+      unreadQuery.createdAt = { $gt: cutoff };
+    }
+
+    return Message.countDocuments(unreadQuery);
+  }
+
+  return Message.countDocuments({
+    conversation: conversation._id,
+    recipient: readerId,
+    isDeleted: false,
+    status: { $ne: 'read' },
+  });
+};
+
+const buildReadEventMessageIds = (messages = [], readThroughMessage = null) => {
+  const ids = messages.map((message) => message._id.toString());
+  if (readThroughMessage?._id) ids.push(readThroughMessage._id.toString());
+  return [...new Set(ids)];
+};
+
 const updateConversationMemberReadState = async (conversation, readerId, latestMessage) => {
   if (!conversation || !latestMessage?.createdAt) return null;
 
@@ -1265,16 +1326,23 @@ const socketHandler = (io) => {
     });
 
     socket.on('mark_messages_read', async (data) => {
-      const { conversationId, senderId, messageIds } = data;
+      const { conversationId, senderId, messageIds, readThroughMessageId } = data;
       const readerId = socket.userId;
 
-      if (!Array.isArray(messageIds) || messageIds.length === 0) return;
+      if (
+        (!Array.isArray(messageIds) || messageIds.length === 0) &&
+        !readThroughMessageId
+      ) {
+        return;
+      }
 
       try {
-        const validMessageIds = messageIds.filter((messageId) =>
-          mongoose.Types.ObjectId.isValid(messageId),
-        );
-        if (validMessageIds.length === 0) return;
+        const validMessageIds = Array.isArray(messageIds)
+          ? messageIds.filter((messageId) => mongoose.Types.ObjectId.isValid(messageId))
+          : [];
+        const hasValidReadThroughMessageId =
+          readThroughMessageId && mongoose.Types.ObjectId.isValid(readThroughMessageId);
+        if (validMessageIds.length === 0 && !hasValidReadThroughMessageId) return;
 
         const readQuery = {
           _id: { $in: validMessageIds },
@@ -1291,6 +1359,14 @@ const socketHandler = (io) => {
           conversation = await Conversation.findById(conversationId).select('type members');
           if (!conversation || !isConversationMember(conversation, readerId)) return;
 
+          const readThroughMessage = await getReadThroughMessage({
+            conversation,
+            readerId,
+            messageIds: validMessageIds,
+            readThroughMessageId,
+          });
+          if (!readThroughMessage) return;
+
           if (conversation.type === 'group') {
             const currentMember = getConversationMember(conversation, readerId);
             const readCutoff = getMemberReadCutoff(currentMember);
@@ -1299,42 +1375,103 @@ const socketHandler = (io) => {
               conversation: conversation._id,
               sender: { $ne: readerId },
               isDeleted: false,
+              createdAt: { $lte: readThroughMessage.createdAt },
             };
 
             if (readCutoff) {
-              groupReadQuery.createdAt = { $gt: readCutoff };
+              groupReadQuery.createdAt.$gt = readCutoff;
             }
 
             const groupMessagesToRead = await Message.find(groupReadQuery)
               .select('_id sender conversation createdAt')
               .lean();
-
-            if (groupMessagesToRead.length === 0) return;
-
-            const latestMessage = getLatestMessageByCreatedAt(groupMessagesToRead);
             const readState = await updateConversationMemberReadState(
               conversation,
               readerId,
-              latestMessage,
+              readThroughMessage,
             );
+            const readCutoffAfterUpdate =
+              readState?.lastReadAt || readThroughMessage.createdAt;
+            const unreadCount = await countUnreadMessagesForReader({
+              conversation,
+              readerId,
+              readCutoff: readCutoffAfterUpdate,
+            });
 
             await emitConversationReadStateUpdated({
               io,
               conversation,
               readerId,
-              messageIds: groupMessagesToRead.map((message) => message._id.toString()),
+              messageIds: buildReadEventMessageIds(groupMessagesToRead, readThroughMessage),
               readState: {
-                lastReadAt: readState?.lastReadAt || latestMessage.createdAt,
-                lastReadMessageId: readState?.lastReadMessageId || latestMessage._id.toString(),
+                lastReadAt: readState?.lastReadAt || readThroughMessage.createdAt,
+                lastReadMessageId:
+                  readState?.lastReadMessageId || readThroughMessage._id.toString(),
               },
-              unreadCount: 0,
+              unreadCount,
             });
             return;
           }
 
+          delete readQuery._id;
           readQuery.conversation = conversation._id;
+          readQuery.createdAt = { $lte: readThroughMessage.createdAt };
           resolvedConversationId = conversation._id.toString();
+
+          const messagesToRead = await Message.find(readQuery)
+            .select('_id sender conversation createdAt')
+            .lean();
+          const readableMessageIds = messagesToRead.map((message) => message._id);
+          const readEventMessageIds = buildReadEventMessageIds(messagesToRead, readThroughMessage);
+          const senderIds = new Set(messagesToRead.map((message) => message.sender.toString()));
+          senderIds.add(readThroughMessage.sender.toString());
+
+          if (readableMessageIds.length > 0) {
+            await Message.updateMany(
+              {
+                _id: { $in: readableMessageIds },
+                recipient: readerId,
+                isDeleted: false,
+                status: { $ne: 'read' },
+              },
+              { $set: { status: 'read', readAt: new Date() } },
+            );
+          }
+
+          const readState = await updateConversationMemberReadState(
+            conversation,
+            readerId,
+            readThroughMessage,
+          );
+          const unreadCount = await countUnreadMessagesForReader({ conversation, readerId });
+
+          await emitConversationReadStateUpdated({
+            io,
+            conversation,
+            readerId,
+            messageIds: readEventMessageIds,
+            readState: {
+              lastReadAt: readState?.lastReadAt || readThroughMessage.createdAt,
+              lastReadMessageId:
+                readState?.lastReadMessageId || readThroughMessage._id.toString(),
+            },
+            unreadCount,
+          });
+
+          senderIds.forEach((verifiedSenderId) => {
+            emitToUser(io, verifiedSenderId, 'messages_were_read', {
+              conversationId: resolvedConversationId,
+              readerId,
+              messageIds: readEventMessageIds,
+              lastReadAt: readState?.lastReadAt || readThroughMessage.createdAt,
+              lastReadMessageId:
+                readState?.lastReadMessageId || readThroughMessage._id.toString(),
+              status: 'read',
+            });
+          });
+          return;
         } else if (senderId) {
+          if (validMessageIds.length === 0) return;
           readQuery.sender = senderId;
         } else {
           return;

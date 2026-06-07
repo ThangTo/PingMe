@@ -401,3 +401,45 @@ document.querySelectorAll('[data-message-row="true"]').length
 
 - Với conversation dài, số row đang render nên thấp hơn tổng tin đã load rõ rệt.
 - Resize cửa sổ desktop và thử mobile viewport, list vẫn không mất message hoặc lệch input.
+
+## Stage 19 - Advanced A1.3 Multi-Device Read Sync
+
+Mục tiêu: cùng một account đăng nhập nhiều tab/thiết bị phải đồng bộ trạng thái đã đọc mà không cần reload.
+
+### Chuẩn Bị
+
+- Mở account A trên 2 session khác nhau: ví dụ Chrome thường và Brave, hoặc Chrome thường và Chrome incognito.
+- Mở account B trên một trình duyệt/session khác.
+- A và B phải có conversation 1-1.
+
+### Direct Chat Read Sync
+
+- Ở cả 2 session của A, để sidebar nhìn thấy conversation với B.
+- B gửi 2-3 tin mới cho A.
+- Kiểm tra cả 2 session của A đều tăng unread badge cho conversation đó.
+- Ở session A1, mở conversation với B và đọc tới cuối.
+- Session A2 phải tự cập nhật unread count về 0 mà không reload.
+- Nếu A2 đang mở cùng conversation, các message từ B đang load phải chuyển sang trạng thái đã đọc local.
+- Ở session B, read avatar/read status phải cập nhật khi A đọc.
+
+### Read Cursor Không Phụ Thuộc Message Đang Load
+
+- Tạo conversation có nhiều tin nhắn hơn page đang load.
+- A1 mở conversation ở cuối và đọc tới tin mới nhất.
+- A2 không cần load cùng page message nhưng sidebar vẫn phải mất unread.
+- Reload A2, unread count vẫn đúng theo DB, không bị hiện lại các tin cũ là chưa đọc.
+
+### Group Read Sync
+
+- Dùng group có ít nhất A, B, C.
+- B gửi vài tin trong group.
+- A đăng nhập 2 session, mở group ở A1.
+- A2 phải tự cập nhật unread group về 0 hoặc số còn lại đúng theo cursor server trả.
+- B/C thấy read avatar của A rơi đúng message cuối A đã đọc.
+
+### Regression
+
+- Tin mới realtime vẫn append bình thường.
+- Typing indicator không bị ảnh hưởng.
+- Read avatar 1:1 và group không bị nhân đôi.
+- Refresh cả 2 session A, unread count/read cursor vẫn đúng.

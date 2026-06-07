@@ -268,7 +268,7 @@ Mục tiêu: nhiều thiết bị của cùng user đồng bộ tin nhắn, read
 |---|---|---|
 | A1.1 Multi-tab socket presence | DONE | `userId -> Set(socketId)` |
 | A1.2 Multi-device session model | DONE | Lưu devices/sessions trong DB, revoke từ Settings |
-| A1.3 Sync read state across devices | PLANNED | Đọc ở laptop -> mobile cập nhật |
+| A1.3 Sync read state across devices | READY_TO_TEST | `readThroughMessageId`, read cursor sync tới mọi socket của cùng user và các member |
 | A1.4 Draft sync | PLANNED | Draft theo conversation |
 | A1.5 Per-device notification settings | PLANNED | Mute device riêng |
 | A1.6 Offline sync queue | PLANNED | Khi reconnect fetch missed events |
@@ -391,9 +391,9 @@ Nên làm theo thứ tự gần nhất:
 1. User acceptance test toàn bộ Basic theo `TEST_PIPELINE.md`.
 2. Commit/push mốc hoàn thành Basic.
 3. User acceptance test Pipeline A8.1/A8.2 với conversation dài.
-4. Pipeline A1.3: Sync read state đa thiết bị.
-5. Pipeline A4.2: Privacy settings và presence visibility.
-6. Pipeline A6.1: Hoàn thiện test link preview nhiều domain.
+4. Pipeline A4.2: Privacy settings và presence visibility.
+5. Pipeline A6.1: Hoàn thiện test link preview nhiều domain.
+6. Pipeline A1.4: Draft sync theo conversation.
 
 Nếu bị rối, quay lại nguyên tắc này:
 

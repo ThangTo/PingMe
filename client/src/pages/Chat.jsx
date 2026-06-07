@@ -262,6 +262,39 @@ const mergeMessagesById = (currentMessages, nextMessages) => {
   return [...merged.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 };
 
+const getReadableMessageIds = (messages = [], currentUserId) =>
+  messages
+    .filter((message) => message.senderId !== currentUserId && !message.isDeleted && message.id)
+    .map((message) => message.id);
+
+const getUnreadMessageIds = (messages = [], currentUserId) =>
+  messages
+    .filter(
+      (message) =>
+        message.senderId !== currentUserId &&
+        !message.isDeleted &&
+        message.status !== 'read' &&
+        message.id,
+    )
+    .map((message) => message.id);
+
+const getReadThroughMessageId = (messages = [], currentUserId) => {
+  const readableMessageIds = getReadableMessageIds(messages, currentUserId);
+  return readableMessageIds[readableMessageIds.length - 1] || null;
+};
+
+const isMessageCoveredByReadEvent = (message, readEvent) => {
+  if (!message?.id || !readEvent) return false;
+  if (readEvent.messageIds?.includes(message.id)) return true;
+  if (!readEvent.lastReadAt || !message.timestamp) return false;
+
+  const messageTime = new Date(message.timestamp).getTime();
+  const lastReadTime = new Date(readEvent.lastReadAt).getTime();
+  if (Number.isNaN(messageTime) || Number.isNaN(lastReadTime)) return false;
+
+  return messageTime <= lastReadTime;
+};
+
 const getPrependedMessageCount = (currentMessages, mergedMessages) => {
   if (currentMessages.length === 0) return 0;
 
@@ -832,26 +865,27 @@ const Chat = () => {
 
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
-      const unreadMessages = messagesRef.current.filter(
-        (m) => m.senderId !== user.id && !m.isDeleted && m.status !== 'read' && m.id,
-      );
+      const currentMessages = messagesRef.current;
+      const messageIds = getUnreadMessageIds(currentMessages, user.id);
+      const readThroughMessageId = getReadThroughMessageId(currentMessages, user.id);
 
-      const messageIds = unreadMessages.map((m) => m.id);
-
-      if (messageIds.length > 0) {
+      if (readThroughMessageId) {
         socket.emit('mark_messages_read', {
           conversationId: selectedConversationId,
           messageIds,
+          readThroughMessageId,
         });
 
-        setMessages((prev) =>
-          prev.map((msg) => (messageIds.includes(msg.id) ? { ...msg, status: 'read' } : msg)),
-        );
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === selectedConversationId ? { ...conv, unreadCount: 0 } : conv,
-          ),
-        );
+        if (messageIds.length > 0) {
+          setMessages((prev) =>
+            prev.map((msg) => (messageIds.includes(msg.id) ? { ...msg, status: 'read' } : msg)),
+          );
+          setConversations((prev) =>
+            prev.map((conv) =>
+              conv.id === selectedConversationId ? { ...conv, unreadCount: 0 } : conv,
+            ),
+          );
+        }
       }
     }
   }, [selectedConversationId, user]);
@@ -899,25 +933,32 @@ const Chat = () => {
             setPendingJumpMessageId(targetMessageId);
           }
 
-          const unreadMessageIds = normalizedMessages
-            .filter((msg) => msg.senderId !== user.id && !msg.isDeleted && msg.status !== 'read')
-            .map((msg) => msg.id);
+          const unreadMessageIds = user?.id
+            ? getUnreadMessageIds(normalizedMessages, user.id)
+            : [];
+          const readThroughMessageId = user?.id
+            ? getReadThroughMessageId(normalizedMessages, user.id)
+            : null;
 
-          if (user && user.id && unreadMessageIds.length > 0 && document.hasFocus()) {
+          if (user && user.id && readThroughMessageId && document.hasFocus()) {
             socket.emit('mark_messages_read', {
               conversationId: selectedConversationId,
               messageIds: unreadMessageIds,
+              readThroughMessageId,
             });
-            setMessages((prev) =>
-              prev.map((msg) =>
-                unreadMessageIds.includes(msg.id) ? { ...msg, status: 'read' } : msg,
-              ),
-            );
-            setConversations((prev) =>
-              prev.map((conv) =>
-                conv.id === selectedConversationId ? { ...conv, unreadCount: 0 } : conv,
-              ),
-            );
+
+            if (unreadMessageIds.length > 0) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  unreadMessageIds.includes(msg.id) ? { ...msg, status: 'read' } : msg,
+                ),
+              );
+              setConversations((prev) =>
+                prev.map((conv) =>
+                  conv.id === selectedConversationId ? { ...conv, unreadCount: 0 } : conv,
+                ),
+              );
+            }
           }
         }
       } catch (error) {
@@ -1078,6 +1119,7 @@ const Chat = () => {
         socket.emit('mark_messages_read', {
           conversationId: eventConversationId,
           messageIds: [data.id],
+          readThroughMessageId: data.id,
         });
       }
 
@@ -1216,7 +1258,7 @@ const Chat = () => {
       ) {
         setMessages((prev) =>
           prev.map((msg) =>
-            data.messageIds?.includes(msg.id) && msg.senderId === user.id
+            isMessageCoveredByReadEvent(msg, data) && msg.senderId === user.id
               ? { ...msg, status: 'read' }
               : msg,
           ),
@@ -1259,11 +1301,11 @@ const Chat = () => {
       if (
         data.readerId === user?.id &&
         data.conversationId === selectedConversationId &&
-        Array.isArray(data.messageIds)
+        (Array.isArray(data.messageIds) || data.lastReadAt)
       ) {
         setMessages((prev) =>
           prev.map((msg) =>
-            data.messageIds.includes(msg.id) && msg.senderId !== user?.id
+            isMessageCoveredByReadEvent(msg, data) && msg.senderId !== user?.id
               ? { ...msg, status: 'read' }
               : msg,
           ),
