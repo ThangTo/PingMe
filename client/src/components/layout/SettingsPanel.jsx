@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
+import AppSelect from '../ui/AppSelect';
 import AppIcon from '../ui/AppIcon';
+import Avatar from '../ui/Avatar';
+import { useConfirmDialog } from '../ui/confirmDialogContext';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -26,6 +29,34 @@ const navigationItems = [
   { key: 'blocked', label: 'Người đã chặn', icon: 'block' },
   { key: 'password', label: 'Đổi mật khẩu', icon: 'key' },
 ];
+
+const getBrowserName = (userAgent = '') => {
+  const value = userAgent.toLowerCase();
+  if (value.includes('brave')) return 'Brave';
+  if (value.includes('edg/')) return 'Edge';
+  if (value.includes('opr/') || value.includes('opera')) return 'Opera';
+  if (value.includes('firefox/')) return 'Firefox';
+  if (value.includes('crios/')) return 'Chrome';
+  if (value.includes('chrome/')) return 'Chrome';
+  if (value.includes('safari/')) return 'Safari';
+  return 'Trình duyệt';
+};
+
+const getOsName = (userAgent = '') => {
+  const value = userAgent.toLowerCase();
+  if (value.includes('iphone')) return 'iPhone';
+  if (value.includes('ipad')) return 'iPad';
+  if (value.includes('android')) return 'Android';
+  if (value.includes('windows')) return 'Windows';
+  if (value.includes('mac os') || value.includes('macintosh')) return 'macOS';
+  if (value.includes('linux')) return 'Linux';
+  return 'thiết bị không xác định';
+};
+
+const formatSessionDevice = (session = {}) => {
+  if (!session.userAgent) return 'Thiết bị không xác định';
+  return `${getBrowserName(session.userAgent)} trên ${getOsName(session.userAgent)}`;
+};
 
 function SettingsMessage({ success, error }) {
   if (!success && !error) return null;
@@ -58,6 +89,7 @@ function SettingsSection({ title, description, children, action }) {
 
 function SettingsPanel({ onBack, onNavigate }) {
   const { user, updateUser, logout } = useAuth();
+  const { confirm } = useConfirmDialog();
   const avatarInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState(() =>
     window.matchMedia('(max-width: 767px)').matches ? 'overview' : 'profile',
@@ -72,7 +104,16 @@ function SettingsPanel({ onBack, onNavigate }) {
     notificationSettings: user?.notificationSettings || { muteAll: false },
     privacySettings: user?.privacySettings || defaultPrivacySettings,
   });
-  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordVisibility, setPasswordVisibility] = useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmPassword: false,
+  });
   const [themePreference, setThemePreference] = useState(
     () => localStorage.getItem('pingme_theme') || 'system',
   );
@@ -235,10 +276,18 @@ function SettingsPanel({ onBack, onNavigate }) {
   const handlePasswordSubmit = async (event) => {
     event.preventDefault();
     setFeedback('password');
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setFeedback('password', '', 'Mật khẩu mới và xác nhận mật khẩu chưa trùng nhau.');
+      return;
+    }
+
     try {
-      const response = await api.patch('/users/me/password', passwordForm);
+      const response = await api.patch('/users/me/password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
       if (response.data.success) {
-        setPasswordForm({ currentPassword: '', newPassword: '' });
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setFeedback('password', 'Đã đổi mật khẩu.');
       }
     } catch (error) {
@@ -247,9 +296,14 @@ function SettingsPanel({ onBack, onNavigate }) {
   };
 
   const handleRevokeSession = async (session) => {
-    const confirmed = window.confirm(
-      session.current ? 'Thu hồi phiên hiện tại và đăng xuất?' : 'Thu hồi phiên đăng nhập này?',
-    );
+    const confirmed = await confirm({
+      title: session.current ? 'Thu hồi phiên hiện tại?' : 'Thu hồi phiên đăng nhập?',
+      description: session.current
+        ? 'Bạn sẽ được đăng xuất khỏi thiết bị này ngay lập tức.'
+        : 'Thiết bị này sẽ cần đăng nhập lại để dùng PingMe.',
+      confirmText: 'Thu hồi',
+      tone: 'danger',
+    });
     if (!confirmed) return;
     try {
       const response = await api.delete(`/auth/sessions/${encodeURIComponent(session.id)}`);
@@ -264,6 +318,14 @@ function SettingsPanel({ onBack, onNavigate }) {
   };
 
   const handleRevokeOtherSessions = async () => {
+    const confirmed = await confirm({
+      title: 'Đăng xuất thiết bị khác?',
+      description: 'Tất cả phiên ngoài thiết bị hiện tại sẽ bị thu hồi.',
+      confirmText: 'Đăng xuất',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
     try {
       await api.delete('/auth/sessions/others');
       setSessions((current) => current.filter((session) => session.current));
@@ -274,6 +336,14 @@ function SettingsPanel({ onBack, onNavigate }) {
   };
 
   const handleUnblock = async (blockedUserId) => {
+    const blockedUser = blockedUsers.find((item) => item._id === blockedUserId);
+    const confirmed = await confirm({
+      title: `Bỏ chặn ${blockedUser?.username || 'người dùng này'}?`,
+      description: 'Người này có thể gửi lời mời hoặc trò chuyện lại nếu hai bên kết nối.',
+      confirmText: 'Bỏ chặn',
+    });
+    if (!confirmed) return;
+
     try {
       await api.delete(`/social/${blockedUserId}/block`);
       setBlockedUsers((current) => current.filter((blockedUser) => blockedUser._id !== blockedUserId));
@@ -281,6 +351,47 @@ function SettingsPanel({ onBack, onNavigate }) {
       setFeedback('blocked', '', error.response?.data?.error || 'Không thể bỏ chặn người dùng.');
     }
   };
+
+  const handleLogout = async () => {
+    const confirmed = await confirm({
+      title: 'Đăng xuất khỏi PingMe?',
+      description: 'Bạn có thể đăng nhập lại bằng email và mật khẩu của mình.',
+      confirmText: 'Đăng xuất',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    await logout();
+  };
+
+  const togglePasswordVisibility = (field) => {
+    setPasswordVisibility((current) => ({ ...current, [field]: !current[field] }));
+  };
+
+  const renderPasswordField = ({ field, label, autoComplete, minLength }) => (
+    <label className="grid gap-1.5 text-[11px] font-medium text-on-surface">
+      {label}
+      <span className="relative">
+        <input
+          type={passwordVisibility[field] ? 'text' : 'password'}
+          value={passwordForm[field]}
+          onChange={(event) => setPasswordForm((current) => ({ ...current, [field]: event.target.value }))}
+          className="h-11 w-full rounded-[8px] border border-outline bg-surface px-3 pr-10 text-[13px] outline-none focus:border-secondary"
+          autoComplete={autoComplete}
+          minLength={minLength}
+          required
+        />
+        <button
+          type="button"
+          onClick={() => togglePasswordVisibility(field)}
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-[7px] text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+          aria-label={passwordVisibility[field] ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+        >
+          <AppIcon name={passwordVisibility[field] ? 'visibility_off' : 'visibility'} className="text-[17px]" />
+        </button>
+      </span>
+    </label>
+  );
 
   const renderProfile = () => (
     <form onSubmit={handleProfileSubmit}>
@@ -460,20 +571,18 @@ function SettingsPanel({ onBack, onNavigate }) {
         ].map((item) => (
           <div key={item.key} className="flex items-center gap-4 px-4 py-3.5">
             <span className="min-w-0 flex-1 text-[13px] text-on-surface">{item.label}</span>
-            <select
+            <AppSelect
               value={(profile.privacySettings || defaultPrivacySettings)[item.key]}
-              onChange={(event) =>
+              onChange={(value) =>
                 setProfile((current) => ({
                   ...current,
-                  privacySettings: { ...defaultPrivacySettings, ...current.privacySettings, [item.key]: event.target.value },
+                  privacySettings: { ...defaultPrivacySettings, ...current.privacySettings, [item.key]: value },
                 }))
               }
-              className="rounded-[7px] border border-outline bg-surface-container-low px-2 py-1.5 text-[11px] text-on-surface outline-none"
-            >
-              {privacyOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              options={privacyOptions}
+              className="w-[150px] shrink-0"
+              buttonClassName="h-9 text-[11px]"
+            />
           </div>
         ))}
       </div>
@@ -513,7 +622,9 @@ function SettingsPanel({ onBack, onNavigate }) {
               <AppIcon name="monitor" className="text-[18px]" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-medium text-on-surface">{session.userAgent || 'Thiết bị không xác định'}</p>
+              <p className="truncate text-[12px] font-medium text-on-surface" title={session.userAgent || ''}>
+                {formatSessionDevice(session)}
+              </p>
               <p className="mt-1 truncate text-[10px] text-on-surface-variant">
                 {session.current ? 'Thiết bị hiện tại · ' : ''}{session.ip || 'IP không xác định'} · {new Date(session.lastUsedAt).toLocaleString('vi-VN')}
               </p>
@@ -566,25 +677,23 @@ function SettingsPanel({ onBack, onNavigate }) {
     <form onSubmit={handlePasswordSubmit}>
       <SettingsSection title="Đổi mật khẩu" description="Chỉ áp dụng với tài khoản đăng nhập bằng email và mật khẩu.">
         <div className="grid gap-4">
-          <label className="grid gap-1.5 text-[11px] font-medium text-on-surface">
-            Mật khẩu hiện tại
-            <input
-              type="password"
-              value={passwordForm.currentPassword}
-              onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-              className="h-11 rounded-[8px] border border-outline bg-surface px-3 text-[13px] outline-none focus:border-secondary"
-            />
-          </label>
-          <label className="grid gap-1.5 text-[11px] font-medium text-on-surface">
-            Mật khẩu mới
-            <input
-              type="password"
-              value={passwordForm.newPassword}
-              onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-              className="h-11 rounded-[8px] border border-outline bg-surface px-3 text-[13px] outline-none focus:border-secondary"
-              minLength={6}
-            />
-          </label>
+          {renderPasswordField({
+            field: 'currentPassword',
+            label: 'Mật khẩu hiện tại',
+            autoComplete: 'current-password',
+          })}
+          {renderPasswordField({
+            field: 'newPassword',
+            label: 'Mật khẩu mới',
+            autoComplete: 'new-password',
+            minLength: 6,
+          })}
+          {renderPasswordField({
+            field: 'confirmPassword',
+            label: 'Xác nhận mật khẩu mới',
+            autoComplete: 'new-password',
+            minLength: 6,
+          })}
         </div>
         <SettingsMessage {...messages.password} />
         <button type="submit" className="mt-5 h-11 rounded-[8px] bg-secondary px-5 text-[12px] font-semibold text-white">
@@ -618,10 +727,7 @@ function SettingsPanel({ onBack, onNavigate }) {
           onClick={() => setActiveSection('profile')}
           className="flex w-full items-center gap-4 border-b border-outline-variant px-5 py-5 text-left"
         >
-          <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-outline">
-            <img src={profile.avatar || fallbackAvatar} alt="" className="h-full w-full object-cover" />
-            <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-surface bg-secondary" />
-          </span>
+          <Avatar src={profile.avatar} name={profile.username || 'Tài khoản'} online size="xl" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[16px] font-semibold text-on-surface">{profile.username || 'Tài khoản'}</span>
             {profile.pingId && (
@@ -659,7 +765,7 @@ function SettingsPanel({ onBack, onNavigate }) {
           </button>
         </div>
         <div className="px-5">
-          <button type="button" onClick={logout} className="flex h-[64px] w-full items-center gap-4 text-left text-error">
+          <button type="button" onClick={handleLogout} className="flex h-[64px] w-full items-center gap-4 text-left text-error">
             <AppIcon name="logout" className="text-[21px]" />
             <span className="text-[14px]">Đăng xuất</span>
           </button>
@@ -668,7 +774,7 @@ function SettingsPanel({ onBack, onNavigate }) {
       <nav className="grid h-[68px] shrink-0 grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
         {[
           { key: 'messages', icon: 'chat_bubble', label: 'Tin nhắn' },
-          { key: 'contacts', icon: 'person', label: 'Danh bạ' },
+          { key: 'contacts', icon: 'person', label: 'Kết nối' },
           { key: 'groups', icon: 'groups', label: 'Nhóm' },
           { key: 'settings', icon: 'settings', label: 'Cài đặt' },
         ].map((item) => (

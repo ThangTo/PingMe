@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import socket from '../../socket';
 import AppIcon from '../ui/AppIcon';
-
-const fallbackAvatar =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
+import Avatar from '../ui/Avatar';
 
 const inboxTabs = [
   { key: 'all', label: 'Tất cả' },
@@ -29,15 +27,6 @@ const formatConversationTime = (value) => {
 
   return date.toLocaleDateString('vi-VN', { weekday: 'short' });
 };
-
-const getInitials = (name = '') =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(-2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || '?';
 
 const Sidebar = ({
   conversations = [],
@@ -92,7 +81,7 @@ const Sidebar = ({
 
   useEffect(() => {
     if (viewMode === 'contacts') {
-      setActiveTab('search');
+      setActiveTab('discover');
       return;
     }
     if (viewMode === 'groups') {
@@ -260,6 +249,10 @@ const Sidebar = ({
       })
       .filter((conv) => `${conv.name || ''} ${conv.pingId || ''}`.toLowerCase().includes(normalizedQuery));
   }, [activeTab, conversations, searchQuery]);
+  const totalUnreadCount = useMemo(
+    () => conversations.reduce((total, conversation) => total + (conversation.unreadCount || 0), 0),
+    [conversations],
+  );
 
   const friendOptions = useMemo(
     () => conversations.filter((conversation) => !conversation.isGroup && conversation.peerId),
@@ -370,7 +363,7 @@ const Sidebar = ({
       <button
         type="button"
         onClick={() => handleAddFriend(user._id)}
-        className={`${buttonClass} bg-primary text-white transition-colors hover:bg-primary-dark`}
+        className={`${buttonClass} bg-secondary text-white transition-colors hover:brightness-95`}
       >
         Kết nối
       </button>
@@ -389,18 +382,7 @@ const Sidebar = ({
         onClick={() => setSelectedConnectionUserId(user._id)}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-outline-variant bg-surface-container-high">
-          {user.avatar ? (
-            <img alt={user.username} src={user.avatar || fallbackAvatar} className="h-full w-full object-cover" />
-          ) : (
-            <span className="grid h-full w-full place-items-center text-[12px] font-semibold text-on-surface">
-              {getInitials(user.username)}
-            </span>
-          )}
-          {user.isOnline && (
-            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-secondary" />
-          )}
-        </span>
+        <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="lg" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-on-surface">{user.username}</span>
           {user.pingId && (
@@ -466,11 +448,12 @@ const Sidebar = ({
   };
 
   const openDirectory = () => {
-    setActiveTab('discover');
     setSearchQuery('');
+    onOpenContacts?.();
+    setActiveTab('discover');
   };
 
-  const title = isDirectoryMode ? 'Danh bạ' : 'PingMe';
+  const title = isDirectoryMode ? 'Kết nối' : 'PingMe';
   const subtitle = isDirectoryMode
     ? `${friendRequests.length} lời mời đang chờ`
     : `${filteredConversations.length} cuộc trò chuyện`;
@@ -604,13 +587,18 @@ const Sidebar = ({
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`h-8 rounded-[6px] text-[13px] font-medium transition-colors ${
+                className={`relative flex h-8 items-center justify-center rounded-[6px] px-1 text-[13px] font-medium transition-colors ${
                   activeTab === tab.key
                     ? 'bg-secondary-container text-secondary'
                     : 'bg-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
                 }`}
               >
                 {tab.label}
+                {tab.key === 'unread' && totalUnreadCount > 0 && (
+                  <span className="ml-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white">
+                    {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -638,10 +626,11 @@ const Sidebar = ({
                         key={request._id}
                         className="flex items-center gap-3 border-b border-outline-variant px-5 py-3"
                       >
-                        <img
-                          src={request.avatar || fallbackAvatar}
-                          alt=""
-                          className="h-11 w-11 rounded-full border border-outline-variant object-cover"
+                        <Avatar
+                          src={request.avatar}
+                          name={request.username}
+                          online={request.isOnline}
+                          size="contact"
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] font-semibold text-on-surface">
@@ -689,18 +678,7 @@ const Sidebar = ({
                         onClick={() => onSelectConversation(friend.id)}
                         className="flex w-full items-center gap-3 border-b border-outline-variant px-5 py-3 text-left hover:bg-surface-container-low"
                       >
-                        <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-outline-variant bg-surface-container-high">
-                          {friend.avatar ? (
-                            <img src={friend.avatar} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <span className="grid h-full w-full place-items-center text-[12px] font-semibold">
-                              {getInitials(friend.name)}
-                            </span>
-                          )}
-                          {friend.isOnline && (
-                            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-secondary" />
-                          )}
-                        </span>
+                        <Avatar src={friend.avatar} name={friend.name} online={friend.isOnline} size="contact" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] font-semibold text-on-surface">
                             {friend.name}
@@ -778,11 +756,7 @@ const Sidebar = ({
             ) : (
               friendRequests.map((req) => (
                 <div key={req._id} className="flex items-center gap-3 px-5 py-4">
-                  <img
-                    alt={req.username}
-                    src={req.avatar || fallbackAvatar}
-                    className="h-12 w-12 rounded-full border border-outline-variant object-cover"
-                  />
+                  <Avatar src={req.avatar} name={req.username} online={req.isOnline} size="lg" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-on-surface">{req.username}</p>
                     <p className="mt-0.5 text-xs text-on-surface-variant">Muốn kết nối với bạn</p>
@@ -852,22 +826,7 @@ const Sidebar = ({
                     }`}
                   >
                     {isSelected && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-secondary" />}
-                    <div className="relative h-12 w-12 shrink-0">
-                      {conv.avatar ? (
-                        <img
-                          alt={conv.name || 'Avatar'}
-                          className="h-full w-full rounded-full border border-outline-variant object-cover"
-                          src={conv.avatar}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-surface-container-low text-[14px] font-medium text-on-surface">
-                          {getInitials(conv.name)}
-                        </div>
-                      )}
-                      {conv.isOnline ? (
-                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
-                      ) : null}
-                    </div>
+                    <Avatar src={conv.avatar} name={conv.name} online={conv.isOnline} size="lg" />
 
                     <div className="min-w-0 self-center">
                       <p className={`truncate text-[15px] tracking-tight ${conv.unreadCount > 0 ? 'font-medium text-on-surface' : 'text-on-surface'}`}>
@@ -912,7 +871,7 @@ const Sidebar = ({
           <section className="hidden min-w-0 flex-col border-l border-outline-variant bg-surface-container-low md:flex">
             <div className="border-b border-outline-variant px-6 py-5">
               <p className="text-[11px] font-semibold uppercase text-on-surface-variant">Kết nối mới</p>
-              <h2 className="mt-1 text-[20px] font-semibold text-on-surface">Mở rộng danh bạ</h2>
+              <h2 className="mt-1 text-[20px] font-semibold text-on-surface">Mở rộng kết nối</h2>
               <p className="mt-2 max-w-[460px] text-[12px] leading-5 text-on-surface-variant">
                 Gợi ý những người là bạn của bạn bè bạn, theo dõi lời mời đang chờ và phản hồi kết nối mới ngay tại đây.
               </p>
@@ -934,22 +893,12 @@ const Sidebar = ({
               {selectedConnectionUser ? (
                 <article className="rounded-[14px] border border-outline-variant bg-surface px-5 py-5">
                   <div className="flex items-start gap-4">
-                    <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-outline-variant bg-surface-container-high">
-                      {selectedConnectionUser.avatar ? (
-                        <img
-                          src={selectedConnectionUser.avatar}
-                          alt={selectedConnectionUser.username}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="grid h-full w-full place-items-center text-[16px] font-semibold text-on-surface">
-                          {getInitials(selectedConnectionUser.username)}
-                        </span>
-                      )}
-                      {selectedConnectionUser.isOnline && (
-                        <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-surface bg-secondary" />
-                      )}
-                    </span>
+                    <Avatar
+                      src={selectedConnectionUser.avatar}
+                      name={selectedConnectionUser.username}
+                      online={selectedConnectionUser.isOnline}
+                      size="xl"
+                    />
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-[18px] font-semibold text-on-surface">
                         {selectedConnectionUser.username}
@@ -993,11 +942,7 @@ const Sidebar = ({
                           onClick={() => setSelectedConnectionUserId(user._id)}
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          <img
-                            src={user.avatar || fallbackAvatar}
-                            alt={user.username}
-                            className="h-10 w-10 rounded-full border border-outline-variant object-cover"
-                          />
+                          <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="md" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[13px] font-semibold text-on-surface">{user.username}</span>
                             <span className="mt-0.5 block text-[11px] text-on-surface-variant">Muốn kết nối với bạn</span>
@@ -1026,11 +971,7 @@ const Sidebar = ({
                           onClick={() => setSelectedConnectionUserId(user._id)}
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          <img
-                            src={user.avatar || fallbackAvatar}
-                            alt={user.username}
-                            className="h-10 w-10 rounded-full border border-outline-variant object-cover"
-                          />
+                          <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="md" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[13px] font-semibold text-on-surface">{user.username}</span>
                             <span className="mt-0.5 block text-[11px] text-on-surface-variant">Đang chờ phản hồi</span>
@@ -1137,15 +1078,13 @@ const Sidebar = ({
                           onClick={() => toggleGroupMember(friend.peerId)}
                           className="relative w-14 shrink-0 text-center"
                         >
-                          <span className="mx-auto block h-12 w-12 overflow-hidden rounded-full border border-outline bg-surface-container-high">
-                            {friend.avatar ? (
-                              <img src={friend.avatar} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <span className="grid h-full w-full place-items-center text-[11px] font-semibold">
-                                {getInitials(friend.name)}
-                              </span>
-                            )}
-                          </span>
+                          <Avatar
+                            src={friend.avatar}
+                            name={friend.name}
+                            online={friend.isOnline}
+                            size="lg"
+                            className="mx-auto block"
+                          />
                           <span className="absolute right-0 top-0 grid h-5 w-5 place-items-center rounded-full border border-outline bg-surface text-on-surface">
                             <AppIcon name="close" className="text-[11px]" />
                           </span>
@@ -1177,22 +1116,7 @@ const Sidebar = ({
                         onClick={() => toggleGroupMember(friend.peerId)}
                         className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-container-low"
                       >
-                        <div className="relative h-10 w-10 shrink-0">
-                          {friend.avatar ? (
-                            <img
-                              src={friend.avatar}
-                              alt={friend.name}
-                              className="h-full w-full rounded-full border border-outline-variant object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-xs font-semibold text-on-surface">
-                              {getInitials(friend.name)}
-                            </div>
-                          )}
-                          {friend.isOnline && (
-                            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-secondary" />
-                          )}
-                        </div>
+                        <Avatar src={friend.avatar} name={friend.name} online={friend.isOnline} size="md" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-on-surface">
                             {friend.name}
@@ -1247,7 +1171,7 @@ const Sidebar = ({
       <div className="grid h-[68px] grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
         {[
           { icon: 'chat_bubble', label: 'Tin nhắn', active: viewMode === 'messages', onClick: onOpenMessages },
-          { icon: 'person', label: 'Danh bạ', active: viewMode === 'contacts', onClick: onOpenContacts },
+          { icon: 'person', label: 'Kết nối', active: viewMode === 'contacts', onClick: onOpenContacts },
           { icon: 'groups', label: 'Nhóm', active: viewMode === 'groups', onClick: onOpenGroups },
           { icon: 'settings', label: 'Cài đặt', onClick: onOpenSettings },
         ].map((item) => (

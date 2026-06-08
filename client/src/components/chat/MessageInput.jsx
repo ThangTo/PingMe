@@ -742,7 +742,7 @@ const MessageInput = ({
   return (
     <footer className="shrink-0 border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
       {hasPreviews && (
-        <div className="mx-auto mb-2 max-w-[820px] rounded-[16px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm md:rounded-[12px] md:p-3.5">
+        <div className="mb-2 w-full rounded-[16px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm md:rounded-[12px] md:p-3.5">
           <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-outline md:hidden" />
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -866,7 +866,7 @@ const MessageInput = ({
       )}
 
       {uploadError && (
-        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+        <div className="mb-2 flex w-full items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
           <p>{uploadError}</p>
           {hasPreviews && (
             <button
@@ -882,7 +882,7 @@ const MessageInput = ({
       )}
 
       {(isRecordingVoice || hasVoicePreview) && (
-        <div className="mx-auto mb-2 max-w-[820px] rounded-[16px] border border-outline-variant bg-surface-container-lowest px-3 py-2.5 shadow-sm sm:rounded-[12px] sm:py-3">
+        <div className="mb-2 w-full rounded-[16px] border border-outline-variant bg-surface-container-lowest px-3 py-2.5 shadow-sm sm:rounded-[12px] sm:py-3">
           {isRecordingVoice ? (
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center gap-3">
@@ -969,7 +969,7 @@ const MessageInput = ({
       )}
 
       {voiceError && (
-        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+        <div className="mb-2 flex w-full items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
           <p>{voiceError}</p>
           {hasVoicePreview && (
             <button
@@ -985,7 +985,7 @@ const MessageInput = ({
       )}
 
       {editingMessage && (
-        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[12px] border border-secondary bg-secondary-container px-3 py-2">
+        <div className="mb-2 flex w-full items-center justify-between gap-3 rounded-[12px] border border-secondary bg-secondary-container px-3 py-2">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-on-surface">Đang chỉnh sửa tin nhắn</p>
             <p className="truncate text-xs text-on-surface-variant">{editingMessage.content}</p>
@@ -1004,7 +1004,7 @@ const MessageInput = ({
       )}
 
       {replyingMessage && !editingMessage && (
-        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
+        <div className="mb-2 flex w-full items-center justify-between gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
           <div className="min-w-0 border-l-2 border-accent pl-3">
             <p className="text-xs font-semibold text-on-surface">
               Đang trả lời {replyingMessage.senderName || 'tin nhắn'}
@@ -1035,7 +1035,7 @@ const MessageInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="mx-auto flex min-h-[48px] max-w-[820px] items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
+        className="flex min-h-[48px] w-full items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
       >
         <button
           type="button"

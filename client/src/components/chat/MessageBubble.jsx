@@ -650,7 +650,7 @@ const MessageBubble = ({
 
     return (
       <div
-        className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
+        className={`group flex animate-message-pop items-start gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
         onClick={handleMessageClick}
       >
         <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
@@ -766,7 +766,7 @@ const MessageBubble = ({
       )}
 
       <div
-        className={`group flex animate-message-pop items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
+        className={`group flex animate-message-pop items-start gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
       >
         <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
@@ -986,14 +986,22 @@ const MessageBubble = ({
                 {fileAttachments.length > 0 && (
                   <div className="flex w-[min(390px,74vw)] flex-col gap-2">
                     {fileAttachments.map((attachment, index) => (
-                      <a
+                      <div
                         key={`${attachment.url}-${index}`}
-                        href={attachment.url}
-                        download={attachment.filename}
+                        role="button"
+                        tabIndex={0}
                         className={`flex min-w-[240px] items-center gap-3 rounded-[12px] px-3.5 py-2.5 transition-colors hover:bg-surface-container-low ${
                           isOwn ? 'bg-surface-container-high rounded-br-[4px]' : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
                         }`}
-                        onClick={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          window.open(attachment.url, '_blank', 'noopener,noreferrer');
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return;
+                          event.preventDefault();
+                          window.open(attachment.url, '_blank', 'noopener,noreferrer');
+                        }}
                       >
                         <FileTypeIcon
                           filename={attachment.filename}
@@ -1009,8 +1017,24 @@ const MessageBubble = ({
                             {formatFileSize(attachment.size)}
                           </p>
                         </div>
-                        <AppIcon name="download" className="shrink-0 text-xl text-on-surface-variant" />
-                      </a>
+                        <button
+                          type="button"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                          title="Tải xuống"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const link = document.createElement('a');
+                            link.href = attachment.url;
+                            link.download = attachment.filename || 'file';
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                          }}
+                        >
+                          <AppIcon name="download" className="text-xl" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

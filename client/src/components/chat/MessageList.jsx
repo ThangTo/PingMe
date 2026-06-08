@@ -3,24 +3,6 @@ import { Virtuoso } from 'react-virtuoso';
 import MessageBubble from './MessageBubble';
 import AppIcon from '../ui/AppIcon';
 
-const getMessageAttachments = (message = {}) => {
-  if (message.isDeleted) return [];
-  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
-    return message.attachments;
-  }
-  return message.attachment ? [message.attachment] : [];
-};
-
-const messageMatchesSearch = (message, query) => {
-  if (!query) return true;
-  const normalizedQuery = query.toLowerCase();
-  const content = message.isDeleted ? 'Tin nhắn này đã được thu hồi' : message.content || '';
-  const filenames = getMessageAttachments(message)
-    .map((attachment) => attachment.filename || '')
-    .join(' ');
-  return `${content} ${filenames}`.toLowerCase().includes(normalizedQuery);
-};
-
 const EMPTY_META_MESSAGE_IDS = new Set();
 
 const getInitials = (name = '') =>
@@ -121,6 +103,8 @@ const MessageList = ({
   firstItemIndex = 100000,
   error = '',
   searchQuery = '',
+  searchMatchIds = [],
+  activeSearchMessageId = null,
   pinnedMessageIds = [],
   readReceiptsByMessageId = {},
   jumpToMessageSignal,
@@ -141,13 +125,8 @@ const MessageList = ({
   }));
   const normalizedSearchQuery = searchQuery.trim();
   const isSearchMode = Boolean(normalizedSearchQuery);
-  const visibleMessages = useMemo(
-    () =>
-      isSearchMode
-        ? messages.filter((message) => messageMatchesSearch(message, normalizedSearchQuery))
-        : messages,
-    [isSearchMode, messages, normalizedSearchQuery],
-  );
+  const visibleMessages = messages;
+  const searchMatchIdSet = useMemo(() => new Set(searchMatchIds), [searchMatchIds]);
   const messageIndexById = useMemo(() => {
     const next = new Map();
     visibleMessages.forEach((message, index) => {
@@ -248,6 +227,15 @@ const MessageList = ({
   }, [handleJumpToMessage, jumpToMessageSignal]);
 
   useEffect(() => {
+    if (!activeSearchMessageId) return;
+    const frameId = requestAnimationFrame(() => {
+      handleJumpToMessage(activeSearchMessageId);
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [activeSearchMessageId, handleJumpToMessage]);
+
+  useEffect(() => {
     if (!hasTypingUsers || !isAtBottomRef.current || isSearchMode) return undefined;
 
     const frameId = requestAnimationFrame(() => {
@@ -330,7 +318,7 @@ const MessageList = ({
 
   const renderHeader = useCallback(
     () => (
-      <div className="mx-auto max-w-[820px] px-4 pb-2 pt-5 md:px-5">
+      <div className="w-full px-4 pb-2 pt-5 md:px-5">
         {isLoadingOlderMessages && !isSearchMode && (
           <div className="flex justify-center">
             <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 text-xs font-medium text-on-surface-variant shadow-sm">
@@ -346,7 +334,7 @@ const MessageList = ({
 
   const renderFooter = useCallback(
     () => (
-      <div className="mx-auto max-w-[820px] px-4 pb-6 pt-1 md:px-5">
+      <div className="w-full px-4 pb-6 pt-1 md:px-5">
         {hasTypingUsers && (
           <div className="flex max-w-[72%] items-end gap-2 md:max-w-[58%]">
             <TypingIndicator typingUsers={typingUsers} />
@@ -386,7 +374,7 @@ const MessageList = ({
         <div
           data-message-row="true"
           data-message-index={virtualIndex}
-          className="mx-auto max-w-[820px] px-4 pb-2 md:px-5"
+          className="w-full px-4 pb-2 md:px-5"
         >
           {shouldShowDateSeparator && dateLabel && (
             <div className="mb-4 mt-2 flex items-center justify-center gap-3">
@@ -405,7 +393,11 @@ const MessageList = ({
             className={`relative rounded-xl transition-colors duration-300 ${
               isActionMenuOpen ? 'z-[150]' : 'z-0'
             } ${
-              highlightedMessageId === message.id ? 'bg-accent-soft/70' : ''
+              highlightedMessageId === message.id
+                ? 'bg-secondary-container'
+                : searchMatchIdSet.has(message.id)
+                  ? 'bg-accent-soft/70'
+                  : ''
             }`}
           >
             <MessageBubble
@@ -449,6 +441,7 @@ const MessageList = ({
       pinnedMessageIds,
       reactionUsersById,
       readReceiptsByMessageId,
+      searchMatchIdSet,
       toggleMessageMeta,
       visibleMessages,
     ],
@@ -456,7 +449,7 @@ const MessageList = ({
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-[820px] space-y-4 px-4 py-8 md:px-5">
+      <div className="w-full space-y-4 px-4 py-8 md:px-5">
         {[1, 2, 3, 4].map((item) => (
           <div
             key={item}
@@ -494,17 +487,6 @@ const MessageList = ({
     );
   }
 
-  if (visibleMessages.length === 0 && isSearchMode) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-low">
-          <AppIcon name="search_off" className="text-[28px] text-on-surface-variant" />
-        </div>
-        <p className="text-sm text-on-surface-variant">Không tìm thấy tin nhắn phù hợp.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="relative h-full bg-background">
       <Virtuoso
@@ -514,7 +496,7 @@ const MessageList = ({
         className="no-scrollbar h-full bg-background"
         data-message-total={visibleMessages.length}
         firstItemIndex={safeFirstItemIndex}
-        initialTopMostItemIndex={isSearchMode ? 0 : { index: 'LAST', align: 'end' }}
+        initialTopMostItemIndex={{ index: 'LAST', align: 'end' }}
         alignToBottom
         followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
         atBottomThreshold={160}

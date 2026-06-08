@@ -23,7 +23,7 @@ const MobilePanelNav = ({ onNavigate }) => (
   <nav className="grid h-[68px] shrink-0 grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
     {[
       { key: 'messages', icon: 'chat_bubble', label: 'Tin nhắn', active: true },
-      { key: 'contacts', icon: 'person', label: 'Danh bạ' },
+      { key: 'contacts', icon: 'person', label: 'Kết nối' },
       { key: 'groups', icon: 'groups', label: 'Nhóm' },
       { key: 'settings', icon: 'settings', label: 'Cài đặt' },
     ].map((item) => (

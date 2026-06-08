@@ -7,6 +7,8 @@ import App from './App.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';
 import AuthProvider from './context/AuthContext.jsx';
 import { CallProvider } from './context/CallContext.jsx';
+import { ConfirmDialogProvider } from './components/ui/ConfirmDialog.jsx';
+import { ToastProvider } from './components/ui/ToastProvider.jsx';
 
 /**
  * Entry Point của React App
@@ -22,7 +24,11 @@ createRoot(document.getElementById('root')).render(
     <AuthProvider>
       <SocketProvider>
         <CallProvider>
-          <App />
+          <ToastProvider>
+            <ConfirmDialogProvider>
+              <App />
+            </ConfirmDialogProvider>
+          </ToastProvider>
         </CallProvider>
       </SocketProvider>
     </AuthProvider>

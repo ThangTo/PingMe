@@ -24,6 +24,7 @@ const storage = multer.diskStorage({
 
 // Lọc loại file
 const fileFilter = (req, file, cb) => {
+  const extension = path.extname(file.originalname || '').toLowerCase();
   const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
   const allowedAudioTypes = [
     'audio/webm',
@@ -47,14 +48,20 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/zip',
+    'application/x-zip',
+    'application/x-zip-compressed',
+    'multipart/x-zip',
     'application/x-rar-compressed',
     'text/plain',
     'text/csv',
   ];
   const allowedTypes = [...allowedImageTypes, ...allowedAudioTypes, ...allowedFileTypes];
   const normalizedMimeType = file.mimetype.split(';')[0].trim().toLowerCase();
+  const isZipWithGenericMime =
+    extension === '.zip' &&
+    ['application/octet-stream', 'application/x-compressed', 'binary/octet-stream'].includes(normalizedMimeType);
 
-  if (allowedTypes.includes(normalizedMimeType)) {
+  if (allowedTypes.includes(normalizedMimeType) || isZipWithGenericMime) {
     cb(null, true);
   } else {
     cb(new Error('Định dạng không được hỗ trợ'), false);

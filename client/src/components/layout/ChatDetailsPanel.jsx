@@ -3,18 +3,13 @@ import api from '../../config/api';
 import { useCall } from '../../context/CallContext';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
+import AppModal from '../ui/AppModal';
+import Avatar from '../ui/Avatar';
+import { useConfirmDialog } from '../ui/confirmDialogContext';
+import { useToast } from '../ui/toastContext';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
-
-const getInitials = (name = '') =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(-2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || '?';
 
 const tabs = [
   { key: 'media', label: 'Media' },
@@ -152,6 +147,8 @@ const ChatDetailsPanel = ({
   onBlocked,
   onClose,
 }) => {
+  const { confirm } = useConfirmDialog();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('media');
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,6 +167,9 @@ const ChatDetailsPanel = ({
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState('');
   const [socialActionError, setSocialActionError] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportDetails, setReportDetails] = useState('');
+  const [isReporting, setIsReporting] = useState(false);
   const memberMenuRef = useRef(null);
   const isGroup = Boolean(user?.isGroup);
   const { callState, initiateCall } = useCall();
@@ -204,9 +204,12 @@ const ChatDetailsPanel = ({
 
   const handleBlockUser = async () => {
     if (!user?.peerId) return;
-    const confirmed = window.confirm(
-      `Chặn ${user.name}? Hai người sẽ bị hủy kết bạn và không thể nhắn tin hoặc gọi trực tiếp.`,
-    );
+    const confirmed = await confirm({
+      title: `Chặn ${user.name}?`,
+      description: 'Hai người sẽ bị hủy kết bạn và không thể nhắn tin hoặc gọi trực tiếp.',
+      confirmText: 'Chặn',
+      tone: 'danger',
+    });
     if (!confirmed) return;
 
     try {
@@ -219,21 +222,30 @@ const ChatDetailsPanel = ({
     }
   };
 
-  const handleReportUser = async () => {
+  const handleReportUser = () => {
     if (!user?.peerId) return;
-    const details = window.prompt('Mô tả ngắn lý do báo cáo người dùng này:');
-    if (details === null) return;
+    setReportDetails('');
+    setSocialActionError('');
+    setIsReportModalOpen(true);
+  };
 
+  const handleSubmitReport = async () => {
+    if (!user?.peerId) return;
     try {
+      setIsReporting(true);
       setSocialActionError('');
       await api.post(`/social/${user.peerId}/report`, {
         reason: 'other',
-        details: details.trim(),
+        details: reportDetails.trim(),
         conversationId: user.id,
       });
-      window.alert('Đã gửi báo cáo.');
+      setIsReportModalOpen(false);
+      setReportDetails('');
+      showToast({ title: 'Đã gửi báo cáo', tone: 'success' });
     } catch (error) {
       setSocialActionError(error.response?.data?.error || 'Không thể gửi báo cáo.');
+    } finally {
+      setIsReporting(false);
     }
   };
 
@@ -456,8 +468,12 @@ const ChatDetailsPanel = ({
     if (!user?.id || !member?.id) return;
 
     const nextRole = member.role === 'admin' ? 'member' : 'admin';
-    const label = nextRole === 'admin' ? 'phong quản trị' : 'gỡ quyền quản trị';
-    const confirmed = window.confirm(`${label} cho ${member.username || 'thành viên này'}?`);
+    const label = nextRole === 'admin' ? 'Đặt làm quản trị' : 'Gỡ quyền quản trị';
+    const confirmed = await confirm({
+      title: `${label}?`,
+      description: `${member.username || 'Thành viên này'} sẽ được cập nhật quyền trong nhóm.`,
+      confirmText: 'Cập nhật',
+    });
     if (!confirmed) return;
 
     try {
@@ -524,25 +540,58 @@ const ChatDetailsPanel = ({
         </div>
       )}
 
-      <aside className="fixed inset-0 z-50 flex h-[100dvh] w-full flex-col border-l border-outline-variant bg-surface xl:static xl:z-auto xl:h-full xl:w-[390px] xl:shrink-0">
+      <AppModal
+        open={isReportModalOpen}
+        title={`Báo cáo ${user?.name || 'người dùng'}`}
+        description="Mô tả ngắn vấn đề để PingMe có thêm ngữ cảnh xử lý."
+        onClose={() => {
+          if (isReporting) return;
+          setIsReportModalOpen(false);
+        }}
+        footer={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(false)}
+              disabled={isReporting}
+              className="h-10 flex-1 rounded-[8px] border border-outline-variant text-sm font-medium text-on-surface hover:bg-surface-container-low disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitReport}
+              disabled={isReporting}
+              className="h-10 flex-1 rounded-[8px] bg-error text-sm font-semibold text-white hover:bg-error/90 disabled:opacity-50"
+            >
+              {isReporting ? 'Đang gửi...' : 'Gửi báo cáo'}
+            </button>
+          </div>
+        }
+      >
+        <textarea
+          value={reportDetails}
+          onChange={(event) => setReportDetails(event.target.value)}
+          className="min-h-28 w-full resize-none rounded-[10px] border border-outline bg-surface px-3 py-2.5 text-sm text-on-surface outline-none focus:border-secondary"
+          placeholder="Ví dụ: spam, quấy rối, nội dung không phù hợp..."
+          maxLength={300}
+          autoFocus
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-xs text-error">{socialActionError}</span>
+          <span className="text-xs text-on-surface-variant">{reportDetails.length}/300</span>
+        </div>
+      </AppModal>
+
+      <aside className="no-scrollbar fixed inset-0 z-50 flex h-[100dvh] w-full flex-col overflow-y-auto border-l border-outline-variant bg-surface xl:static xl:z-auto xl:h-full xl:w-[390px] xl:shrink-0">
         <div className="flex items-start justify-between px-5 pb-4 pt-5 md:px-6 md:pt-6">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="relative h-16 w-16 shrink-0">
-              {user?.avatar || !isGroup ? (
-                <img
-                  src={user?.avatar || fallbackAvatar}
-                  alt={user?.name || 'User'}
-                  className="h-full w-full rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-surface-container-low text-base font-medium text-on-surface">
-                  {getInitials(user?.name)}
-                </div>
-              )}
-              {!isGroup && user?.isOnline && (
-                <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-[2px] border-surface bg-[#10b981]" />
-              )}
-            </div>
+            <Avatar
+              src={user?.avatar || (!isGroup ? fallbackAvatar : '')}
+              name={user?.name || 'Cuộc trò chuyện'}
+              online={!isGroup && user?.isOnline}
+              size="xl"
+            />
             <div className="min-w-0 pt-1">
               {isGroup && (
                 <p className="mb-1 text-[12px] font-semibold text-on-surface-variant">Thông tin nhóm</p>
@@ -726,17 +775,7 @@ const ChatDetailsPanel = ({
                           onClick={() => toggleSelectedMember(friend.peerId)}
                           className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-surface-container-low"
                         >
-                          {friend.avatar ? (
-                            <img
-                              src={friend.avatar}
-                              alt={friend.name}
-                              className="h-9 w-9 rounded-full border border-outline-variant object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-xs font-semibold text-on-surface">
-                              {getInitials(friend.name)}
-                            </div>
-                          )}
+                          <Avatar src={friend.avatar} name={friend.name} online={friend.isOnline} size="sm" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-medium text-on-surface">
                               {friend.name}
@@ -796,17 +835,7 @@ const ChatDetailsPanel = ({
                         key={member.id}
                         className="relative flex items-center gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-container-low"
                       >
-                        {member.avatar ? (
-                          <img
-                            src={member.avatar}
-                            alt={member.username}
-                            className="h-9 w-9 rounded-full border border-outline-variant object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-xs font-semibold text-on-surface">
-                            {getInitials(member.username)}
-                          </div>
-                        )}
+                        <Avatar src={member.avatar} name={member.username} online={member.isOnline} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-on-surface">
                             {member.id === currentUserId ? 'Bạn' : member.username}
@@ -967,7 +996,8 @@ const ChatDetailsPanel = ({
                     <a
                       key={file.id}
                       href={file.url}
-                      download={file.filename}
+                      target="_blank"
+                      rel="noreferrer"
                       className="flex min-w-0 items-center gap-3 py-3"
                     >
                       <FileTypeIcon

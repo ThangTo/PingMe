@@ -16,6 +16,7 @@ import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
 import api from '../config/api';
 import AppIcon from '../components/ui/AppIcon';
+import { useConfirmDialog } from '../components/ui/confirmDialogContext';
 import { showClientNotification } from '../services/pushNotifications';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
@@ -387,6 +388,7 @@ const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
 const Chat = () => {
   const { user } = useAuth();
   const { isConnected } = useSocket();
+  const { confirm } = useConfirmDialog();
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagePagination, setMessagePagination] = useState(EMPTY_MESSAGE_PAGINATION);
@@ -1974,10 +1976,15 @@ const Chat = () => {
     setEditingMessage(null);
   };
 
-  const handleDeleteMessage = (message) => {
+  const handleDeleteMessage = async (message) => {
     if (!message || message.isDeleted || message.senderId !== user?.id || message.status === 'sending') return;
 
-    const confirmed = window.confirm('Thu hồi tin nhắn này cho cả hai bên?');
+    const confirmed = await confirm({
+      title: 'Thu hồi tin nhắn?',
+      description: 'Tin nhắn này sẽ được thu hồi cho cả hai bên.',
+      confirmText: 'Thu hồi',
+      tone: 'danger',
+    });
     if (!confirmed) return;
 
     socket.emit('delete_message', {
@@ -1995,7 +2002,7 @@ const Chat = () => {
         onDismiss={dismissAppNotification}
       />
 
-      <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface">
+      <div className="flex h-full w-full overflow-hidden bg-surface">
         <AppRail
           activeItem={activeRailItem}
           notificationCount={notificationUnreadCount}

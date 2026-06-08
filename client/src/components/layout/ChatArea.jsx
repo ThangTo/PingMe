@@ -3,6 +3,7 @@ import Header from './Header';
 import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
 import AppIcon from '../ui/AppIcon';
+import { useConfirmDialog } from '../ui/confirmDialogContext';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -68,6 +69,7 @@ const ChatArea = ({
   messageFirstItemIndex = 100000,
   error = '',
 }) => {
+  const { confirm } = useConfirmDialog();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
@@ -129,6 +131,25 @@ const ChatArea = ({
       return `${content} ${filenames}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
+  const searchMatchIds = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return [];
+
+    return messages
+      .filter((message) => {
+        const content = message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content || '';
+        const filenames = getMessageAttachments(message)
+          .map((attachment) => attachment.filename || '')
+          .join(' ');
+        return `${content} ${filenames}`.toLowerCase().includes(query);
+      })
+      .map((message) => message.id)
+      .filter(Boolean);
+  }, [messages, searchQuery]);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const safeActiveSearchIndex =
+    searchMatchIds.length === 0 ? 0 : Math.min(activeSearchIndex, searchMatchIds.length - 1);
+  const activeSearchMessageId = searchMatchIds[safeActiveSearchIndex] || null;
 
   useEffect(() => {
     if (!isPinnedOpen) return undefined;
@@ -176,8 +197,13 @@ const ChatArea = ({
     clearTimeout(longPressTimerRef.current);
   };
 
-  const handleConfirmUnpin = (message) => {
-    const confirmed = window.confirm('Bỏ ghim tin nhắn này?');
+  const handleConfirmUnpin = async (message) => {
+    const confirmed = await confirm({
+      title: 'Bỏ ghim tin nhắn?',
+      description: 'Tin nhắn này sẽ được gỡ khỏi danh sách ghim của cuộc trò chuyện.',
+      confirmText: 'Bỏ ghim',
+      tone: 'danger',
+    });
     if (!confirmed) return;
     onUnpinMessage?.(message);
     closePinnedMenu();
@@ -208,7 +234,7 @@ const ChatArea = ({
               setIsPinnedOpen((value) => !value);
               setActivePinnedActionId(null);
             }}
-            className="mx-auto flex h-[44px] w-full max-w-[820px] items-center gap-2.5 px-4 text-left transition-colors hover:bg-surface-container-low md:px-5"
+            className="flex h-[44px] w-full items-center gap-2.5 px-4 text-left transition-colors hover:bg-surface-container-low md:px-5"
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-on-surface-variant">
               <PinGlyph className="text-[17px]" />
@@ -295,19 +321,55 @@ const ChatArea = ({
             <input
               autoFocus
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setActiveSearchIndex(0);
+              }}
               placeholder="Tìm trong cuộc trò chuyện..."
               className="h-[36px] w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest pl-9 pr-3 text-[14px] outline-none transition-colors focus:border-outline focus:ring-1 focus:ring-outline"
             />
           </div>
-          <span className="hidden text-xs text-on-surface-variant sm:block">
-            {searchQuery.trim() ? `${searchMatchCount} kết quả` : 'Ctrl/Cmd+K để tìm hội thoại'}
-          </span>
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <span className="min-w-16 text-right text-xs text-on-surface-variant">
+              {searchQuery.trim()
+                ? searchMatchCount > 0
+                  ? `${safeActiveSearchIndex + 1}/${searchMatchCount}`
+                  : '0 kết quả'
+                : 'Ctrl/Cmd+K'}
+            </span>
+            <button
+              type="button"
+              disabled={searchMatchCount === 0}
+              onClick={() =>
+                setActiveSearchIndex(
+                  searchMatchCount === 0 ? 0 : (safeActiveSearchIndex - 1 + searchMatchCount) % searchMatchCount,
+                )
+              }
+              className="grid h-8 w-8 place-items-center rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface disabled:opacity-35"
+              title="Kết quả trước"
+            >
+              <AppIcon name="chevron_left" className="text-[18px]" />
+            </button>
+            <button
+              type="button"
+              disabled={searchMatchCount === 0}
+              onClick={() =>
+                setActiveSearchIndex(
+                  searchMatchCount === 0 ? 0 : (safeActiveSearchIndex + 1) % searchMatchCount,
+                )
+              }
+              className="grid h-8 w-8 place-items-center rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface disabled:opacity-35"
+              title="Kết quả sau"
+            >
+              <AppIcon name="chevron_right" className="text-[18px]" />
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => {
               setSearchQuery('');
               setIsSearchOpen(false);
+              setActiveSearchIndex(0);
             }}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
             title="Đóng tìm kiếm"
@@ -331,6 +393,8 @@ const ChatArea = ({
           firstItemIndex={messageFirstItemIndex}
           error={error}
           searchQuery={searchQuery}
+          searchMatchIds={searchMatchIds}
+          activeSearchMessageId={activeSearchMessageId}
           pinnedMessageIds={pinnedMessageIds}
           readReceiptsByMessageId={readReceiptsByMessageId}
           jumpToMessageSignal={jumpToMessageSignal}
