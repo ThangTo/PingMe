@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import AppIcon from '../ui/AppIcon';
 import Avatar from '../ui/Avatar';
 import { useConfirmDialog } from '../ui/confirmDialogContext';
+import PingMeLogo from '../ui/PingMeLogo';
+import PingMeWordmark from '../ui/PingMeWordmark';
 
 const railItems = [
   { key: 'search', label: 'Tìm kiếm', icon: 'search' },
@@ -19,7 +21,13 @@ const themeOptions = [
   { key: 'system', label: 'Hệ thống', icon: 'desktop_windows' },
 ];
 
-const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate }) => {
+const AppRail = ({
+  activeItem = 'messages',
+  notificationCount = 0,
+  connectionRequestCount = 0,
+  onCollapseChange,
+  onNavigate,
+}) => {
   const { user, logout } = useAuth();
   const { confirm } = useConfirmDialog();
   const navigate = useNavigate();
@@ -32,6 +40,10 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
   const [themePreference, setThemePreference] = useState(
     () => localStorage.getItem('pingme_theme') || 'system',
   );
+
+  useEffect(() => {
+    onCollapseChange?.(isCollapsed);
+  }, [isCollapsed, onCollapseChange]);
 
   useEffect(() => {
     if (!isAccountMenuOpen) return undefined;
@@ -93,10 +105,8 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
         onClick={toggleRail}
         title={isCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-white">
-          <AppIcon name="forum" className="text-[21px]" />
-        </span>
-        {!isCollapsed && <span className="truncate text-[18px] font-semibold">PingMe</span>}
+        <PingMeLogo size="md" showShadow />
+        {!isCollapsed && <PingMeWordmark size="md" className="-ml-4" />}
       </button>
 
       <nav className="flex flex-1 flex-col gap-1.5 px-2 py-5">
@@ -116,12 +126,22 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
               }`}
               title={item.label}
             >
-              {isActive && <span className="absolute left-[-8px] h-6 w-0.5 rounded-full bg-secondary" />}
+              {isActive && (
+                <span className="absolute left-[-8px] h-6 w-0.5 rounded-full bg-secondary" />
+              )}
               <span className="relative grid h-6 w-6 shrink-0 place-items-center">
-                <AppIcon name={item.icon} className={`text-[20px] ${isActive ? 'text-secondary' : ''}`} />
+                <AppIcon
+                  name={item.icon}
+                  className={`text-[20px] ${isActive ? 'text-secondary' : ''}`}
+                />
                 {item.key === 'notifications' && notificationCount > 0 && (
                   <span className="absolute -right-2.5 -top-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
                     {notificationCount > 99 ? '99+' : notificationCount}
+                  </span>
+                )}
+                {item.key === 'contacts' && connectionRequestCount > 0 && (
+                  <span className="absolute -right-2.5 -top-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
+                    {connectionRequestCount > 99 ? '99+' : connectionRequestCount}
                   </span>
                 )}
               </span>
@@ -144,9 +164,14 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
           }`}
           title="Cài đặt"
         >
-          {activeItem === 'settings' && <span className="absolute left-[-8px] h-6 w-0.5 rounded-full bg-secondary" />}
+          {activeItem === 'settings' && (
+            <span className="absolute left-[-8px] h-6 w-0.5 rounded-full bg-secondary" />
+          )}
           <span className="grid h-6 w-6 place-items-center">
-            <AppIcon name="settings" className={`text-[20px] ${activeItem === 'settings' ? 'text-secondary' : ''}`} />
+            <AppIcon
+              name="settings"
+              className={`text-[20px] ${activeItem === 'settings' ? 'text-secondary' : ''}`}
+            />
           </span>
           {!isCollapsed && <span>Cài đặt</span>}
         </button>
@@ -164,7 +189,12 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
           }`}
           title="Tài khoản"
         >
-          <Avatar src={user?.avatar} name={user?.username || user?.name || 'Tài khoản'} online size="md" />
+          <Avatar
+            src={user?.avatar}
+            name={user?.username || user?.name || 'Tài khoản'}
+            online
+            size="md"
+          />
           {!isCollapsed && (
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[12px] font-semibold text-on-surface">
@@ -216,7 +246,9 @@ const AppRail = ({ activeItem = 'messages', notificationCount = 0, onNavigate })
                     >
                       <AppIcon name={theme.icon} className="text-[16px]" />
                       <span className="flex-1">{theme.label}</span>
-                      {themePreference === theme.key && <AppIcon name="check" className="text-[15px]" />}
+                      {themePreference === theme.key && (
+                        <AppIcon name="check" className="text-[15px]" />
+                      )}
                     </button>
                   ))}
                 </div>

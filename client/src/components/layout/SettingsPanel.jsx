@@ -87,7 +87,7 @@ function SettingsSection({ title, description, children, action }) {
   );
 }
 
-function SettingsPanel({ onBack, onNavigate }) {
+function SettingsPanel({ onBack, onNavigate, connectionRequestCount = 0 }) {
   const { user, updateUser, logout } = useAuth();
   const { confirm } = useConfirmDialog();
   const avatarInputRef = useRef(null);
@@ -774,7 +774,7 @@ function SettingsPanel({ onBack, onNavigate }) {
       <nav className="grid h-[68px] shrink-0 grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
         {[
           { key: 'messages', icon: 'chat_bubble', label: 'Tin nhắn' },
-          { key: 'contacts', icon: 'person', label: 'Kết nối' },
+          { key: 'contacts', icon: 'person', label: 'Kết nối', badge: connectionRequestCount },
           { key: 'groups', icon: 'groups', label: 'Nhóm' },
           { key: 'settings', icon: 'settings', label: 'Cài đặt' },
         ].map((item) => (
@@ -787,7 +787,14 @@ function SettingsPanel({ onBack, onNavigate }) {
             }`}
           >
             {item.key === 'settings' && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-secondary" />}
-            <AppIcon name={item.icon} className="text-[21px]" />
+            <span className="relative grid h-6 w-6 place-items-center">
+              <AppIcon name={item.icon} className="text-[21px]" />
+              {item.badge > 0 && (
+                <span className="absolute -right-2 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
+            </span>
             <span>{item.label}</span>
           </button>
         ))}

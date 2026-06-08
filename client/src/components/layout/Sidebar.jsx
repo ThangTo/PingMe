@@ -3,6 +3,9 @@ import api from '../../config/api';
 import socket from '../../socket';
 import AppIcon from '../ui/AppIcon';
 import Avatar from '../ui/Avatar';
+import { ListSkeleton } from '../ui/LoadingState';
+import PingMeLogo from '../ui/PingMeLogo';
+import PingMeWordmark from '../ui/PingMeWordmark';
 
 const inboxTabs = [
   { key: 'all', label: 'Tất cả' },
@@ -45,6 +48,8 @@ const Sidebar = ({
   onOpenNotifications,
   onOpenGlobalSearch,
   notificationCount = 0,
+  onFriendRequestCountChange,
+  showMessageBrand = false,
   onConversationCreated,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,7 +68,8 @@ const Sidebar = ({
   const [createGroupError, setCreateGroupError] = useState('');
   const searchInputRef = useRef(null);
 
-  const isDirectoryMode = activeTab === 'search' || activeTab === 'discover' || activeTab === 'requests';
+  const isDirectoryMode =
+    activeTab === 'search' || activeTab === 'discover' || activeTab === 'requests';
 
   const fetchDirectoryUsers = useCallback(async () => {
     try {
@@ -109,6 +115,10 @@ const Sidebar = ({
 
     fetchRequests();
   }, []);
+
+  useEffect(() => {
+    onFriendRequestCountChange?.(friendRequests.length);
+  }, [friendRequests.length, onFriendRequestCountChange]);
 
   useEffect(() => {
     if (focusSearchSignal > 0) {
@@ -247,7 +257,9 @@ const Sidebar = ({
         if (activeTab === 'group') return conv.isGroup;
         return true;
       })
-      .filter((conv) => `${conv.name || ''} ${conv.pingId || ''}`.toLowerCase().includes(normalizedQuery));
+      .filter((conv) =>
+        `${conv.name || ''} ${conv.pingId || ''}`.toLowerCase().includes(normalizedQuery),
+      );
   }, [activeTab, conversations, searchQuery]);
   const totalUnreadCount = useMemo(
     () => conversations.reduce((total, conversation) => total + (conversation.unreadCount || 0), 0),
@@ -320,7 +332,9 @@ const Sidebar = ({
 
     if (user.status === 'friend') {
       return (
-        <span className={`${buttonClass} inline-flex items-center justify-center border border-outline-variant text-on-surface-variant`}>
+        <span
+          className={`${buttonClass} inline-flex items-center justify-center border border-outline-variant text-on-surface-variant`}
+        >
           Đã là bạn
         </span>
       );
@@ -344,14 +358,14 @@ const Sidebar = ({
           <button
             type="button"
             onClick={() => handleAccept(user._id)}
-            className={`${buttonClass} bg-primary text-white transition-colors hover:bg-primary-dark`}
+            className={`${buttonClass} border border-secondary/35 bg-surface-container-lowest text-secondary transition-colors hover:bg-secondary-container`}
           >
             Chấp nhận
           </button>
           <button
             type="button"
             onClick={() => handleReject(user._id)}
-            className={`${buttonClass} border border-outline-variant text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface`}
+            className={`${buttonClass} border border-error/30 bg-surface-container-lowest text-error transition-colors hover:bg-error-container`}
           >
             Từ chối
           </button>
@@ -374,7 +388,9 @@ const Sidebar = ({
     <div
       key={user._id}
       className={`flex items-center gap-3 px-5 py-4 transition-colors ${
-        selectedConnectionUserId === user._id ? 'bg-surface-container-high' : 'hover:bg-surface-container-low'
+        selectedConnectionUserId === user._id
+          ? 'bg-surface-container-high'
+          : 'hover:bg-surface-container-low'
       }`}
     >
       <button
@@ -384,7 +400,9 @@ const Sidebar = ({
       >
         <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="lg" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-on-surface">{user.username}</span>
+          <span className="block truncate text-sm font-semibold text-on-surface">
+            {user.username}
+          </span>
           {user.pingId && (
             <span className="mt-0.5 block truncate text-[11px] text-secondary">@{user.pingId}</span>
           )}
@@ -453,7 +471,8 @@ const Sidebar = ({
     setActiveTab('discover');
   };
 
-  const title = isDirectoryMode ? 'Kết nối' : 'PingMe';
+  const title = isDirectoryMode ? 'Kết nối' : viewMode === 'groups' ? 'Nhóm' : 'Tin nhắn';
+  const shouldShowMessageBrand = viewMode === 'messages' && !isDirectoryMode && showMessageBrand;
   const subtitle = isDirectoryMode
     ? `${friendRequests.length} lời mời đang chờ`
     : `${filteredConversations.length} cuộc trò chuyện`;
@@ -462,23 +481,39 @@ const Sidebar = ({
     <aside
       className={`h-full w-full shrink-0 flex-col border-r border-outline-variant bg-surface ${
         isDirectoryMode ? 'md:w-full' : 'md:w-[356px]'
-      } ${
-        isChatOpen ? 'hidden md:flex' : 'flex'
-      }`}
+      } ${isChatOpen ? 'hidden md:flex' : 'flex'}`}
     >
       <div className="shrink-0 border-b border-outline-variant bg-surface px-4 pb-4 pt-5">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="min-w-0 md:hidden">
-            <h1 className="truncate text-[24px] font-semibold text-on-surface">
-              PingMe
-            </h1>
+          <div className="flex min-w-0 items-center gap-2 md:hidden">
+            <PingMeLogo size="md" />
+            <PingMeWordmark size="lg" className="-ml-1 hidden" />
           </div>
 
           <div className="hidden min-w-0 md:block">
-            <h1 className="truncate text-[22px] font-semibold text-on-surface">
-              {title}
-            </h1>
-            {isDirectoryMode && <p className="mt-1 text-[11px] text-on-surface-variant">{subtitle}</p>}
+            <div className="relative h-12 min-w-[190px]">
+              <div
+                className={`absolute left-0 top-1/2 -translate-y-1/2 transition-all duration-200 ease-out ${
+                  shouldShowMessageBrand
+                    ? 'opacity-100 translate-x-0 scale-100'
+                    : 'pointer-events-none opacity-0 -translate-x-2 scale-95'
+                }`}
+              >
+                <PingMeWordmark size="md" className="-ml-4" />
+              </div>
+              <h1
+                className={`absolute left-0 top-1/2 -translate-y-1/2 truncate text-[22px] font-semibold text-on-surface transition-all duration-200 ease-out ${
+                  shouldShowMessageBrand
+                    ? 'pointer-events-none opacity-0 translate-x-2 scale-95'
+                    : 'opacity-100 translate-x-0 scale-100'
+                }`}
+              >
+                {title}
+              </h1>
+            </div>
+            {isDirectoryMode && (
+              <p className="mt-1 text-[11px] text-on-surface-variant">{subtitle}</p>
+            )}
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -536,7 +571,10 @@ const Sidebar = ({
         </div>
 
         <div className="relative">
-          <AppIcon name="search" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
+          <AppIcon
+            name="search"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant"
+          />
           <input
             ref={searchInputRef}
             className="h-11 w-full rounded-[8px] border border-outline bg-surface-container-lowest pl-10 pr-4 text-[13px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent focus:ring-1 focus:ring-accent"
@@ -547,7 +585,7 @@ const Sidebar = ({
                   ? 'Tìm người theo tên hoặc ID'
                   : activeTab === 'requests'
                     ? 'Tìm kiếm lời mời'
-                  : 'Tìm kiếm cuộc trò chuyện'
+                    : 'Tìm kiếm cuộc trò chuyện'
             }
             type="text"
             value={searchQuery}
@@ -643,7 +681,7 @@ const Sidebar = ({
                         <button
                           type="button"
                           onClick={() => handleAccept(request._id)}
-                          className="h-8 rounded-[7px] border border-secondary/30 px-3 text-[11px] font-medium text-secondary hover:bg-secondary-container"
+                          className="h-8 rounded-[7px] border border-secondary/35 bg-surface-container-lowest px-3 text-[11px] font-medium text-secondary transition-colors hover:bg-secondary-container"
                         >
                           Chấp nhận
                         </button>
@@ -678,7 +716,12 @@ const Sidebar = ({
                         onClick={() => onSelectConversation(friend.id)}
                         className="flex w-full items-center gap-3 border-b border-outline-variant px-5 py-3 text-left hover:bg-surface-container-low"
                       >
-                        <Avatar src={friend.avatar} name={friend.name} online={friend.isOnline} size="contact" />
+                        <Avatar
+                          src={friend.avatar}
+                          name={friend.name}
+                          online={friend.isOnline}
+                          size="contact"
+                        />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] font-semibold text-on-surface">
                             {friend.name}
@@ -711,18 +754,7 @@ const Sidebar = ({
         ) : activeTab === 'discover' ? (
           <div className="divide-y divide-outline-variant md:overflow-y-auto">
             {isDirectoryLoading ? (
-              <div className="space-y-3 px-5 py-5">
-                {[1, 2, 3, 4].map((item) => (
-                  <div key={item} className="flex animate-pulse items-center gap-3">
-                    <span className="h-12 w-12 rounded-full bg-surface-container-low" />
-                    <span className="flex-1 space-y-2">
-                      <span className="block h-3 w-28 rounded bg-surface-container-low" />
-                      <span className="block h-3 w-44 rounded bg-surface-container-low" />
-                    </span>
-                    <span className="h-8 w-20 rounded bg-surface-container-low" />
-                  </div>
-                ))}
-              </div>
+              <ListSkeleton rows={4} action className="px-5 py-5" />
             ) : directoryError ? (
               <p className="px-6 py-12 text-center text-sm text-error">{directoryError}</p>
             ) : discoverList.length === 0 ? (
@@ -765,14 +797,14 @@ const Sidebar = ({
                     <button
                       type="button"
                       onClick={() => handleAccept(req._id)}
-                      className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
+                      className="rounded-lg border border-secondary/35 bg-surface-container-lowest px-3 py-2 text-xs font-medium text-secondary transition-colors hover:bg-secondary-container active:scale-[0.98]"
                     >
                       Chấp nhận
                     </button>
                     <button
                       type="button"
                       onClick={() => handleReject(req._id)}
-                      className="rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface active:scale-[0.98]"
+                      className="rounded-lg border border-error/30 bg-surface-container-lowest px-3 py-2 text-xs font-medium text-error transition-colors hover:bg-error-container active:scale-[0.98]"
                     >
                       Từ chối
                     </button>
@@ -784,18 +816,7 @@ const Sidebar = ({
         ) : (
           <div className="divide-y divide-outline-variant">
             {isLoading ? (
-              <div className="space-y-4 px-5 py-5">
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <div key={item} className="grid animate-pulse grid-cols-[56px_minmax(0,1fr)_36px] gap-3">
-                    <div className="h-12 w-12 rounded-full bg-surface-container-low" />
-                    <div className="space-y-2 self-center">
-                      <div className="h-3 w-28 rounded bg-surface-container-low" />
-                      <div className="h-3 w-40 rounded bg-surface-container-low" />
-                    </div>
-                    <div className="h-3 rounded bg-surface-container-low" />
-                  </div>
-                ))}
-              </div>
+              <ListSkeleton rows={5} className="px-5 py-5" />
             ) : error ? (
               <div className="flex flex-col items-center justify-center gap-3 px-8 py-14 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-error-container">
@@ -825,11 +846,15 @@ const Sidebar = ({
                       isSelected ? 'bg-surface-container-high' : 'hover:bg-surface-container-low'
                     }`}
                   >
-                    {isSelected && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-secondary" />}
+                    {isSelected && (
+                      <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-secondary" />
+                    )}
                     <Avatar src={conv.avatar} name={conv.name} online={conv.isOnline} size="lg" />
 
                     <div className="min-w-0 self-center">
-                      <p className={`truncate text-[15px] tracking-tight ${conv.unreadCount > 0 ? 'font-medium text-on-surface' : 'text-on-surface'}`}>
+                      <p
+                        className={`truncate text-[15px] tracking-tight ${conv.unreadCount > 0 ? 'font-medium text-on-surface' : 'text-on-surface'}`}
+                      >
                         {conv.name}
                       </p>
                       <p
@@ -870,10 +895,13 @@ const Sidebar = ({
         {isDirectoryMode && (
           <section className="hidden min-w-0 flex-col border-l border-outline-variant bg-surface-container-low md:flex">
             <div className="border-b border-outline-variant px-6 py-5">
-              <p className="text-[11px] font-semibold uppercase text-on-surface-variant">Kết nối mới</p>
+              <p className="text-[11px] font-semibold uppercase text-on-surface-variant">
+                Kết nối mới
+              </p>
               <h2 className="mt-1 text-[20px] font-semibold text-on-surface">Mở rộng kết nối</h2>
               <p className="mt-2 max-w-[460px] text-[12px] leading-5 text-on-surface-variant">
-                Gợi ý những người là bạn của bạn bè bạn, theo dõi lời mời đang chờ và phản hồi kết nối mới ngay tại đây.
+                Gợi ý những người là bạn của bạn bè bạn, theo dõi lời mời đang chờ và phản hồi kết
+                nối mới ngay tại đây.
               </p>
               <div className="mt-5 grid grid-cols-3 gap-2">
                 {[
@@ -881,7 +909,10 @@ const Sidebar = ({
                   { label: 'Gợi ý', value: suggestedUsers.length },
                   { label: 'Lời mời', value: friendRequests.length },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-[10px] border border-outline-variant bg-surface px-3 py-3">
+                  <div
+                    key={item.label}
+                    className="rounded-[10px] border border-outline-variant bg-surface px-3 py-3"
+                  >
                     <p className="text-[18px] font-semibold text-on-surface">{item.value}</p>
                     <p className="mt-1 text-[10px] text-on-surface-variant">{item.label}</p>
                   </div>
@@ -909,7 +940,8 @@ const Sidebar = ({
                         </p>
                       )}
                       <p className="mt-1 text-[12px] text-on-surface-variant">
-                        {selectedConnectionUser.status === 'none' && getMutualText(selectedConnectionUser)
+                        {selectedConnectionUser.status === 'none' &&
+                        getMutualText(selectedConnectionUser)
                           ? getMutualText(selectedConnectionUser)
                           : getRelationshipText(selectedConnectionUser.status)}
                       </p>
@@ -922,7 +954,9 @@ const Sidebar = ({
               ) : (
                 <div className="rounded-[14px] border border-outline-variant bg-surface px-5 py-8 text-center">
                   <AppIcon name="person_add" className="text-[30px] text-on-surface-variant" />
-                  <p className="mt-3 text-sm text-on-surface-variant">Chưa có người dùng để gợi ý.</p>
+                  <p className="mt-3 text-sm text-on-surface-variant">
+                    Chưa có người dùng để gợi ý.
+                  </p>
                 </div>
               )}
 
@@ -932,20 +966,34 @@ const Sidebar = ({
                     <h3 className="text-[11px] font-semibold uppercase text-on-surface-variant">
                       Lời mời cần phản hồi
                     </h3>
-                    <span className="text-[10px] text-on-surface-variant">{receivedRequestUsers.length}</span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {receivedRequestUsers.length}
+                    </span>
                   </div>
                   <div className="overflow-hidden rounded-[12px] border border-outline-variant bg-surface">
                     {receivedRequestUsers.slice(0, 4).map((user) => (
-                      <div key={user._id} className="flex items-center gap-3 border-b border-outline-variant px-3 py-3 last:border-b-0">
+                      <div
+                        key={user._id}
+                        className="flex items-center gap-3 border-b border-outline-variant px-3 py-3 last:border-b-0"
+                      >
                         <button
                           type="button"
                           onClick={() => setSelectedConnectionUserId(user._id)}
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="md" />
+                          <Avatar
+                            src={user.avatar}
+                            name={user.username}
+                            online={user.isOnline}
+                            size="md"
+                          />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-semibold text-on-surface">{user.username}</span>
-                            <span className="mt-0.5 block text-[11px] text-on-surface-variant">Muốn kết nối với bạn</span>
+                            <span className="block truncate text-[13px] font-semibold text-on-surface">
+                              {user.username}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] text-on-surface-variant">
+                              Muốn kết nối với bạn
+                            </span>
                           </span>
                         </button>
                         {renderConnectionActions(user, true)}
@@ -961,20 +1009,34 @@ const Sidebar = ({
                     <h3 className="text-[11px] font-semibold uppercase text-on-surface-variant">
                       Đã gửi lời mời
                     </h3>
-                    <span className="text-[10px] text-on-surface-variant">{sentRequestUsers.length}</span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {sentRequestUsers.length}
+                    </span>
                   </div>
                   <div className="overflow-hidden rounded-[12px] border border-outline-variant bg-surface">
                     {sentRequestUsers.map((user) => (
-                      <div key={user._id} className="flex items-center gap-3 border-b border-outline-variant px-3 py-3 last:border-b-0">
+                      <div
+                        key={user._id}
+                        className="flex items-center gap-3 border-b border-outline-variant px-3 py-3 last:border-b-0"
+                      >
                         <button
                           type="button"
                           onClick={() => setSelectedConnectionUserId(user._id)}
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="md" />
+                          <Avatar
+                            src={user.avatar}
+                            name={user.username}
+                            online={user.isOnline}
+                            size="md"
+                          />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-semibold text-on-surface">{user.username}</span>
-                            <span className="mt-0.5 block text-[11px] text-on-surface-variant">Đang chờ phản hồi</span>
+                            <span className="block truncate text-[13px] font-semibold text-on-surface">
+                              {user.username}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] text-on-surface-variant">
+                              Đang chờ phản hồi
+                            </span>
                           </span>
                         </button>
                         {renderConnectionActions(user, true)}
@@ -1008,9 +1070,7 @@ const Sidebar = ({
                 <AppIcon name="arrow_back" className="text-[21px]" />
               </button>
               <div className="min-w-0 flex-1 text-center md:text-left">
-                <h2 className="text-[18px] font-semibold text-on-surface">
-                  Tạo nhóm
-                </h2>
+                <h2 className="text-[18px] font-semibold text-on-surface">Tạo nhóm</h2>
                 <p className="mt-1 hidden text-[12px] text-on-surface-variant md:block">
                   Chọn bạn bè để bắt đầu cuộc trò chuyện nhóm.
                 </p>
@@ -1026,126 +1086,140 @@ const Sidebar = ({
             </div>
 
             <div className="no-scrollbar flex-1 overflow-y-auto px-4 py-5 md:px-5">
-            <label className="mb-4 block">
-              <span className="mb-2 flex items-center justify-between text-[11px] font-medium text-on-surface">
-                Tên nhóm
-                <span className="font-normal text-on-surface-variant">{groupTitle.length}/80</span>
-              </span>
-              <input
-                value={groupTitle}
-                onChange={(event) => setGroupTitle(event.target.value)}
-                maxLength={80}
-                className="h-11 w-full rounded-lg border border-outline-variant bg-surface px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent"
-                placeholder="Ví dụ: Team Marketing"
-              />
-              <span className="mt-2 block text-[10px] text-on-surface-variant">
-                Tên nhóm giúp mọi người dễ nhận biết.
-              </span>
-            </label>
-
-            <div className="mb-4">
-              <label className="relative mb-4 block">
-                <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[17px] text-on-surface-variant" />
+              <label className="mb-4 block">
+                <span className="mb-2 flex items-center justify-between text-[11px] font-medium text-on-surface">
+                  Tên nhóm
+                  <span className="font-normal text-on-surface-variant">
+                    {groupTitle.length}/80
+                  </span>
+                </span>
                 <input
-                  value={groupMemberQuery}
-                  onChange={(event) => setGroupMemberQuery(event.target.value)}
-                  className="h-11 w-full rounded-[8px] border border-outline bg-surface pl-10 pr-3 text-[13px] outline-none placeholder:text-on-surface-variant focus:border-secondary"
-                  placeholder="Tìm bạn bè để thêm"
+                  value={groupTitle}
+                  onChange={(event) => setGroupTitle(event.target.value)}
+                  maxLength={80}
+                  className="h-11 w-full rounded-lg border border-outline-variant bg-surface px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent"
+                  placeholder="Ví dụ: Team Marketing"
                 />
+                <span className="mt-2 block text-[10px] text-on-surface-variant">
+                  Tên nhóm giúp mọi người dễ nhận biết.
+                </span>
               </label>
 
-              {selectedGroupMemberIds.length > 0 && (
-                <div className="mb-5">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-on-surface">
-                      Thành viên đã chọn ({selectedGroupMemberIds.length})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedGroupMemberIds([])}
-                      className="text-[11px] font-medium text-secondary"
-                    >
-                      Xóa tất cả
-                    </button>
+              <div className="mb-4">
+                <label className="relative mb-4 block">
+                  <AppIcon
+                    name="search"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[17px] text-on-surface-variant"
+                  />
+                  <input
+                    value={groupMemberQuery}
+                    onChange={(event) => setGroupMemberQuery(event.target.value)}
+                    className="h-11 w-full rounded-[8px] border border-outline bg-surface pl-10 pr-3 text-[13px] outline-none placeholder:text-on-surface-variant focus:border-secondary"
+                    placeholder="Tìm bạn bè để thêm"
+                  />
+                </label>
+
+                {selectedGroupMemberIds.length > 0 && (
+                  <div className="mb-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-on-surface">
+                        Thành viên đã chọn ({selectedGroupMemberIds.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGroupMemberIds([])}
+                        className="text-[11px] font-medium text-secondary"
+                      >
+                        Xóa tất cả
+                      </button>
+                    </div>
+                    <div className="no-scrollbar flex gap-4 overflow-x-auto pb-1">
+                      {friendOptions
+                        .filter((friend) => selectedGroupMemberIds.includes(friend.peerId))
+                        .map((friend) => (
+                          <button
+                            key={friend.peerId}
+                            type="button"
+                            onClick={() => toggleGroupMember(friend.peerId)}
+                            className="relative w-14 shrink-0 text-center"
+                          >
+                            <Avatar
+                              src={friend.avatar}
+                              name={friend.name}
+                              online={friend.isOnline}
+                              size="lg"
+                              className="mx-auto block"
+                            />
+                            <span className="absolute right-0 top-0 grid h-5 w-5 place-items-center rounded-full border border-outline bg-surface text-on-surface">
+                              <AppIcon name="close" className="text-[11px]" />
+                            </span>
+                            <span className="mt-1.5 block truncate text-[10px] text-on-surface">
+                              {friend.name}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
                   </div>
-                  <div className="no-scrollbar flex gap-4 overflow-x-auto pb-1">
-                    {friendOptions
-                      .filter((friend) => selectedGroupMemberIds.includes(friend.peerId))
-                      .map((friend) => (
+                )}
+
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-on-surface">Danh sách bạn bè</span>
+                  <span className="text-[10px] text-on-surface-variant">
+                    {selectedGroupMemberIds.length}/200 đã chọn
+                  </span>
+                </div>
+
+                <div className="max-h-[340px] flex-1 overflow-y-auto border-y border-outline-variant bg-surface">
+                  {filteredGroupFriends.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-on-surface-variant">
+                      Không tìm thấy bạn bè phù hợp.
+                    </div>
+                  ) : (
+                    filteredGroupFriends.map((friend) => {
+                      const isSelected = selectedGroupMemberIds.includes(friend.peerId);
+
+                      return (
                         <button
                           key={friend.peerId}
                           type="button"
                           onClick={() => toggleGroupMember(friend.peerId)}
-                          className="relative w-14 shrink-0 text-center"
+                          className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-container-low"
                         >
                           <Avatar
                             src={friend.avatar}
                             name={friend.name}
                             online={friend.isOnline}
-                            size="lg"
-                            className="mx-auto block"
+                            size="md"
                           />
-                          <span className="absolute right-0 top-0 grid h-5 w-5 place-items-center rounded-full border border-outline bg-surface text-on-surface">
-                            <AppIcon name="close" className="text-[11px]" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-on-surface">
+                              {friend.name}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+                              {friend.isOnline ? 'Đang online' : 'Ngoại tuyến'}
+                            </span>
                           </span>
-                          <span className="mt-1.5 block truncate text-[10px] text-on-surface">{friend.name}</span>
+                          <span
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                              isSelected
+                                ? 'border-accent bg-accent text-white'
+                                : 'border-outline-variant text-transparent'
+                            }`}
+                          >
+                            <AppIcon name="check" className="text-[18px]" />
+                          </span>
                         </button>
-                      ))}
-                  </div>
+                      );
+                    })
+                  )}
                 </div>
+              </div>
+
+              {createGroupError && (
+                <p className="mb-3 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+                  {createGroupError}
+                </p>
               )}
-
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-on-surface">Danh sách bạn bè</span>
-                <span className="text-[10px] text-on-surface-variant">{selectedGroupMemberIds.length}/200 đã chọn</span>
-              </div>
-
-              <div className="max-h-[340px] flex-1 overflow-y-auto border-y border-outline-variant bg-surface">
-                {filteredGroupFriends.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-on-surface-variant">
-                    Không tìm thấy bạn bè phù hợp.
-                  </div>
-                ) : (
-                  filteredGroupFriends.map((friend) => {
-                    const isSelected = selectedGroupMemberIds.includes(friend.peerId);
-
-                    return (
-                      <button
-                        key={friend.peerId}
-                        type="button"
-                        onClick={() => toggleGroupMember(friend.peerId)}
-                        className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-container-low"
-                      >
-                        <Avatar src={friend.avatar} name={friend.name} online={friend.isOnline} size="md" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-on-surface">
-                            {friend.name}
-                          </span>
-                          <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
-                            {friend.isOnline ? 'Đang online' : 'Ngoại tuyến'}
-                          </span>
-                        </span>
-                        <span
-                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                            isSelected
-                              ? 'border-accent bg-accent text-white'
-                              : 'border-outline-variant text-transparent'
-                          }`}
-                        >
-                          <AppIcon name="check" className="text-[18px]" />
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {createGroupError && (
-              <p className="mb-3 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
-                {createGroupError}
-              </p>
-            )}
             </div>
 
             <div className="flex shrink-0 gap-2 border-t border-outline-variant bg-surface-container-lowest p-4 md:px-5">
@@ -1158,7 +1232,9 @@ const Sidebar = ({
               </button>
               <button
                 type="submit"
-                disabled={isCreatingGroup || !groupTitle.trim() || selectedGroupMemberIds.length === 0}
+                disabled={
+                  isCreatingGroup || !groupTitle.trim() || selectedGroupMemberIds.length === 0
+                }
                 className="h-11 flex-1 rounded-lg bg-primary text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
@@ -1170,8 +1246,19 @@ const Sidebar = ({
 
       <div className="grid h-[68px] grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
         {[
-          { icon: 'chat_bubble', label: 'Tin nhắn', active: viewMode === 'messages', onClick: onOpenMessages },
-          { icon: 'person', label: 'Kết nối', active: viewMode === 'contacts', onClick: onOpenContacts },
+          {
+            icon: 'chat_bubble',
+            label: 'Tin nhắn',
+            active: viewMode === 'messages',
+            onClick: onOpenMessages,
+          },
+          {
+            icon: 'person',
+            label: 'Kết nối',
+            active: viewMode === 'contacts',
+            onClick: onOpenContacts,
+            badge: friendRequests.length,
+          },
           { icon: 'groups', label: 'Nhóm', active: viewMode === 'groups', onClick: onOpenGroups },
           { icon: 'settings', label: 'Cài đặt', onClick: onOpenSettings },
         ].map((item) => (
@@ -1184,7 +1271,14 @@ const Sidebar = ({
             }`}
           >
             {item.active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-secondary" />}
-            <AppIcon name={item.icon} className="text-[21px]" />
+            <span className="relative grid h-6 w-6 place-items-center">
+              <AppIcon name={item.icon} className="text-[21px]" />
+              {item.badge > 0 && (
+                <span className="absolute -right-2 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
+            </span>
             <span>{item.label}</span>
           </button>
         ))}

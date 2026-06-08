@@ -141,8 +141,8 @@ export const CallProvider = ({ children }) => {
       try {
         notification = new Notification(`Cuộc gọi ${callTypeLabel} đến`, {
           body: `${callerName} đang gọi cho bạn`,
-          icon: '/pingme.svg',
-          badge: '/pingme.svg',
+          icon: '/logo.png',
+          badge: '/logo.png',
           tag: payload.callId ? `pingme-call-${payload.callId}` : 'pingme-call-incoming',
           renotify: true,
           requireInteraction: true,

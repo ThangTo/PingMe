@@ -1,4 +1,4 @@
-const DEFAULT_ICON = '/pingme.svg';
+const DEFAULT_ICON = '/logo.png';
 
 const broadcastDebugEvent = async (eventName, detail = {}) => {
   const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

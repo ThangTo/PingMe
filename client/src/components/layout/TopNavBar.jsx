@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import PingMeLogo from '../ui/PingMeLogo';
+import PingMeWordmark from '../ui/PingMeWordmark';
 
 const TopNavBar = () => {
   const { user, logout } = useAuth();
@@ -14,10 +16,9 @@ const TopNavBar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-40 h-16 border-b border-outline-variant bg-background/92 backdrop-blur-md">
       <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-6">
-        <div className="flex items-baseline gap-3">
-          <span className="text-xl font-headline font-semibold tracking-[-0.03em] text-on-surface">
-            PingMe
-          </span>
+        <div className="flex items-center gap-3">
+          <PingMeLogo size="sm" />
+          <PingMeWordmark size="md" />
           <span className="hidden text-xs font-label text-on-surface-variant md:inline">
             realtime chat
           </span>

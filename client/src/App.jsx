@@ -5,6 +5,7 @@ import AuthLayout from './components/layout/AuthLayout';
 import Chat from './pages/Chat';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import LoadingState from './components/ui/LoadingState';
 
 /**
  * Protected Route Component - Chỉ cho phép truy cập khi đã đăng nhập
@@ -12,13 +13,7 @@ import Register from './pages/Register';
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-on-surface">Đang tải...</div>
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingState fullscreen label="Đang tải PingMe..." />;
 
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
@@ -29,16 +24,10 @@ const ProtectedRoute = ({ children }) => {
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-on-surface">Đang tải...</div>
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingState fullscreen label="Đang tải PingMe..." />;
 
   return !isAuthenticated ? children : <Navigate to="/chat" replace />;
-    };
+};
 
 /**
  * App Routes

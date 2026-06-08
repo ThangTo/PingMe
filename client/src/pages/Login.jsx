@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import AuthPreview from '../components/layout/AuthPreview';
 import AppIcon from '../components/ui/AppIcon';
 import AppModal from '../components/ui/AppModal';
+import PingMeLogo from '../components/ui/PingMeLogo';
+import PingMeWordmark from '../components/ui/PingMeWordmark';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -175,10 +177,8 @@ const Login = () => {
     <div className="relative flex w-full flex-1 overflow-hidden bg-surface md:min-h-[calc(100dvh-40px)] md:rounded-[18px] md:border md:border-outline md:quiet-shadow lg:min-h-[calc(100dvh-56px)]">
       <section className="relative flex min-h-[100dvh] w-full flex-col bg-surface-container-lowest px-6 pb-7 pt-6 md:min-h-0 md:w-[49%] md:border-r md:border-outline-variant md:px-10 md:pb-5 md:pt-7 lg:px-14">
         <div className="flex items-center gap-2 font-semibold text-on-surface">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-white">
-            <AppIcon name="mode_comment" className="text-[18px]" />
-          </span>
-          <span className="text-[17px]">PingMe</span>
+          <PingMeLogo size="sm" />
+          <PingMeWordmark size="md" className="-ml-1" />
         </div>
 
         <div className="pointer-events-none absolute right-5 top-24 opacity-50 md:hidden">
@@ -191,7 +191,7 @@ const Login = () => {
         <div className="mx-auto flex w-full max-w-[410px] flex-1 flex-col justify-center py-10 md:py-6">
           <div className="mb-9 text-center">
             <span className="mx-auto mb-3 hidden h-14 w-14 place-items-center rounded-full bg-secondary-container text-secondary md:grid">
-              <AppIcon name="mode_comment" className="text-[28px]" />
+              <PingMeLogo size="lg" showShadow />
             </span>
             <h1 className="text-[28px] font-semibold text-on-surface md:text-[25px]">Đăng nhập</h1>
             <p className="mt-2 text-[15px] text-on-surface-variant">Chào mừng bạn trở lại 👋</p>

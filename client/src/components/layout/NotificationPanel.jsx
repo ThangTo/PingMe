@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../config/api';
 import socket from '../../socket';
 import AppIcon from '../ui/AppIcon';
+import { ListSkeleton } from '../ui/LoadingState';
 
 const formatTime = (value) =>
   value
@@ -13,11 +14,11 @@ const formatTime = (value) =>
       })
     : '';
 
-const MobilePanelNav = ({ onNavigate }) => (
+const MobilePanelNav = ({ onNavigate, connectionRequestCount = 0 }) => (
   <nav className="grid h-[68px] shrink-0 grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
     {[
       { key: 'messages', icon: 'chat_bubble', label: 'Tin nhắn', active: true },
-      { key: 'contacts', icon: 'person', label: 'Kết nối' },
+      { key: 'contacts', icon: 'person', label: 'Kết nối', badge: connectionRequestCount },
       { key: 'groups', icon: 'groups', label: 'Nhóm' },
       { key: 'settings', icon: 'settings', label: 'Cài đặt' },
     ].map((item) => (
@@ -28,12 +29,19 @@ const MobilePanelNav = ({ onNavigate }) => (
         className={`relative flex flex-col items-center justify-center gap-1 text-[10px] ${
           item.active ? 'text-secondary' : 'text-on-surface-variant'
         }`}
-      >
-        {item.active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-secondary" />}
+    >
+      {item.active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-secondary" />}
+      <span className="relative grid h-6 w-6 place-items-center">
         <AppIcon name={item.icon} className="text-[21px]" />
-        <span>{item.label}</span>
-      </button>
-    ))}
+        {item.badge > 0 && (
+          <span className="absolute -right-2 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
+            {item.badge > 99 ? '99+' : item.badge}
+          </span>
+        )}
+      </span>
+      <span>{item.label}</span>
+    </button>
+  ))}
   </nav>
 );
 
@@ -44,7 +52,13 @@ const notificationIcon = (type) => {
   return 'chat_bubble';
 };
 
-const NotificationPanel = ({ onBack, onOpen, onUnreadCountChange, onNavigate }) => {
+const NotificationPanel = ({
+  onBack,
+  onOpen,
+  onUnreadCountChange,
+  onNavigate,
+  connectionRequestCount = 0,
+}) => {
   const [notifications, setNotifications] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -213,17 +227,7 @@ const NotificationPanel = ({ onBack, onOpen, onUnreadCountChange, onNavigate }) 
             </div>
 
             {isLoading && (
-              <div className="space-y-3 py-5">
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <div key={item} className="flex animate-pulse items-center gap-3 py-2">
-                    <span className="h-11 w-11 rounded-full bg-surface-container-high" />
-                    <span className="flex-1 space-y-2">
-                      <span className="block h-3 w-1/3 rounded bg-surface-container-high" />
-                      <span className="block h-3 w-2/3 rounded bg-surface-container-low" />
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <ListSkeleton rows={5} className="py-5" />
             )}
 
             {error && (
@@ -284,7 +288,7 @@ const NotificationPanel = ({ onBack, onOpen, onUnreadCountChange, onNavigate }) 
         </div>
       </div>
 
-      <MobilePanelNav onNavigate={onNavigate} />
+      <MobilePanelNav onNavigate={onNavigate} connectionRequestCount={connectionRequestCount} />
     </section>
   );
 };

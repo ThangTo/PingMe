@@ -144,7 +144,7 @@ export const SocketProvider = ({ children }) => {
           if (Notification.permission !== 'granted') return Notification.permission;
           return new Notification('PingMe test', {
             body: 'Neu thay thong bao nay thi Browser Notification dang hoat dong.',
-            icon: '/pingme.svg',
+            icon: '/logo.png',
           });
         },
       };

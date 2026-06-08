@@ -1,3 +1,5 @@
+import { LoadingSpinner } from './LoadingState';
+
 /**
  * Button Component - Bổ sung hiệu ứng vật lý (nhấn lún xuống)
  */
@@ -7,6 +9,8 @@ const Button = ({
   size = 'md',
   className = '',
   disabled = false,
+  isLoading = false,
+  loadingText = '',
   onClick,
   type = 'button',
   ...props
@@ -32,11 +36,12 @@ const Button = ({
     <button
       type={type}
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
-      disabled={disabled}
+      disabled={disabled || isLoading}
       onClick={onClick}
       {...props}
     >
-      {children}
+      {isLoading && <LoadingSpinner size="sm" className="mr-2 text-current" />}
+      {isLoading && loadingText ? loadingText : children}
     </button>
   );
 };

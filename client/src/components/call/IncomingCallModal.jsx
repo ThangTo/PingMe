@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useCall } from '../../context/CallContext'
 import AppIcon from '../ui/AppIcon';
+import PingMeLogo from '../ui/PingMeLogo';
+import PingMeWordmark from '../ui/PingMeWordmark';
 
 const AVATAR_FALLBACK =
   'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'
@@ -20,8 +22,8 @@ function IncomingCallModal() {
       <div className="w-full max-w-[560px] overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-sm">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 text-[14px] font-medium text-on-surface">
-            <AppIcon name="mode_comment" className="text-[18px]" />
-            PingMe
+            <PingMeLogo size="sm" />
+            <PingMeWordmark size="sm" className="-ml-1" />
           </div>
           <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1 text-[12px] font-medium text-on-surface-variant">
             <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />

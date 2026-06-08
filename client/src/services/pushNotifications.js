@@ -220,8 +220,8 @@ export const showServiceWorkerTestNotification = async () => {
 
   await readyRegistration.showNotification('PingMe Service Worker test', {
     body: 'Neu thay thong bao nay thi Service Worker notification hien duoc.',
-    icon: '/pingme.svg',
-    badge: '/pingme.svg',
+    icon: '/logo.png',
+    badge: '/logo.png',
     tag: `pingme-sw-direct-test-${Date.now()}`,
     data: {
       type: 'test',

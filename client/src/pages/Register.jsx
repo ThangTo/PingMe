@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthPreview from '../components/layout/AuthPreview';
 import AppIcon from '../components/ui/AppIcon';
+import PingMeLogo from '../components/ui/PingMeLogo';
+import PingMeWordmark from '../components/ui/PingMeWordmark';
 import { useAuth } from '../context/AuthContext';
 
 const Register = () => {
@@ -192,10 +194,8 @@ const Register = () => {
           >
             <AppIcon name="arrow_back" className="text-[20px]" />
           </button>
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-white">
-            <AppIcon name="mode_comment" className="text-[18px]" />
-          </span>
-          <span className="text-[17px]">PingMe</span>
+          <PingMeLogo size="sm" />
+          <PingMeWordmark size="md" className="-ml-1" />
         </div>
 
         <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-7 md:py-4">

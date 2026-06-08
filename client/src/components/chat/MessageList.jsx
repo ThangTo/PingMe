@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import MessageBubble from './MessageBubble';
 import AppIcon from '../ui/AppIcon';
+import { LoadingSpinner, MessageSkeleton } from '../ui/LoadingState';
 
 const EMPTY_META_MESSAGE_IDS = new Set();
 
@@ -322,7 +323,7 @@ const MessageList = ({
         {isLoadingOlderMessages && !isSearchMode && (
           <div className="flex justify-center">
             <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 text-xs font-medium text-on-surface-variant shadow-sm">
-              <AppIcon name="hourglass_empty" className="text-[18px] animate-spin" />
+              <LoadingSpinner size="sm" />
               <span>Đang tải...</span>
             </div>
           </div>
@@ -449,16 +450,7 @@ const MessageList = ({
 
   if (isLoading) {
     return (
-      <div className="w-full space-y-4 px-4 py-8 md:px-5">
-        {[1, 2, 3, 4].map((item) => (
-          <div
-            key={item}
-            className={`flex animate-pulse ${item % 2 === 0 ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className="h-12 w-[min(420px,72%)] rounded-lg bg-surface-container-low" />
-          </div>
-        ))}
-      </div>
+      <MessageSkeleton rows={4} className="px-4 py-8 md:px-5" />
     );
   }
 

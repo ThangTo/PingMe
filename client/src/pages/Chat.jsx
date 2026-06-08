@@ -179,8 +179,8 @@ const showHiddenTabMessageNotification = ({ message, conversationId, conversatio
     message.isGroup && conversationName ? `${senderName} trong ${conversationName}` : senderName;
   const notificationOptions = {
     body,
-    icon: '/pingme.svg',
-    badge: '/pingme.svg',
+    icon: '/logo.png',
+    badge: '/logo.png',
     tag: conversationId ? `pingme-message-${conversationId}` : `pingme-message-${Date.now()}`,
     renotify: true,
     data: {
@@ -400,6 +400,9 @@ const Chat = () => {
   const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
   const [activeRailItem, setActiveRailItem] = useState('messages');
+  const [isRailCollapsed, setIsRailCollapsed] = useState(
+    () => localStorage.getItem('pingme_rail_collapsed') === 'true',
+  );
   const [focusSearchSignal, setFocusSearchSignal] = useState(0);
   const [isFriendsLoading, setIsFriendsLoading] = useState(false);
   const [friendsError, setFriendsError] = useState('');
@@ -412,6 +415,7 @@ const Chat = () => {
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
   const [appNotifications, setAppNotifications] = useState([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [friendRequestCount, setFriendRequestCount] = useState(0);
   const messagesRef = useRef(messages);
   const conversationsRef = useRef(conversations);
   const messageTargetRef = useRef(null);
@@ -525,6 +529,36 @@ const Chat = () => {
     socket.on('notification_created', handleNotificationCreated);
     return () => socket.off('notification_created', handleNotificationCreated);
   }, [user]);
+
+  const fetchFriendRequestCount = useCallback(async () => {
+    try {
+      const response = await api.get('/users/requests');
+      setFriendRequestCount((response.data.requests || []).length);
+    } catch (error) {
+      console.error('Không thể tải số lời mời kết bạn:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setFriendRequestCount(0);
+      return undefined;
+    }
+
+    fetchFriendRequestCount();
+
+    socket.on('friend_request_received', fetchFriendRequestCount);
+    socket.on('friend_request_cancelled', fetchFriendRequestCount);
+    socket.on('friend_request_accepted', fetchFriendRequestCount);
+    socket.on('relationship_updated', fetchFriendRequestCount);
+
+    return () => {
+      socket.off('friend_request_received', fetchFriendRequestCount);
+      socket.off('friend_request_cancelled', fetchFriendRequestCount);
+      socket.off('friend_request_accepted', fetchFriendRequestCount);
+      socket.off('relationship_updated', fetchFriendRequestCount);
+    };
+  }, [fetchFriendRequestCount, user]);
 
   useEffect(
     () => () => {
@@ -2008,6 +2042,8 @@ const Chat = () => {
         <AppRail
           activeItem={activeRailItem}
           notificationCount={notificationUnreadCount}
+          connectionRequestCount={friendRequestCount}
+          onCollapseChange={setIsRailCollapsed}
           onNavigate={handleRailNavigate}
         />
 
@@ -2016,6 +2052,7 @@ const Chat = () => {
             <SettingsPanel
               onBack={() => setActiveRailItem('messages')}
               onNavigate={setActiveRailItem}
+              connectionRequestCount={friendRequestCount}
             />
           ) : activeRailItem === 'notifications' ? (
             <NotificationPanel
@@ -2023,6 +2060,7 @@ const Chat = () => {
               onNavigate={setActiveRailItem}
               onUnreadCountChange={setNotificationUnreadCount}
               onOpen={handleOpenMessageTarget}
+              connectionRequestCount={friendRequestCount}
             />
           ) : activeRailItem === 'search' ? (
             <GlobalSearchPanel
@@ -2030,6 +2068,7 @@ const Chat = () => {
               onBack={() => setActiveRailItem('messages')}
               onNavigate={setActiveRailItem}
               onOpenResult={handleOpenMessageTarget}
+              connectionRequestCount={friendRequestCount}
             />
           ) : (
             <>
@@ -2047,6 +2086,8 @@ const Chat = () => {
                 error={friendsError}
                 focusSearchSignal={focusSearchSignal}
                 notificationCount={notificationUnreadCount}
+                onFriendRequestCountChange={setFriendRequestCount}
+                showMessageBrand={activeRailItem === 'messages' && isRailCollapsed}
                 onOpenMessages={() => setActiveRailItem('messages')}
                 onOpenContacts={() => setActiveRailItem('contacts')}
                 onOpenGroups={() => setActiveRailItem('groups')}
