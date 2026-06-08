@@ -79,6 +79,45 @@ const formatVisibleUser = (user, viewerId) => ({
   isOnline: getVisibleOnlineStatus(viewerId, user),
 });
 
+const toIdString = (value) => value?._id?.toString?.() || value?.toString?.() || '';
+
+const hasObjectId = (ids = [], targetId) =>
+  ids.some((id) => toIdString(id) === toIdString(targetId));
+
+const getMutualFriendInfo = (currentUser, targetUser) => {
+  const currentFriendById = new Map(
+    (currentUser.friends || []).map((friend) => [toIdString(friend), friend]),
+  );
+  const mutualFriendIds = (targetUser.friends || [])
+    .map(toIdString)
+    .filter((friendId) => currentFriendById.has(friendId));
+
+  return {
+    mutualFriendCount: mutualFriendIds.length,
+    mutualFriends: mutualFriendIds.slice(0, 3).map((friendId) => {
+      const friend = currentFriendById.get(friendId);
+      return {
+        _id: friend._id,
+        username: friend.username,
+        avatar: friend.avatar,
+      };
+    }),
+  };
+};
+
+const getRelationshipStatus = (currentUser, targetUser, currentUserId) => {
+  if (hasObjectId(currentUser.friends, targetUser._id)) return 'friend';
+  if (hasObjectId(targetUser.friendRequests, currentUserId)) return 'sent';
+  if (hasObjectId(currentUser.friendRequests, targetUser._id)) return 'received';
+  return 'none';
+};
+
+const formatDiscoverableUser = (user, currentUser, viewerId) => ({
+  ...formatVisibleUser(user, viewerId),
+  status: getRelationshipStatus(currentUser, user, viewerId),
+  ...getMutualFriendInfo(currentUser, user),
+});
+
 const emitPresenceForPrivacyChange = (req, user) => {
   const io = req.app.get('io');
   if (!io) return;
@@ -318,14 +357,28 @@ const userController = {
   getAllUsers: async (req, res) => {
     try {
       const currentUserId = req.user.id;
-      // Lấy tất cả user trừ chính mình, chỉ lấy các trường cần thiết
-      const users = await User.find({ _id: { $ne: currentUserId } }).select(
-        'username email avatar isOnline friends privacySettings',
-      );
+      const currentUser = await User.findById(currentUserId)
+        .populate('friends', 'username avatar')
+        .select('friends friendRequests blockedUsers')
+        .lean();
+
+      if (!currentUser) {
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      const blockedUserIds = currentUser.blockedUsers || [];
+      const usersWhoBlockedCurrent = await User.find({ blockedUsers: currentUserId }).distinct('_id');
+      // Lấy tất cả user có thể hiển thị để dựng màn kết nối mới.
+      const users = await User.find({
+        _id: {
+          $ne: currentUserId,
+          $nin: [...blockedUserIds, ...usersWhoBlockedCurrent],
+        },
+      }).select('username email avatar isOnline friendRequests friends privacySettings');
 
       res.status(200).json({
         success: true,
-        users: users.map((user) => formatVisibleUser(user, currentUserId)),
+        users: users.map((user) => formatDiscoverableUser(user, currentUser, currentUserId)),
       });
     } catch (error) {
       res.status(500).json({ error: 'Không thể lấy danh sách người dùng' });
@@ -438,19 +491,23 @@ const userController = {
       }
 
       const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const currentUser = await User.findById(req.user.id);
+      const currentUser = await User.findById(req.user.id)
+        .populate('friends', 'username avatar')
+        .select('friends friendRequests blockedUsers')
+        .lean();
 
       if (!currentUser) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
       }
 
+      const blockedUserIds = currentUser.blockedUsers || [];
       const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user.id }).distinct('_id');
       const users = await User.find({
         $and: [
           {
             _id: {
               $ne: req.user.id,
-              $nin: [...currentUser.blockedUsers, ...usersWhoBlockedCurrent],
+              $nin: [...blockedUserIds, ...usersWhoBlockedCurrent],
             },
           },
           {
@@ -462,23 +519,8 @@ const userController = {
         ],
       }).select('username email avatar isOnline friendRequests friends privacySettings');
 
-      // Gắn trạng thái cho từng kết quả
-      const formattedUsers = users.map((u) => {
-        let status = 'none'; // Mặc định: chưa có quan hệ gì
-        if (currentUser.friends.some((id) => id.toString() === u._id.toString())) status = 'friend';
-        else if (u.friendRequests.some((id) => id.toString() === req.user.id)) status = 'sent';
-        else if (currentUser.friendRequests.some((id) => id.toString() === u._id.toString())) {
-          status = 'received';
-        }
-
-        return {
-          _id: u._id,
-          username: u.username,
-          avatar: getVisibleAvatar(req.user.id, u),
-          isOnline: getVisibleOnlineStatus(req.user.id, u),
-          status: status,
-        };
-      });
+      // Gắn trạng thái cho từng kết quả để client biết cần hiện nút gì.
+      const formattedUsers = users.map((u) => formatDiscoverableUser(u, currentUser, req.user.id));
 
       res.status(200).json({ success: true, users: formattedUsers });
     } catch (error) {

@@ -1991,7 +1991,7 @@ const Chat = () => {
         onDismiss={dismissAppNotification}
       />
 
-      <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface shadow-sm">
+      <div className="mx-auto flex h-full max-w-[1728px] overflow-hidden border-x border-outline-variant bg-surface">
         <AppRail
           activeItem={activeRailItem}
           notificationCount={notificationUnreadCount}
@@ -2000,10 +2000,14 @@ const Chat = () => {
 
         <main className="relative flex min-w-0 flex-1 overflow-hidden bg-surface">
           {activeRailItem === 'settings' ? (
-            <SettingsPanel onBack={() => setActiveRailItem('messages')} />
+            <SettingsPanel
+              onBack={() => setActiveRailItem('messages')}
+              onNavigate={setActiveRailItem}
+            />
           ) : activeRailItem === 'notifications' ? (
             <NotificationPanel
               onBack={() => setActiveRailItem('messages')}
+              onNavigate={setActiveRailItem}
               onUnreadCountChange={setNotificationUnreadCount}
               onOpen={handleOpenMessageTarget}
             />
@@ -2011,6 +2015,7 @@ const Chat = () => {
             <GlobalSearchPanel
               conversations={conversations}
               onBack={() => setActiveRailItem('messages')}
+              onNavigate={setActiveRailItem}
               onOpenResult={handleOpenMessageTarget}
             />
           ) : (
@@ -2029,6 +2034,9 @@ const Chat = () => {
                 error={friendsError}
                 focusSearchSignal={focusSearchSignal}
                 notificationCount={notificationUnreadCount}
+                onOpenMessages={() => setActiveRailItem('messages')}
+                onOpenContacts={() => setActiveRailItem('contacts')}
+                onOpenGroups={() => setActiveRailItem('groups')}
                 onOpenNotifications={() => setActiveRailItem('notifications')}
                 onOpenGlobalSearch={() => setActiveRailItem('search')}
                 onOpenSettings={() => {
@@ -2099,24 +2107,49 @@ const Chat = () => {
                   )}
                 </>
               ) : (
-                <section className="relative hidden flex-1 flex-col items-center justify-center bg-surface px-8 md:flex">
-                  <div className="max-w-sm animate-fade-in text-center">
-                    <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest">
-                      <AppIcon name="forum" className="text-3xl text-on-surface-variant" />
+                <section className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden bg-surface px-8 md:flex">
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-[0.025]"
+                    style={{
+                      backgroundImage: 'radial-gradient(currentColor 0.7px, transparent 0.7px)',
+                      backgroundSize: '22px 22px',
+                    }}
+                  />
+                  <div className="relative max-w-sm animate-fade-in text-center">
+                    <div className="relative mx-auto mb-8 h-36 w-56">
+                      <div className="absolute left-3 top-3 flex h-14 w-32 items-center gap-2 rounded-[12px] rounded-bl-[4px] border border-outline bg-surface-container-lowest px-3 quiet-shadow">
+                        <span className="h-7 w-7 rounded-full bg-surface-container-high" />
+                        <span className="space-y-1.5">
+                          <span className="block h-1.5 w-16 rounded-full bg-outline" />
+                          <span className="block h-1.5 w-11 rounded-full bg-outline-variant" />
+                        </span>
+                      </div>
+                      <div className="absolute bottom-4 right-2 flex h-16 w-36 items-center gap-2 rounded-[12px] rounded-br-[4px] border border-secondary/20 bg-secondary-container px-3 quiet-shadow">
+                        <span className="h-7 w-7 rounded-full bg-secondary/25" />
+                        <span className="space-y-1.5">
+                          <span className="block h-1.5 w-20 rounded-full bg-secondary/35" />
+                          <span className="block h-1.5 w-14 rounded-full bg-secondary/20" />
+                        </span>
+                      </div>
+                      <span className="absolute bottom-2 right-0 grid h-8 w-8 place-items-center rounded-full border border-outline bg-surface text-error quiet-shadow">
+                        <AppIcon name="star" className="text-[15px]" />
+                      </span>
                     </div>
 
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-headline font-semibold tracking-[-0.03em] text-on-surface">
-                        Chọn cuộc trò chuyện
-                      </h2>
-                      <p className="text-sm leading-6 text-on-surface-variant">
-                        Tin nhắn, media và trạng thái realtime sẽ hiện ở đây khi bạn chọn một cuộc
-                        trò chuyện.
-                      </p>
+                    <h2 className="text-[22px] font-semibold text-on-surface">Chọn một cuộc trò chuyện</h2>
+                    <p className="mt-2 text-[13px] leading-6 text-on-surface-variant">
+                      Chọn một cuộc trò chuyện từ danh sách để bắt đầu nhắn tin với bạn bè và đồng nghiệp.
+                    </p>
+
+                    <div className="mt-6 inline-flex items-center gap-3 text-[11px] text-on-surface-variant">
+                      <kbd className="rounded-[6px] border border-outline bg-surface-container-low px-2 py-1.5 text-on-surface">
+                        Ctrl K
+                      </kbd>
+                      Tìm kiếm nhanh
                     </div>
 
                     {!isConnected && (
-                      <div className="mt-6 inline-flex items-center gap-2 rounded-md border border-error/20 bg-error-container px-3 py-2">
+                      <div className="mt-6 inline-flex items-center gap-2 rounded-[8px] border border-error/20 bg-error-container px-3 py-2">
                         <span className="h-1.5 w-1.5 rounded-full bg-error" />
                         <p className="text-xs font-medium text-error">Đang kết nối lại</p>
                       </div>

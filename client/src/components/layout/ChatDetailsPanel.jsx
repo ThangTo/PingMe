@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import { useCall } from '../../context/CallContext';
 import FileTypeIcon from '../ui/FileTypeIcon';
@@ -157,6 +157,8 @@ const ChatDetailsPanel = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isMembersOpen, setIsMembersOpen] = useState(false);
   const [isMemberComposerOpen, setIsMemberComposerOpen] = useState(false);
+  const [activeMemberMenuId, setActiveMemberMenuId] = useState(null);
+  const [pendingRemoveMember, setPendingRemoveMember] = useState(null);
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [memberActionError, setMemberActionError] = useState('');
   const [isAddingMembers, setIsAddingMembers] = useState(false);
@@ -168,6 +170,7 @@ const ChatDetailsPanel = ({
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState('');
   const [socialActionError, setSocialActionError] = useState('');
+  const memberMenuRef = useRef(null);
   const isGroup = Boolean(user?.isGroup);
   const { callState, initiateCall } = useCall();
   const canStartDirectCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
@@ -275,10 +278,24 @@ const ChatDetailsPanel = ({
   useEffect(() => {
     setIsMembersOpen(false);
     setIsMemberComposerOpen(false);
+    setActiveMemberMenuId(null);
+    setPendingRemoveMember(null);
     setSelectedMemberIds([]);
     setMemberActionError('');
     setNotificationError('');
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!activeMemberMenuId) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (memberMenuRef.current?.contains(event.target)) return;
+      setActiveMemberMenuId(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [activeMemberMenuId]);
 
   const localGallery = useMemo(() => buildLocalGallery(messages), [messages]);
 
@@ -327,6 +344,25 @@ const ChatDetailsPanel = ({
     () => user?.members?.find((member) => member.id === currentUserId) || null,
     [currentUserId, user?.members],
   );
+  const membersByRole = useMemo(() => {
+    const groups = {
+      owner: [],
+      admin: [],
+      member: [],
+    };
+
+    (user?.members || []).forEach((member) => {
+      if (member.role === 'owner') groups.owner.push(member);
+      else if (member.role === 'admin') groups.admin.push(member);
+      else groups.member.push(member);
+    });
+
+    return [
+      { key: 'owner', label: 'Chủ nhóm', members: groups.owner },
+      { key: 'admin', label: `Quản trị (${groups.admin.length})`, members: groups.admin },
+      { key: 'member', label: `Thành viên (${groups.member.length})`, members: groups.member },
+    ].filter((group) => group.members.length > 0);
+  }, [user?.members]);
   const canManageMembers = ['owner', 'admin'].includes(currentMember?.role);
   const existingMemberIds = useMemo(
     () => new Set((user?.members || []).map((member) => member.id)),
@@ -384,11 +420,19 @@ const ChatDetailsPanel = ({
     }
   };
 
+  const openMemberMenu = (event, member) => {
+    event.stopPropagation();
+    setMemberActionError('');
+    setActiveMemberMenuId((current) => (current === member.id ? null : member.id));
+  };
+
+  const requestRemoveMember = (member) => {
+    setActiveMemberMenuId(null);
+    setPendingRemoveMember(member);
+  };
+
   const handleRemoveMember = async (member) => {
     if (!user?.id || !member?.id) return;
-
-    const confirmed = window.confirm(`Xóa ${member.username || 'thành viên này'} khỏi nhóm?`);
-    if (!confirmed) return;
 
     try {
       setRemovingMemberId(member.id);
@@ -399,6 +443,13 @@ const ChatDetailsPanel = ({
     } finally {
       setRemovingMemberId(null);
     }
+  };
+
+  const handleConfirmRemoveMember = async () => {
+    if (!pendingRemoveMember) return;
+    const member = pendingRemoveMember;
+    setPendingRemoveMember(null);
+    await handleRemoveMember(member);
   };
 
   const handleUpdateMemberRole = async (member) => {
@@ -443,8 +494,38 @@ const ChatDetailsPanel = ({
         </div>
       )}
 
+      {pendingRemoveMember && (
+        <div className="fixed inset-0 z-[70] flex items-end bg-[#1f1d1a]/35 px-3 pb-3 md:items-center md:justify-center md:p-6">
+          <div className="w-full max-w-[360px] overflow-hidden rounded-[18px] border border-outline-variant bg-surface-container-lowest shadow-sm">
+            <div className="px-5 py-4 text-center">
+              <p className="text-sm font-semibold text-error">Xóa khỏi nhóm</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                {pendingRemoveMember.username || 'Thành viên này'} sẽ không còn xem và gửi tin trong nhóm này.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => setPendingRemoveMember(null)}
+                className="h-12 border-r border-outline-variant text-sm font-medium text-on-surface hover:bg-surface-container-low"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveMember}
+                disabled={removingMemberId === pendingRemoveMember.id}
+                className="h-12 text-sm font-semibold text-error hover:bg-error-container disabled:opacity-50"
+              >
+                {removingMemberId === pendingRemoveMember.id ? 'Đang xóa...' : 'Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <aside className="fixed inset-0 z-50 flex h-[100dvh] w-full flex-col border-l border-outline-variant bg-surface xl:static xl:z-auto xl:h-full xl:w-[390px] xl:shrink-0">
-        <div className="flex items-start justify-between px-6 pb-4 pt-6">
+        <div className="flex items-start justify-between px-5 pb-4 pt-5 md:px-6 md:pt-6">
           <div className="flex min-w-0 items-start gap-4">
             <div className="relative h-16 w-16 shrink-0">
               {user?.avatar || !isGroup ? (
@@ -463,6 +544,9 @@ const ChatDetailsPanel = ({
               )}
             </div>
             <div className="min-w-0 pt-1">
+              {isGroup && (
+                <p className="mb-1 text-[12px] font-semibold text-on-surface-variant">Thông tin nhóm</p>
+              )}
               <h2 className="truncate text-[18px] font-medium tracking-tight text-on-surface">
                 {user?.name || 'Cuộc trò chuyện'}
               </h2>
@@ -487,7 +571,7 @@ const ChatDetailsPanel = ({
           </button>
         </div>
 
-        <div className={`grid gap-2 px-6 ${isGroup ? 'grid-cols-2' : 'grid-cols-4'}`}>
+        <div className={`grid gap-2 px-5 md:px-6 ${isGroup ? 'grid-cols-2' : 'grid-cols-4'}`}>
           {[
             {
               icon: 'call',
@@ -522,7 +606,7 @@ const ChatDetailsPanel = ({
                 type="button"
                 onClick={actionItem.onClick}
                 disabled={actionItem.disabled}
-                className={`${isGroup && ['call', 'videocam'].includes(actionItem.icon) ? 'hidden' : 'flex'} h-[74px] flex-col items-center justify-center gap-2 rounded-[8px] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                className={`${isGroup && ['call', 'videocam'].includes(actionItem.icon) ? 'hidden' : 'flex'} h-[64px] flex-col items-center justify-center gap-2 rounded-[8px] border border-outline-variant transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
                   actionItem.active
                     ? 'bg-surface-container-high text-on-surface'
                     : 'bg-surface-container-lowest text-on-surface hover:bg-surface-container-low'
@@ -612,7 +696,8 @@ const ChatDetailsPanel = ({
             )}
 
             {isMembersOpen && isMemberComposerOpen && (
-              <div className="mb-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+              <div className="fixed inset-x-3 bottom-3 z-[60] rounded-[18px] border border-outline-variant bg-surface-container-lowest p-4 shadow-sm md:static md:inset-auto md:z-auto md:mb-4 md:rounded-lg md:p-3">
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-outline md:hidden" />
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                     Thêm bạn bè
@@ -695,67 +780,105 @@ const ChatDetailsPanel = ({
               </div>
             )}
 
-            <div className={isMembersOpen ? `${canManageMembers ? '' : 'pt-3'} space-y-2` : 'hidden'}>
-              {(user?.members || []).map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-container-low"
-                >
-                  {member.avatar ? (
-                    <img
-                      src={member.avatar}
-                      alt={member.username}
-                      className="h-9 w-9 rounded-full border border-outline-variant object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-xs font-semibold text-on-surface">
-                      {getInitials(member.username)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-on-surface">
-                      {member.id === currentUserId ? 'Bạn' : member.username}
-                    </p>
-                    <p className="text-xs text-on-surface-variant">
-                      {roleLabels[member.role] || 'Thành viên'}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {canUpdateMemberRole(member) && (
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateMemberRole(member)}
-                        disabled={updatingRoleMemberId === member.id}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
-                        title={member.role === 'admin' ? 'Gỡ quản trị' : 'Phong quản trị'}
-                      >
-                        <AppIcon name={updatingRoleMemberId === member.id
-                            ? 'hourglass_empty'
-                            : member.role === 'admin'
-                              ? 'admin_panel_settings'
-                              : 'shield_person'} className="text-[19px]" />
-                      </button>
-                    )}
+            <div className={isMembersOpen ? `${canManageMembers ? '' : 'pt-3'} space-y-4` : 'hidden'}>
+              {membersByRole.map((group) => (
+                <div key={group.key} className="space-y-1.5">
+                  <p className="px-1.5 text-[11px] font-medium text-on-surface-variant">{group.label}</p>
+                  {group.members.map((member) => {
+                    const canOpenMemberMenu = canUpdateMemberRole(member) || canRemoveMember(member);
+                    const isMenuOpen = activeMemberMenuId === member.id;
 
-                    {canRemoveMember(member) && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMember(member)}
-                        disabled={removingMemberId === member.id}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-error-container hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Xóa khỏi nhóm"
+                    return (
+                      <div
+                        key={member.id}
+                        className="relative flex items-center gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-container-low"
                       >
-                        <AppIcon name={removingMemberId === member.id ? 'hourglass_empty' : 'person_remove'} className="text-[19px]" />
-                      </button>
-                    )}
-                  </div>
+                        {member.avatar ? (
+                          <img
+                            src={member.avatar}
+                            alt={member.username}
+                            className="h-9 w-9 rounded-full border border-outline-variant object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant bg-accent-soft text-xs font-semibold text-on-surface">
+                            {getInitials(member.username)}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-on-surface">
+                            {member.id === currentUserId ? 'Bạn' : member.username}
+                          </p>
+                          <p className="text-xs text-on-surface-variant">
+                            {member.isOnline ? 'Đang online' : roleLabels[member.role] || 'Thành viên'}
+                          </p>
+                        </div>
+                        <span
+                          className={`hidden shrink-0 rounded-full border px-2 py-1 text-[11px] font-medium md:inline-flex ${
+                            member.role === 'owner' || member.role === 'admin'
+                              ? 'border-secondary/25 bg-secondary-container text-secondary'
+                              : 'border-outline-variant text-on-surface-variant'
+                          }`}
+                        >
+                          {roleLabels[member.role] || 'Thành viên'}
+                        </span>
+
+                        {canOpenMemberMenu && (
+                          <button
+                            type="button"
+                            onClick={(event) => openMemberMenu(event, member)}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                            title="Tùy chọn thành viên"
+                          >
+                            <AppIcon name="more_vert" className="text-[19px]" />
+                          </button>
+                        )}
+
+                        {isMenuOpen && (
+                          <div
+                            ref={memberMenuRef}
+                            className="absolute right-1 top-10 z-40 w-[196px] overflow-hidden rounded-[10px] border border-outline-variant bg-surface-container-lowest p-1 shadow-sm"
+                          >
+                            {canUpdateMemberRole(member) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveMemberMenuId(null);
+                                  handleUpdateMemberRole(member);
+                                }}
+                                disabled={updatingRoleMemberId === member.id}
+                                className="flex w-full items-center gap-3 rounded-[8px] px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-50"
+                              >
+                                <AppIcon
+                                  name={member.role === 'admin' ? 'admin_panel_settings' : 'shield_person'}
+                                  className="text-[18px]"
+                                />
+                                <span>{member.role === 'admin' ? 'Gỡ quyền quản trị' : 'Đặt làm quản trị'}</span>
+                              </button>
+                            )}
+
+                            {canRemoveMember(member) && (
+                              <button
+                                type="button"
+                                onClick={() => requestRemoveMember(member)}
+                                disabled={removingMemberId === member.id}
+                                className="flex w-full items-center gap-3 rounded-[8px] px-3 py-2.5 text-left text-sm text-error transition-colors hover:bg-error-container disabled:opacity-50"
+                              >
+                                <AppIcon name="person_remove" className="text-[18px]" />
+                                <span>Xóa khỏi nhóm</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
           </section>
         )}
 
-        <div className="mt-5 flex border-b border-outline-variant px-6">
+        <div className="mt-5 flex border-b border-outline-variant px-5 md:px-6">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -773,7 +896,7 @@ const ChatDetailsPanel = ({
           ))}
         </div>
 
-        <div className="border-b border-outline-variant px-6 py-4">
+        <div className="border-b border-outline-variant px-5 py-4 md:px-6">
           <div className="relative">
             <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
             <input
@@ -795,7 +918,7 @@ const ChatDetailsPanel = ({
           )}
 
           {activeTab === 'media' && (
-            <section className="border-b border-outline-variant px-6 py-5">
+            <section className="border-b border-outline-variant px-5 py-5 md:px-6">
               {filteredMedia.length === 0 ? (
                 <p className="py-8 text-center text-sm text-on-surface-variant">
                   {searchQuery ? 'Không tìm thấy media.' : 'Chưa có media nào.'}
@@ -823,7 +946,7 @@ const ChatDetailsPanel = ({
           )}
 
           {activeTab === 'files' && (
-            <section className="border-b border-outline-variant px-6 py-5">
+            <section className="border-b border-outline-variant px-5 py-5 md:px-6">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-on-surface">Tệp</h3>
                 <span className="text-xs text-on-surface-variant">{files.length} mục</span>
@@ -866,7 +989,7 @@ const ChatDetailsPanel = ({
           )}
 
           {activeTab === 'audio' && (
-            <section className="border-b border-outline-variant px-6 py-5">
+            <section className="border-b border-outline-variant px-5 py-5 md:px-6">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-on-surface">Audio</h3>
                 <span className="text-xs text-on-surface-variant">{audio.length} mục</span>
@@ -910,7 +1033,7 @@ const ChatDetailsPanel = ({
           )}
 
           {activeTab === 'links' && (
-            <section className="px-6 py-5">
+            <section className="px-5 py-5 md:px-6">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-on-surface">Liên kết</h3>
                 <span className="text-xs text-on-surface-variant">{links.length} mục</span>

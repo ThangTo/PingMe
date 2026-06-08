@@ -16,7 +16,7 @@ function IncomingCallModal() {
   const partnerAvatar = callState.partner?.avatar || AVATAR_FALLBACK
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-container/60 px-4 py-6 backdrop-blur-[24px]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6">
       <div className="w-full max-w-[560px] overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-sm">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 text-[14px] font-medium text-on-surface">
@@ -52,29 +52,38 @@ function IncomingCallModal() {
             <button
               type="button"
               onClick={() => setIsSilenced((value) => !value)}
-              className={`flex h-[56px] w-[56px] flex-col items-center justify-center rounded-full transition-colors ${
+              aria-label={isSilenced ? 'Bật chuông' : 'Tắt chuông'}
+              title={isSilenced ? 'Bật chuông' : 'Tắt chuông'}
+              className={`flex h-[74px] min-w-[82px] flex-col items-center justify-center gap-1.5 rounded-[18px] px-3 text-[12px] font-medium transition-colors ${
                 isSilenced
                   ? 'bg-surface-container-high text-on-surface'
                   : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
               }`}
             >
               <AppIcon name={isSilenced ? 'notifications_off' : 'notifications'} className="text-[24px]" />
+              <span>{isSilenced ? 'Bật chuông' : 'Tắt chuông'}</span>
             </button>
 
             <button
               type="button"
               onClick={rejectCall}
-              className="flex h-[56px] w-[56px] flex-col items-center justify-center rounded-full bg-error text-surface transition-colors hover:bg-error/90"
+              aria-label="Từ chối"
+              title="Từ chối"
+              className="flex h-[74px] min-w-[82px] flex-col items-center justify-center gap-1.5 rounded-[18px] bg-error px-3 text-[12px] font-medium text-surface transition-colors hover:bg-error/90"
             >
               <AppIcon name="call_end" className="text-[24px]" />
+              <span>Từ chối</span>
             </button>
 
             <button
               type="button"
               onClick={acceptCall}
-              className="flex h-[56px] w-[56px] flex-col items-center justify-center rounded-full bg-[#10b981] text-surface transition-colors hover:bg-[#10b981]/90"
+              aria-label="Trả lời"
+              title="Trả lời"
+              className="flex h-[74px] min-w-[82px] flex-col items-center justify-center gap-1.5 rounded-[18px] bg-[#10b981] px-3 text-[12px] font-medium text-surface transition-colors hover:bg-[#10b981]/90"
             >
               <AppIcon name={isVideoCall ? 'videocam' : 'call'} className="text-[24px]" />
+              <span>Trả lời</span>
             </button>
           </div>
         </div>

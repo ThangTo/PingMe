@@ -190,7 +190,7 @@ const ChatArea = ({
   };
 
   return (
-    <section className="flex h-full min-w-0 flex-1 flex-col bg-surface">
+    <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
       {currentUser && (
         <Header
           user={currentUser}
@@ -201,40 +201,38 @@ const ChatArea = ({
       )}
 
       {latestPinnedMessage && (
-        <div ref={pinnedPanelRef} className="relative shrink-0 border-b border-outline-variant">
+        <div ref={pinnedPanelRef} className="relative shrink-0 border-b border-outline-variant bg-surface">
           <button
             type="button"
             onClick={() => {
               setIsPinnedOpen((value) => !value);
               setActivePinnedActionId(null);
             }}
-            className="flex w-full items-center gap-3 bg-surface-container-lowest px-4 py-2.5 text-left transition-colors hover:bg-surface-container-low md:px-7"
+            className="mx-auto flex h-[44px] w-full max-w-[820px] items-center gap-2.5 px-4 text-left transition-colors hover:bg-surface-container-low md:px-5"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-on-surface">
-              <PinGlyph className="text-[18px]" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-on-surface-variant">
+              <PinGlyph className="text-[17px]" />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
-                  Tin nhắn đã ghim
-                </p>
-                {pinnedMessageCount > 1 && (
-                  <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[11px] font-semibold text-on-surface">
-                    {pinnedMessageCount}
-                  </span>
-                )}
-              </div>
-              <p className="truncate text-sm text-on-surface">
-                {latestPinnedMessage.senderName ? `${latestPinnedMessage.senderName}: ` : ''}
-                {getPinnedPreviewText(latestPinnedMessage)}
+            <div className="min-w-0 flex-1 text-[13px]">
+              <p className="truncate text-on-surface">
+                <span className="font-semibold">Đã ghim: </span>
+                <span className="text-on-surface-variant">
+                  {latestPinnedMessage.senderName ? `${latestPinnedMessage.senderName}: ` : ''}
+                  {getPinnedPreviewText(latestPinnedMessage)}
+                </span>
               </p>
             </div>
-            <AppIcon name={isPinnedOpen ? 'expand_less' : 'expand_more'} className="shrink-0 text-[22px] text-on-surface-variant" />
+            {pinnedMessageCount > 1 && (
+              <span className="shrink-0 text-[13px] font-medium text-on-surface">
+                {pinnedMessageCount} ghim
+              </span>
+            )}
+            <AppIcon name={isPinnedOpen ? 'expand_less' : 'chevron_right'} className="shrink-0 text-[20px] text-on-surface-variant" />
           </button>
 
           {isPinnedOpen && (
-            <div className="absolute left-4 right-4 top-full z-30 mt-2 max-h-[min(420px,55vh)] overflow-y-auto rounded-[12px] border border-outline-variant bg-surface-container-lowest p-2 shadow-sm md:left-7 md:right-auto md:w-[460px]">
-              <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
+            <div className="absolute left-3 right-3 top-full z-30 mt-2 max-h-[min(420px,58vh)] overflow-y-auto rounded-[12px] border border-outline-variant bg-surface-container-lowest p-2 shadow-sm md:left-[calc(50%-410px)] md:right-auto md:w-[460px]">
+              <div className="px-2 pb-2 text-xs font-semibold text-on-surface-variant">
                 {pinnedMessageCount} tin nhắn đã ghim
               </div>
 
@@ -291,7 +289,7 @@ const ChatArea = ({
       )}
 
       {isSearchOpen && (
-        <div className="flex shrink-0 items-center gap-3 border-b border-outline-variant bg-surface px-4 py-3 md:px-7">
+        <div className="flex shrink-0 items-center gap-3 border-b border-outline-variant bg-surface px-4 py-2.5 md:px-5">
           <div className="relative max-w-md flex-1">
             <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
             <input
@@ -299,7 +297,7 @@ const ChatArea = ({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Tìm trong cuộc trò chuyện..."
-              className="h-[36px] w-full rounded-full border border-outline-variant bg-surface-container-lowest pl-9 pr-3 text-[14px] outline-none transition-colors focus:border-outline focus:ring-1 focus:ring-outline"
+              className="h-[36px] w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest pl-9 pr-3 text-[14px] outline-none transition-colors focus:border-outline focus:ring-1 focus:ring-outline"
             />
           </div>
           <span className="hidden text-xs text-on-surface-variant sm:block">
@@ -319,7 +317,7 @@ const ChatArea = ({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 bg-surface">
+      <div className="min-h-0 flex-1 bg-background">
         <MessageList
           messages={messages}
           conversationId={currentUser?.id}

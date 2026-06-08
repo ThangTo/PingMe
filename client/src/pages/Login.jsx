@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import AuthPreview from '../components/layout/AuthPreview';
 import AppIcon from '../components/ui/AppIcon';
+import { useAuth } from '../context/AuthContext';
 
-/**
- * Login Page - Trang đăng nhập (Đơn giản hóa + Debug)
- */
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -16,7 +15,6 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Hiển thị message từ register page (nếu có)
   useEffect(() => {
     if (location.state?.message) {
       setSuccessMessage(location.state.message);
@@ -25,264 +23,257 @@ const Login = () => {
     }
   }, [location]);
 
-  // Validation functions
   const validateEmail = (emailValue) => {
-    if (!emailValue) {
-      return 'Email là bắt buộc';
-    }
+    if (!emailValue) return 'Email là bắt buộc';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailValue)) {
-      return 'Email không hợp lệ';
-    }
+    if (!emailRegex.test(emailValue)) return 'Email không hợp lệ. Vui lòng nhập lại.';
     return '';
   };
 
   const validatePassword = (passwordValue) => {
-    if (!passwordValue) {
-      return 'Mật khẩu là bắt buộc';
-    }
-    if (passwordValue.length < 6) {
-      return 'Mật khẩu phải có ít nhất 6 ký tự';
-    }
+    if (!passwordValue) return 'Mật khẩu là bắt buộc';
+    if (passwordValue.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
     return '';
   };
 
-  // Handle input changes
-  const handleEmailChange = (e) => {
-    const value = e.target.value;
-    setEmail(value);
-    // Clear error khi user bắt đầu nhập
-    if (errors.email || errors.form) {
-      setErrors((prev) => {
-        const { email: _email, form: _form, ...rest } = prev;
-        return rest;
-      });
-    }
+  const clearFieldError = (field) => {
+    if (!errors[field] && !errors.form) return;
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      delete next.form;
+      return next;
+    });
   };
 
-  const handlePasswordChange = (e) => {
-    const value = e.target.value;
-    setPassword(value);
-    // Clear error khi user bắt đầu nhập
-    if (errors.password || errors.form) {
-      setErrors((prev) => {
-        const { password: _password, form: _form, ...rest } = prev;
-        return rest;
-      });
-    }
+  const handleEmailChange = (event) => {
+    setEmail(event.target.value);
+    clearFieldError('email');
   };
 
-  // Validate on blur
-  const handleEmailBlur = () => {
-    const error = validateEmail(email);
-    if (error) {
-      setErrors((prev) => ({ ...prev, email: error }));
-    }
+  const handlePasswordChange = (event) => {
+    setPassword(event.target.value);
+    clearFieldError('password');
   };
 
-  const handlePasswordBlur = () => {
-    const error = validatePassword(password);
-    if (error) {
-      setErrors((prev) => ({ ...prev, password: error }));
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Prevent double submission
-    if (isSubmitting) {
-      console.log('⏸️ Already submitting, ignoring...');
-      return;
-    }
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (isSubmitting) return;
 
     setSuccessMessage('');
-
-    // Validate all fields
+    const nextErrors = {};
     const emailError = validateEmail(email);
     const passwordError = validatePassword(password);
+    if (emailError) nextErrors.email = emailError;
+    if (passwordError) nextErrors.password = passwordError;
 
-    const newErrors = {};
-    if (emailError) newErrors.email = emailError;
-    if (passwordError) newErrors.password = passwordError;
-
-    // Nếu có lỗi validation, hiển thị và dừng
-    if (Object.keys(newErrors).length > 0) {
-      console.log('❌ Validation errors:', newErrors);
-      setErrors(newErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
 
-    // Clear errors và bắt đầu submit
     setErrors({});
     setIsSubmitting(true);
 
     try {
       const result = await login({ email, password });
-
-      if (result && result.success) {
-        // Login thành công - redirect
+      if (result?.success) {
         navigate('/chat', { replace: true });
       } else {
-        // Login thất bại - hiển thị lỗi từ backend
         setErrors({ form: result?.error || 'Đăng nhập thất bại' });
       }
     } catch (error) {
-      // Lỗi không mong đợi
-      console.error('💥 Unexpected error:', error);
       setErrors({ form: error?.message || 'Có lỗi xảy ra. Vui lòng thử lại.' });
     } finally {
-      console.log('🏁 Login process finished, setting isSubmitting to false');
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="grid w-full max-w-[1000px] overflow-hidden rounded-[16px] border border-outline-variant bg-surface md:grid-cols-[1.05fr_0.95fr] shadow-sm">
-          {/* Left Side: Login */}
-          <section className="relative z-10 flex flex-col justify-center border-b border-outline-variant p-8 md:border-b-0 md:border-r md:p-12 lg:p-16 bg-surface-container-lowest">
-            <div className="mb-10">
-              <h1 className="mb-2 text-[28px] font-medium tracking-tight text-on-surface">
-                PingMe
-              </h1>
-              <p className="max-w-sm text-[15px] leading-relaxed text-on-surface-variant">
-                Đăng nhập để tiếp tục trò chuyện.
-              </p>
+    <div className="relative flex w-full flex-1 overflow-hidden bg-surface md:min-h-[calc(100dvh-40px)] md:rounded-[18px] md:border md:border-outline md:quiet-shadow lg:min-h-[calc(100dvh-56px)]">
+      <section className="relative flex min-h-[100dvh] w-full flex-col bg-surface-container-lowest px-6 pb-7 pt-6 md:min-h-0 md:w-[49%] md:border-r md:border-outline-variant md:px-10 md:pb-5 md:pt-7 lg:px-14">
+        <div className="flex items-center gap-2 font-semibold text-on-surface">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-white">
+            <AppIcon name="mode_comment" className="text-[18px]" />
+          </span>
+          <span className="text-[17px]">PingMe</span>
+        </div>
+
+        <div className="pointer-events-none absolute right-5 top-24 opacity-50 md:hidden">
+          <span className="auth-orb grid h-16 w-16 place-items-center rounded-full">
+            <AppIcon name="mode_comment" className="text-[24px] text-outline" />
+          </span>
+          <span className="auth-orb ml-16 mt-2 block h-10 w-12 rounded-[16px]" />
+        </div>
+
+        <div className="mx-auto flex w-full max-w-[410px] flex-1 flex-col justify-center py-10 md:py-6">
+          <div className="mb-9 text-center">
+            <span className="mx-auto mb-3 hidden h-14 w-14 place-items-center rounded-full bg-secondary-container text-secondary md:grid">
+              <AppIcon name="mode_comment" className="text-[28px]" />
+            </span>
+            <h1 className="text-[28px] font-semibold text-on-surface md:text-[25px]">Đăng nhập</h1>
+            <p className="mt-2 text-[15px] text-on-surface-variant">Chào mừng bạn trở lại 👋</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            {errors.form && (
+              <div className="flex items-start gap-2 rounded-[8px] border border-error/25 bg-error-container px-3 py-2.5 text-[13px] text-error">
+                <AppIcon name="sync_problem" className="mt-0.5 text-[15px]" />
+                <span>{errors.form}</span>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="login-email" className="mb-2 block text-[12px] font-medium text-on-surface">
+                Email hoặc số điện thoại
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                name="email"
+                value={email}
+                onChange={handleEmailChange}
+                onBlur={() => {
+                  const error = validateEmail(email);
+                  if (error) setErrors((prev) => ({ ...prev, email: error }));
+                }}
+                autoComplete="email"
+                disabled={isSubmitting}
+                className={`h-12 w-full rounded-[8px] border bg-surface px-3.5 text-[15px] text-on-surface outline-none transition ${
+                  errors.email
+                    ? 'border-error focus:border-error focus:ring-1 focus:ring-error'
+                    : 'border-outline focus:border-accent focus:ring-1 focus:ring-accent'
+                }`}
+                placeholder="you@example.com"
+              />
+              {errors.email && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-error">
+                  <AppIcon name="sync_problem" className="text-[13px]" />
+                  {errors.email}
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-              {/* Messages from Server */}
-              {successMessage && (
-                <div className="mb-4 rounded-lg border border-secondary/20 bg-secondary-container px-4 py-3 text-sm font-medium text-secondary">
-                  {successMessage}
-                </div>
-              )}
-              {errors.form && (
-                <div className="mb-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-medium text-error">
-                  {errors.form}
-                </div>
-              )}
-
-              <div className="space-y-5">
-                {/* Email Input */}
-                <div className="group">
-                  <label className="mb-2 block px-1 text-xs font-medium text-on-surface-variant">
-                    Email <span className="text-error">*</span>
-                  </label>
-                  <div className="relative">
-                    <AppIcon name="fingerprint" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
-                    <input
-                      type="email"
-                      name="email"
-                      value={email}
-                      onChange={handleEmailChange}
-                      onBlur={handleEmailBlur}
-                      autoComplete="email"
-                      disabled={isSubmitting}
-                      className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.email ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                  {errors.email && <p className="ml-1 mt-1.5 text-xs font-medium text-error">{errors.email}</p>}
-                </div>
-
-                {/* Password Input */}
-                <div className="group">
-                  <label className="mb-2 block px-1 text-xs font-medium text-on-surface-variant">
-                    Mật khẩu <span className="text-error">*</span>
-                  </label>
-                  <div className="relative">
-                    <AppIcon name="key" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-outline transition-colors group-focus-within:text-on-surface" />
-                    <input
-                      type="password"
-                      name="password"
-                      value={password}
-                      onChange={handlePasswordChange}
-                      onBlur={handlePasswordBlur}
-                      autoComplete="current-password"
-                      disabled={isSubmitting}
-                      className={`w-full rounded-[8px] border bg-surface py-3 pl-11 pr-4 text-[15px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:ring-1 ${errors.password ? 'border-error focus:border-error focus:ring-error' : 'border-outline-variant focus:border-primary focus:ring-primary'}`}
-                      placeholder="Nhập mật khẩu"
-                    />
-                  </div>
-                  {errors.password && <p className="ml-1 mt-1.5 text-xs font-medium text-error">{errors.password}</p>}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <label className="group flex cursor-pointer items-center gap-3">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-outline-variant bg-surface-container text-primary focus:ring-primary/20"
-                  />
-                  <span className="text-xs text-on-surface-variant transition-colors group-hover:text-on-surface">
-                    Ghi nhớ tôi
-                  </span>
-                </label>
-                <span className="text-xs text-on-surface-variant">Quên mật khẩu chưa hỗ trợ</span>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-[8px] bg-primary py-3 font-medium text-surface transition-colors hover:opacity-90 active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
-              >
-                {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
-                {!isSubmitting && <AppIcon name="login" />}
-              </button>
-            </form>
-          </section>
-
-          {/* Right Side: Register/Uplink */}
-          <section className="relative z-10 flex flex-col justify-center overflow-hidden bg-surface-container-low p-8 md:p-12 lg:p-16">
-            <div className="relative z-10 space-y-10">
-              <div>
-                <h2 className="mb-3 text-[22px] font-medium tracking-tight text-on-surface">
-                  Chưa có tài khoản?
-                </h2>
-                <p className="max-w-xs text-[15px] leading-relaxed text-on-surface-variant">
-                  Tạo tài khoản mới để nhắn tin, gọi thoại và theo dõi trạng thái bạn bè theo thời gian thực.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest p-4">
-                  <div className="flex shrink-0 items-center justify-center rounded-[8px] bg-secondary-container p-2">
-                    <AppIcon name="security" className="text-secondary text-[20px]" />
-                  </div>
-                  <div>
-                    <h4 className="text-[14px] font-medium text-on-surface">Bảo mật nâng cao</h4>
-                    <p className="mt-1 text-[13px] leading-relaxed text-on-surface-variant">
-                      Phiên đăng nhập được mã hóa và lưu trữ an toàn.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest p-4">
-                  <div className="flex shrink-0 items-center justify-center rounded-[8px] bg-secondary-container p-2">
-                    <AppIcon name="speed" className="text-secondary text-[20px]" />
-                  </div>
-                  <div>
-                    <h4 className="text-[14px] font-medium text-on-surface">Realtime nhanh chóng</h4>
-                    <p className="mt-1 text-[13px] leading-relaxed text-on-surface-variant">
-                      Tin nhắn hiển thị tức thời nhờ Socket.IO.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2">
+            <div>
+              <label htmlFor="login-password" className="mb-2 block text-[12px] font-medium text-on-surface">
+                Mật khẩu
+              </label>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={password}
+                  onChange={handlePasswordChange}
+                  onBlur={() => {
+                    const error = validatePassword(password);
+                    if (error) setErrors((prev) => ({ ...prev, password: error }));
+                  }}
+                  autoComplete="current-password"
+                  disabled={isSubmitting}
+                  className={`h-12 w-full rounded-[8px] border bg-surface px-3.5 pr-12 text-[15px] text-on-surface outline-none transition ${
+                    errors.password
+                      ? 'border-error focus:border-error focus:ring-1 focus:ring-error'
+                      : 'border-outline focus:border-accent focus:ring-1 focus:ring-accent'
+                  }`}
+                  placeholder="Nhập mật khẩu"
+                />
                 <button
                   type="button"
-                  onClick={() => navigate('/register')}
-                  className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-outline-variant bg-surface-container-lowest py-3 font-medium text-on-surface transition-colors hover:bg-surface-container-high active:scale-[0.98]"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute right-1 top-1 grid h-10 w-10 place-items-center rounded-[7px] text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                 >
-                  Tạo tài khoản
-                  <AppIcon name="person_add" className="text-[18px]" />
+                  <AppIcon name={showPassword ? 'visibility_off' : 'visibility'} className="text-[18px]" />
                 </button>
               </div>
+              {errors.password && <p className="mt-1.5 text-[11px] font-medium text-error">{errors.password}</p>}
             </div>
-          </section>
+
+            <div className="flex items-center justify-between gap-4 pt-0.5">
+              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-on-surface-variant">
+                <input type="checkbox" className="h-4 w-4 rounded-[3px] border-outline accent-[#2F8A63]" />
+                Ghi nhớ đăng nhập
+              </label>
+              <span className="text-[12px] font-medium text-secondary">Quên mật khẩu?</span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-secondary px-4 text-[15px] font-semibold text-white transition hover:brightness-95 active:translate-y-px disabled:cursor-wait disabled:opacity-70"
+            >
+              {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              {isSubmitting && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />}
+            </button>
+
+            <div className="flex items-center gap-4 py-1">
+              <span className="h-px flex-1 bg-outline-variant" />
+              <span className="text-[12px] text-on-surface-variant">hoặc</span>
+              <span className="h-px flex-1 bg-outline-variant" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/register')}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[14px] font-medium text-on-surface transition hover:bg-surface-container-high md:hidden"
+            >
+              <AppIcon name="person_add" className="text-[17px]" />
+              Tạo tài khoản
+            </button>
+
+            {/* Google auth chưa có backend, chỉ hiển thị preview trên desktop theo thiết kế. */}
+            <button
+              type="button"
+              disabled
+              className="hidden h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface opacity-70 md:flex"
+              title="Đăng nhập Google chưa được kết nối"
+            >
+              <span className="font-semibold text-secondary">G</span>
+              Tiếp tục với Google
+            </button>
+
+            <p className="hidden text-center text-[12px] text-on-surface-variant md:block">
+              Chưa có tài khoản?{' '}
+              <button type="button" onClick={() => navigate('/register')} className="font-medium text-secondary hover:underline">
+                Tạo tài khoản
+              </button>
+            </p>
+          </form>
+        </div>
+
+        <footer className="hidden items-center justify-between border-t border-outline-variant pt-4 text-[10px] text-on-surface-variant md:flex">
+          <span className="flex items-center gap-1.5">
+            <AppIcon name="language" className="text-[13px]" />
+            Tiếng Việt
+          </span>
+          <span>Trợ giúp</span>
+        </footer>
+      </section>
+
+      <section className="hidden min-w-0 flex-1 bg-surface md:block">
+        <AuthPreview variant="login" />
+      </section>
+
+      {successMessage && (
+        <div className="absolute bottom-6 left-1/2 z-20 flex w-[calc(100%-48px)] max-w-[360px] -translate-x-1/2 items-center gap-3 rounded-[10px] border border-secondary/20 bg-secondary-container px-4 py-3 quiet-shadow">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-secondary text-secondary">
+            <AppIcon name="check" className="text-[16px]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-semibold text-on-surface">Đăng ký thành công!</p>
+            <p className="mt-0.5 text-[11px] text-on-surface-variant">{successMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage('')}
+            className="grid h-8 w-8 place-items-center rounded-[7px] text-on-surface-variant hover:bg-surface-container-high"
+            aria-label="Đóng thông báo"
+          >
+            <AppIcon name="close" className="text-[16px]" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

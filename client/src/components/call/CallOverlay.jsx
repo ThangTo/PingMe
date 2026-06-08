@@ -55,7 +55,7 @@ function AudioWaveform() {
   const bars = [28, 48, 34, 62, 44, 74, 52, 36, 58, 40, 30];
 
   return (
-    <div className="absolute inset-x-0 top-1/2 -z-10 hidden -translate-y-1/2 items-center justify-center gap-2 opacity-70 sm:flex">
+    <div className="flex h-full items-center justify-center gap-1.5 opacity-70 sm:gap-2">
       {bars.map((height, index) => (
         <span
           key={`${height}-${index}`}
@@ -94,11 +94,12 @@ function ControlButton({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={`flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-full transition-colors ${
+      className={`flex h-[66px] min-w-[66px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[16px] px-2 text-[11px] font-medium transition-colors sm:h-[68px] sm:min-w-[88px] sm:rounded-[18px] sm:px-3 sm:text-[12px] ${
         disabled ? disabledTone : danger ? dangerTone : active ? activeTone : baseTone
       }`}
     >
       <AppIcon name={icon} className="text-[24px]" />
+      <span className="max-w-[76px] truncate">{label}</span>
     </button>
   );
 }
@@ -129,8 +130,8 @@ function ParticipantPill({ name, avatar, label, dark = false }) {
 
 function DetailRail({ partner, user, isVideoCall, dark = false }) {
   const panelTone = dark
-    ? 'border-white/10 bg-[#151515]/75 text-white backdrop-blur-xl'
-    : 'border-[#eadfd2] bg-[#fbf8f1]/82 text-[#2d2823] backdrop-blur-xl';
+    ? 'border-white/10 bg-[#151515] text-white'
+    : 'border-[#eadfd2] bg-[#fbf8f1] text-[#2d2823]';
   const mutedText = dark ? 'text-white/58' : 'text-[#817266]';
   const statTone = dark ? 'border-white/10 bg-white/[0.08]' : 'border-[#eadfd2] bg-white/70';
 
@@ -209,7 +210,7 @@ function DetailRail({ partner, user, isVideoCall, dark = false }) {
 
 function WaitingCallView({ partner, isVideoCall, callDuration, callState, onMute, onVideo, onEnd }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-container/60 px-4 py-6 backdrop-blur-[24px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
       <section className="w-full max-w-[560px] overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-sm">
         <div className="flex items-center justify-between px-6 py-4">
           <button
@@ -267,11 +268,11 @@ function WaitingCallView({ partner, isVideoCall, callDuration, callState, onMute
   );
 }
 
-function AudioCallView({ partner, callDuration, callState, onMute, onEnd }) {
+function AudioCallView({ partner, user, callDuration, callState, onMute, onEnd }) {
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-surface">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-background">
       <div className="flex h-full min-h-0 flex-col">
-        <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant px-5 sm:px-8">
+        <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-5 sm:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -282,8 +283,11 @@ function AudioCallView({ partner, callDuration, callState, onMute, onEnd }) {
               <AppIcon name="arrow_back" className="text-[20px]" />
             </button>
             <div>
-              <p className="text-[14px] font-semibold text-on-surface">PingMe Call</p>
-              <p className="text-[12px] text-on-surface-variant">Cuộc gọi thoại riêng tư</p>
+              <p className="flex items-center gap-2 text-[16px] font-semibold text-on-surface">
+                Cuộc gọi với {partner.name}
+                <AppIcon name="lock" className="text-[16px] text-on-surface-variant" />
+              </p>
+              <p className="text-[12px] text-on-surface-variant">Được mã hóa đầu cuối</p>
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-semibold text-on-surface">
@@ -292,26 +296,37 @@ function AudioCallView({ partner, callDuration, callState, onMute, onEnd }) {
           </div>
         </header>
 
-        <main className="flex min-h-0 flex-1 flex-col items-center justify-center px-5 py-5 sm:px-8">
-          <div className="relative mx-auto flex h-48 w-48 items-center justify-center">
-            <span className="absolute h-44 w-44 rounded-full border border-accent/30" />
-            <span className="absolute h-36 w-36 rounded-full bg-accent/15" />
-            <img
-              src={partner.avatar}
-              alt={partner.name}
-              className="relative h-28 w-28 rounded-full border-[2px] border-surface object-cover shadow-sm"
-            />
-          </div>
+        <main className="flex min-h-0 flex-1 gap-5 px-5 py-5 sm:px-8 xl:items-center xl:justify-center">
+          <section className="relative flex min-h-0 flex-1 flex-col items-center justify-center">
+            <div className="relative mx-auto flex h-56 w-56 items-center justify-center">
+              <span className="absolute h-52 w-52 rounded-full border border-secondary/30" />
+              <span className="absolute h-40 w-40 rounded-full bg-secondary/12" />
+              <img
+                src={partner.avatar}
+                alt={partner.name}
+                className="relative h-36 w-36 rounded-full border-[2px] border-surface object-cover shadow-sm"
+              />
+              <span className="absolute bottom-8 right-8 flex h-11 w-11 items-center justify-center rounded-full border-2 border-surface bg-secondary text-surface shadow-sm">
+                <AppIcon name="graphic_eq" className="text-[22px]" />
+              </span>
+            </div>
 
-          <h2 className="mt-7 text-[28px] font-medium text-on-surface">{partner.name}</h2>
-          <p className="mt-2 text-[15px] font-medium text-on-surface-variant">Đang gọi thoại</p>
-          <div className="mt-5 rounded-full border border-outline-variant bg-surface-container-lowest px-5 py-2 text-[14px] font-semibold text-on-surface">
-            {callDuration}
-          </div>
+            <h2 className="mt-7 text-[30px] font-semibold tracking-tight text-on-surface">{partner.name}</h2>
+            <p className="mt-2 text-[26px] font-medium tabular-nums text-on-surface">{callDuration}</p>
+            <p className="mt-3 flex items-center gap-2 text-[15px] text-on-surface-variant">
+              <span className="h-2 w-2 rounded-full bg-secondary" />
+              Kết nối tốt
+            </p>
+            <div className="relative mt-10 h-24 w-full max-w-[560px]">
+              <AudioWaveform />
+            </div>
+          </section>
+
+          <DetailRail partner={partner} user={user} isVideoCall={false} />
         </main>
 
-        <div className="shrink-0 px-4 pb-8">
-          <div className="mx-auto flex w-fit max-w-full items-center justify-center gap-4">
+        <div className="shrink-0 border-t border-outline-variant bg-surface px-4 py-5">
+          <div className="mx-auto flex w-fit max-w-full items-center justify-center gap-2 sm:gap-4">
             <ControlButton
               label={callState.isMuted ? 'Bật micro' : 'Tắt micro'}
               icon={callState.isMuted ? 'mic_off' : 'mic'}
@@ -320,7 +335,6 @@ function AudioCallView({ partner, callDuration, callState, onMute, onEnd }) {
             />
             <ControlButton label="Loa hệ thống" icon="volume_up" disabled />
             <ControlButton label="Thêm người" icon="person_add" disabled />
-            <ControlButton label="Chuyển sang video" icon="videocam" disabled />
             <ControlButton label="Kết thúc" icon="call_end" danger onClick={onEnd} />
           </div>
         </div>
@@ -331,6 +345,7 @@ function AudioCallView({ partner, callDuration, callState, onMute, onEnd }) {
 
 function VideoCallView({
   partner,
+  user,
   callDuration,
   callState,
   localVideoRef,
@@ -443,7 +458,7 @@ function VideoCallView({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black text-white">
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 xl:right-[334px]">
         {hasRemoteVideo ? (
           <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
         ) : (
@@ -462,17 +477,17 @@ function VideoCallView({
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/0 to-black/60" />
       </div>
 
-      <header className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-6 py-6">
+      <header className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-6 py-6 xl:right-[334px]">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onEnd}
-            className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-black/20 text-white backdrop-blur-md transition hover:bg-black/40"
+            className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
             aria-label="Rời cuộc gọi"
           >
             <AppIcon name="arrow_back" />
           </button>
-          <div className="flex items-center gap-3 rounded-full bg-black/20 px-3 py-1.5 backdrop-blur-md">
+          <div className="flex items-center gap-3 rounded-full bg-black/40 px-3 py-1.5">
             <img src={partner.avatar} alt={partner.name} className="h-8 w-8 rounded-full object-cover" />
             <div className="min-w-0 pr-2 text-white">
               <p className="truncate text-[14px] font-medium">{partner.name}</p>
@@ -495,7 +510,7 @@ function VideoCallView({
         onDoubleClick={() => setPipPosition(null)}
         onKeyDown={movePipByKeyboard}
         className={`group/pip absolute z-10 h-40 w-28 touch-none select-none overflow-hidden rounded-[16px] border border-white/10 bg-black/40 shadow-md outline-none transition-[transform] sm:h-52 sm:w-36 ${
-          pipPosition ? '' : 'bottom-32 right-6 sm:bottom-28 sm:right-8'
+          pipPosition ? '' : 'bottom-32 right-6 sm:bottom-28 sm:right-8 xl:right-[366px]'
         } ${isDraggingPip ? 'cursor-grabbing' : 'cursor-grab'}`}
         style={pipPosition ? { left: `${pipPosition.x}px`, top: `${pipPosition.y}px` } : undefined}
       >
@@ -515,7 +530,7 @@ function VideoCallView({
         )}
       </div>
 
-      <div className="absolute bottom-8 left-1/2 z-20 flex max-w-[calc(100vw-48px)] -translate-x-1/2 items-center justify-center gap-4">
+      <div className="absolute bottom-8 left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center justify-center gap-2 sm:max-w-[calc(100vw-48px)] sm:gap-4 xl:left-[calc(50%-167px)]">
         <ControlButton
           label={callState.isMuted ? 'Bật micro' : 'Tắt micro'}
           icon={callState.isMuted ? 'mic_off' : 'mic'}
@@ -532,6 +547,10 @@ function VideoCallView({
         />
         <ControlButton label="Chia sẻ màn hình" icon="screen_share" disabled dark />
         <ControlButton label="Kết thúc" icon="call_end" danger onClick={onEnd} dark />
+      </div>
+
+      <div className="absolute bottom-5 right-5 top-5 z-20 hidden xl:block">
+        <DetailRail partner={partner} user={user} isVideoCall dark />
       </div>
     </div>
   );

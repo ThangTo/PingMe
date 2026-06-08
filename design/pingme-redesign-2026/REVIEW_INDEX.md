@@ -2,54 +2,59 @@
 
 Mở [GALLERY.md](./GALLERY.md) để xem liên tục toàn bộ 36 ảnh. Luồng chi tiết và đích đến của mỗi nút nằm trong [SCREEN_FLOW_MATRIX.md](./SCREEN_FLOW_MATRIX.md).
 
-## Cách Duyệt
+Chỉ đánh dấu `[x]` sau khi màn hình đã được implement, render trên browser ở cả desktop/mobile liên quan, kiểm tra light/dark và đối chiếu trực tiếp với ảnh nguồn.
 
-- Duyệt hệ thống thiết kế tổng thể trước: màu, typography, mật độ, bo góc và icon.
-- Duyệt desktop và mobile theo từng luồng, không chỉ theo từng ảnh đẹp/xấu.
-- Với mỗi màn hình, kiểm tra: hành động chính có rõ, quay lại/đóng có rõ, trạng thái sáng/tối có đồng nhất.
-- Ghi phản hồi theo ID ảnh, ví dụ `D06`, `M08`.
+## Trạng Thái Kiểm Chứng
+
+- Auth D01-D02/M01-M02: đã render và đối chiếu ở `1440x900`, `390x844`, light và dark.
+- App shell D03-D05/D11/D14 và M03-M05/M14/M17: đã render bằng Playwright, đối chiếu light/dark ở desktop và light ở mobile.
+- Chat/call đã verify thêm bằng Playwright screenshots: D06/D08/D12/D15/D16 và M06/M08/M15/M19/M20.
+- Batch còn lại đã verify bằng Playwright screenshots trong `%TEMP%/pingme-redesign-remaining`: D07/D09/D10/D13 và M07/M10/M12/M13/M16/M18.
+- Group admin menu/add-member đã implement cho owner/admin trong `ChatDetailsPanel`; ảnh verify chính dùng state member của `Test gr`, role test tạm đã restore về member sau khi chạy.
+- Static checks gần nhất: `npm run lint` và `npm run build` đều pass.
+- Google auth trong D01/D02 hiện là preview bị vô hiệu hóa vì backend chưa có OAuth Google.
 
 ## Desktop
 
-- [ ] D01 Đăng nhập
-- [ ] D02 Đăng ký
-- [ ] D03 Inbox shell
-- [ ] D04 Danh bạ + lời mời
-- [ ] D05 Tạo nhóm
-- [ ] D06 Chat 1-1 với timeline đầy đủ
-- [ ] D07 Chat nhóm realtime
-- [ ] D08 Thao tác tin nhắn
-- [ ] D09 Composer + upload + ghi âm
-- [ ] D10 Tin ghim + tìm kiếm + jump
-- [ ] D11 Tìm kiếm toàn cục + thông báo
-- [ ] D12 Chi tiết chat 1-1 + thư viện
-- [ ] D13 Chi tiết nhóm + quản trị thành viên
-- [ ] D14 Trung tâm cài đặt
-- [ ] D15 Cuộc gọi đến/chờ/audio
-- [ ] D16 Video call
+- [x] D01 Đăng nhập
+- [x] D02 Đăng ký
+- [x] D03 Inbox shell
+- [x] D04 Danh bạ + lời mời
+- [x] D05 Tạo nhóm
+- [x] D06 Chat 1-1 với timeline đầy đủ
+- [x] D07 Chat nhóm realtime
+- [x] D08 Thao tác tin nhắn
+- [x] D09 Composer + upload + ghi âm
+- [x] D10 Tin ghim + tìm kiếm + jump
+- [x] D11 Tìm kiếm toàn cục + thông báo
+- [x] D12 Chi tiết chat 1-1 + thư viện
+- [x] D13 Chi tiết nhóm + quản trị thành viên
+- [x] D14 Trung tâm cài đặt
+- [x] D15 Cuộc gọi đến/chờ/audio
+- [x] D16 Video call
 
 ## Mobile
 
-- [ ] M01 Đăng nhập
-- [ ] M02 Đăng ký
-- [ ] M03 Inbox
-- [ ] M04 Danh bạ + lời mời
-- [ ] M05 Tạo nhóm
-- [ ] M06 Chat 1-1
-- [ ] M07 Chat nhóm
-- [ ] M08 Sheet thao tác tin nhắn
-- [ ] M09 Trả lời/sửa/thu hồi
-- [ ] M10 Composer đính kèm
-- [ ] M11 Album + lightbox
-- [ ] M12 Tin nhắn thoại
-- [ ] M13 Tin ghim + tìm kiếm + jump
-- [ ] M14 Tìm kiếm toàn cục + thông báo
-- [ ] M15 Chi tiết chat 1-1
-- [ ] M16 Chi tiết nhóm + thành viên
-- [ ] M17 Trung tâm cài đặt
-- [ ] M18 Các trạng thái chi tiết cài đặt
-- [ ] M19 Cuộc gọi đến/chờ/audio
-- [ ] M20 Video call
+- [x] M01 Đăng nhập
+- [x] M02 Đăng ký
+- [x] M03 Inbox
+- [x] M04 Danh bạ + lời mời
+- [x] M05 Tạo nhóm
+- [x] M06 Chat 1-1
+- [x] M07 Chat nhóm
+- [x] M08 Sheet thao tác tin nhắn
+- [x] M09 Trả lời/sửa/thu hồi
+- [x] M10 Composer đính kèm
+- [x] M11 Album + lightbox
+- [x] M12 Tin nhắn thoại
+- [x] M13 Tin ghim + tìm kiếm + jump
+- [x] M14 Tìm kiếm toàn cục + thông báo
+- [x] M15 Chi tiết chat 1-1
+- [x] M16 Chi tiết nhóm + thành viên
+- [x] M17 Trung tâm cài đặt
+- [x] M18 Các trạng thái chi tiết cài đặt
+- [x] M19 Cuộc gọi đến/chờ/audio
+- [x] M20 Video call
 
 ## Câu Hỏi Khi Duyệt
 

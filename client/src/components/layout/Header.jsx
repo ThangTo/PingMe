@@ -37,7 +37,6 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
     {
       icon: 'call',
       label: 'Gọi thoại',
-      desktopOnly: true,
       directOnly: true,
       disabled: !canStartCall,
       onClick: () => handleStartCall('voice'),
@@ -45,7 +44,6 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
     {
       icon: 'videocam',
       label: 'Gọi video',
-      desktopOnly: true,
       directOnly: true,
       disabled: !canStartCall,
       onClick: () => handleStartCall('video'),
@@ -54,7 +52,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
   ].filter((item) => !(isGroup && item.directOnly));
 
   return (
-    <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-4 md:px-6">
+    <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-3 md:px-5">
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -83,10 +81,12 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
         </div>
 
         <div className="min-w-0">
-          <h2 className="truncate text-[16px] font-medium tracking-tight text-on-surface">
+          <h2 className="truncate text-[17px] font-semibold tracking-tight text-on-surface md:text-[16px]">
             {user?.name || 'Cuộc trò chuyện'}
           </h2>
-          <p className="mt-0.5 truncate text-[13px] text-on-surface-variant">{subtitle}</p>
+          <p className={`mt-0.5 truncate text-[13px] ${!isGroup && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
+            {subtitle}
+          </p>
         </div>
       </div>
 
@@ -97,9 +97,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
             type="button"
             onClick={item.onClick}
             disabled={item.disabled}
-            className={`flex h-9 w-9 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-45 ${
-              item.desktopOnly ? 'hidden md:flex' : 'flex'
-            }`}
+            className="flex h-10 w-10 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-45 md:h-9 md:w-9"
             title={item.label}
           >
             <AppIcon name={item.icon} className="text-[20px]" />

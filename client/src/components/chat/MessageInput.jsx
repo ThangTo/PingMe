@@ -79,6 +79,32 @@ const revokePreviewUrls = (items = []) => {
   });
 };
 
+const waveformBars = [12, 22, 16, 30, 18, 36, 24, 42, 26, 34, 20, 32, 18, 28, 14, 24, 12, 20, 10, 16];
+
+const VoiceWaveform = ({ progress = 0, active = false, tone = 'accent' }) => {
+  const activeColor = tone === 'error' ? 'bg-error' : 'bg-secondary';
+  const mutedColor = tone === 'error' ? 'bg-error/20' : 'bg-on-surface-variant/25';
+
+  return (
+    <div className="flex h-10 min-w-0 flex-1 items-center gap-[3px]" aria-hidden="true">
+      {waveformBars.map((height, index) => {
+        const barProgress = ((index + 1) / waveformBars.length) * 100;
+        const isFilled = active || barProgress <= progress;
+
+        return (
+          <span
+            key={`${height}-${index}`}
+            className={`w-[3px] rounded-full transition-colors ${isFilled ? activeColor : mutedColor} ${
+              active ? 'animate-pulse' : ''
+            }`}
+            style={{ height }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
 const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -166,10 +192,11 @@ const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
             {formatVoiceDuration(currentTime)} / {formatVoiceDuration(effectiveDuration)}
           </span>
         </div>
+        <VoiceWaveform progress={progress} active={isPlaying} />
         <button
           type="button"
           onClick={handleSeek}
-          className="block h-3 w-full py-1"
+          className="mt-1 block h-3 w-full py-1"
           aria-label="Tua ghi âm"
         >
           <span className="block h-1 overflow-hidden rounded-full bg-on-surface-variant/25">
@@ -223,6 +250,8 @@ const MessageInput = ({
   const discardVoiceRef = useRef(false);
   const hasPreviews = previews.length > 0;
   const hasVoicePreview = Boolean(voicePreview);
+  const imagePreviews = previews.filter((preview) => preview.type === 'image');
+  const filePreviews = previews.filter((preview) => preview.type !== 'image');
 
   useEffect(() => {
     previewsRef.current = previews;
@@ -325,6 +354,10 @@ const MessageInput = ({
   const handleTextChange = (e) => {
     const nextMessage = e.target.value;
     setMessage(nextMessage);
+
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
 
     if (!nextMessage.trim()) {
       stopTypingNow();
@@ -684,6 +717,9 @@ const MessageInput = ({
     if (message.trim() && !disabled) {
       onSendMessage(message.trim(), null, replyingMessage, []);
       setMessage('');
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
       stopTypingNow();
     }
   };
@@ -704,15 +740,16 @@ const MessageInput = ({
     !isUploadingVoice;
 
   return (
-    <footer className="shrink-0 border-t border-outline-variant bg-surface px-4 py-3 md:px-7 md:py-5">
+    <footer className="shrink-0 border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
       {hasPreviews && (
-        <div className="mx-auto mb-3 max-w-[860px] rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+        <div className="mx-auto mb-2 max-w-[820px] rounded-[16px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm md:rounded-[12px] md:p-3.5">
+          <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-outline md:hidden" />
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-on-surface">
                 {previews.length} tệp sẵn sàng gửi
               </p>
-              <p className="text-xs text-on-surface-variant">
+              <p className="hidden text-xs text-on-surface-variant sm:block">
                 Gõ nội dung bên dưới để gửi kèm caption
               </p>
             </div>
@@ -727,73 +764,100 @@ const MessageInput = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
-            {previews.map((preview, index) => (
-              <div
-                key={preview.id}
-                className="relative overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low"
-              >
-                {preview.type === 'image' ? (
+          {imagePreviews.length > 0 && (
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+              {imagePreviews.map((preview, index) => (
+                <div
+                  key={preview.id}
+                  className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[10px] border border-outline-variant bg-surface-container-low md:h-[82px] md:w-[82px]"
+                >
                   <img
                     src={preview.url}
                     alt={preview.name || 'Ảnh đã chọn'}
-                    className="aspect-square w-full object-cover"
+                    className="h-full w-full object-cover"
                   />
-                ) : preview.type === 'audio' ? (
-                  <div className="flex aspect-square flex-col items-center justify-center gap-2 px-2 text-center">
-                    <FileTypeIcon
-                      filename={preview.name}
-                      mimeType={preview.file?.type}
-                      type={preview.type}
-                      size="lg"
-                    />
-                    <span className="line-clamp-2 text-xs font-medium text-on-surface">
-                      {preview.name}
-                    </span>
-                    <audio controls src={preview.url} className="h-8 w-full" />
-                  </div>
-                ) : (
-                  <div className="flex aspect-square flex-col items-center justify-center gap-2 px-2 text-center">
-                    <FileTypeIcon
-                      filename={preview.name}
-                      mimeType={preview.file?.type}
-                      type={preview.type}
-                      size="lg"
-                    />
-                    <span className="line-clamp-2 text-xs font-medium text-on-surface">
-                      {preview.name}
-                    </span>
-                  </div>
-                )}
-
-                {previews.length > 1 && (
-                  <span className="absolute left-1.5 top-1.5 rounded-full bg-[#1f1d1a]/70 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  <span className="absolute left-1.5 top-1.5 grid h-6 min-w-6 place-items-center rounded-full bg-surface-container-lowest/95 px-1 text-[11px] font-semibold text-on-surface shadow-sm">
                     {index + 1}
                   </span>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => removePreview(preview.id)}
+                    disabled={isUploading}
+                    className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#1f1d1a]/70 text-white transition-colors hover:bg-[#1f1d1a] disabled:opacity-40"
+                    title="Bỏ ảnh này"
+                  >
+                    <AppIcon name="close" className="text-[17px]" />
+                  </button>
+                </div>
+              ))}
 
+              {previews.length < MAX_ATTACHMENTS && (
                 <button
                   type="button"
-                  onClick={() => removePreview(preview.id)}
+                  onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#1f1d1a]/70 text-white transition-colors hover:bg-[#1f1d1a] disabled:opacity-40"
-                  title="Bỏ file này"
+                  className="grid h-[88px] w-[88px] shrink-0 place-items-center rounded-[10px] border border-dashed border-outline-variant text-on-surface-variant transition-colors hover:border-outline hover:bg-surface-container-low md:h-[82px] md:w-[82px]"
+                  title="Thêm tệp"
                 >
-                  <AppIcon name="close" className="text-[17px]" />
+                  <AppIcon name="attach_file" className="text-[22px]" />
                 </button>
+              )}
+            </div>
+          )}
 
-                <div className="border-t border-outline-variant bg-surface-container-lowest px-2 py-1.5">
-                  <p className="truncate text-[11px] font-medium text-on-surface">{preview.name}</p>
-                  <p className="text-[10px] text-on-surface-variant">{formatFileSize(preview.size)}</p>
+          {filePreviews.length > 0 && (
+            <div className={`${imagePreviews.length > 0 ? 'mt-3' : ''} overflow-hidden rounded-[10px] border border-outline-variant bg-surface`}>
+              {filePreviews.map((preview, index) => (
+                <div
+                  key={preview.id}
+                  className="flex min-w-0 items-center gap-3 border-b border-outline-variant px-3 py-2.5 last:border-b-0"
+                >
+                  <FileTypeIcon
+                    filename={preview.name}
+                    mimeType={preview.file?.type}
+                    type={preview.type}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-on-surface">{preview.name}</p>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
+                      <span>{formatFileSize(preview.size)}</span>
+                      <span>·</span>
+                      <span>{preview.type === 'audio' ? 'AUDIO' : preview.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                      {isUploading && index === 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="text-secondary">{uploadProgress}%</span>
+                        </>
+                      )}
+                    </div>
+                    {isUploading && index === 0 && (
+                      <span className="mt-2 block h-1 overflow-hidden rounded-full bg-surface-container-low">
+                        <span
+                          className="block h-full rounded-full bg-secondary transition-[width]"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removePreview(preview.id)}
+                    disabled={isUploading}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
+                    title="Bỏ file này"
+                  >
+                    <AppIcon name="close" className="text-[18px]" />
+                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {isUploading && (
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-container-low">
               <div
-                className="h-full rounded-full bg-accent transition-[width]"
+                className="h-full rounded-full bg-secondary transition-[width]"
                 style={{ width: `${uploadProgress}%` }}
               />
             </div>
@@ -802,7 +866,7 @@ const MessageInput = ({
       )}
 
       {uploadError && (
-        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-md border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
           <p>{uploadError}</p>
           {hasPreviews && (
             <button
@@ -818,35 +882,38 @@ const MessageInput = ({
       )}
 
       {(isRecordingVoice || hasVoicePreview) && (
-        <div className="mx-auto mb-3 max-w-[860px] rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 sm:py-3">
+        <div className="mx-auto mb-2 max-w-[820px] rounded-[16px] border border-outline-variant bg-surface-container-lowest px-3 py-2.5 shadow-sm sm:rounded-[12px] sm:py-3">
           {isRecordingVoice ? (
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-error-container text-error">
-                <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-error/45" />
-                <span className="h-2.5 w-2.5 rounded-full bg-error" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-on-surface">Đang ghi âm</p>
-                <p className="text-xs text-on-surface-variant">
-                  {formatVoiceDuration(voiceDuration)}
-                </p>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-error-container text-error">
+                  <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-error/45" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-error" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-on-surface">Đang ghi âm...</p>
+                  <p className="text-xs text-on-surface-variant">
+                    {formatVoiceDuration(voiceDuration)} · nhấn dừng để xem lại
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelVoiceRecording}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                  title="Hủy ghi âm"
+                >
+                  <AppIcon name="close" className="text-xl" />
+                </button>
+                <button
+                  type="button"
+                  onClick={stopVoiceRecording}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error text-white transition-colors hover:bg-error/90"
+                  title="Dừng ghi âm"
+                >
+                  <AppIcon name="stop" className="text-xl" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={cancelVoiceRecording}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-                title="Hủy ghi âm"
-              >
-                <AppIcon name="close" className="text-xl" />
-              </button>
-              <button
-                type="button"
-                onClick={stopVoiceRecording}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-dark"
-                title="Dừng ghi âm"
-              >
-                <AppIcon name="stop" className="text-xl" />
-              </button>
+              <VoiceWaveform progress={100} active tone="error" />
             </div>
           ) : (
             <>
@@ -879,11 +946,13 @@ const MessageInput = ({
                     </p>
                   </div>
                 </div>
-                <audio
-                  controls
-                  src={voicePreview.url}
-                  className="h-9 min-w-0 flex-1 sm:max-w-[320px]"
-                />
+                <div className="min-w-[180px] flex-1">
+                  <VoicePreviewPlayer
+                    src={voicePreview.url}
+                    duration={voicePreview.duration}
+                    size={voicePreview.size}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={clearVoicePreview}
@@ -900,7 +969,7 @@ const MessageInput = ({
       )}
 
       {voiceError && (
-        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-md border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
+        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
           <p>{voiceError}</p>
           {hasVoicePreview && (
             <button
@@ -916,7 +985,7 @@ const MessageInput = ({
       )}
 
       {editingMessage && (
-        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-lg border border-accent bg-accent-soft px-3 py-2">
+        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[12px] border border-secondary bg-secondary-container px-3 py-2">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-on-surface">Đang chỉnh sửa tin nhắn</p>
             <p className="truncate text-xs text-on-surface-variant">{editingMessage.content}</p>
@@ -935,7 +1004,7 @@ const MessageInput = ({
       )}
 
       {replyingMessage && !editingMessage && (
-        <div className="mx-auto mb-3 flex max-w-[860px] items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2">
+        <div className="mx-auto mb-2 flex max-w-[820px] items-center justify-between gap-3 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
           <div className="min-w-0 border-l-2 border-accent pl-3">
             <p className="text-xs font-semibold text-on-surface">
               Đang trả lời {replyingMessage.senderName || 'tin nhắn'}
@@ -966,7 +1035,7 @@ const MessageInput = ({
 
       <form
         onSubmit={handleSubmit}
-        className="mx-auto flex min-h-[48px] max-w-[860px] items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest py-1 pl-3 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
+        className="mx-auto flex min-h-[48px] max-w-[820px] items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
       >
         <button
           type="button"
@@ -978,16 +1047,16 @@ const MessageInput = ({
           <AppIcon name="attach_file" className="text-[20px]" />
         </button>
 
-        <input
+        <textarea
           ref={inputRef}
-          type="text"
           value={message}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
           disabled={disabled || isRecordingVoice}
           autoComplete="off"
-          className="min-w-0 flex-1 border-none bg-transparent px-2 py-2 text-[15px] text-on-surface outline-none placeholder:text-on-surface-variant"
+          rows={1}
+          className="min-w-0 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[15px] text-on-surface outline-none placeholder:text-on-surface-variant no-scrollbar"
           placeholder={
             editingMessage
               ? 'Chỉnh sửa tin nhắn...'
@@ -1028,7 +1097,7 @@ const MessageInput = ({
           type="submit"
           disabled={!canSend}
           className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-all ${
-            canSend ? 'bg-on-surface text-surface hover:opacity-90 active:scale-[0.96]' : 'hidden'
+            canSend ? 'bg-secondary text-surface hover:opacity-90 active:scale-[0.96]' : 'hidden'
           }`}
           title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi tin nhắn'}
         >

@@ -93,6 +93,23 @@
   }
 
   html { scroll-behavior: smooth; }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }
 
 /* Custom utility classes */
@@ -120,18 +137,24 @@
     pointer-events: none;
   }
 
-  .nebula-bg {
+  .auth-canvas {
     background:
-      linear-gradient(rgba(17, 17, 17, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(17, 17, 17, 0.025) 1px, transparent 1px),
+      radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--color-surface) 72%, transparent), transparent 48%),
       var(--color-background);
-    background-size: 32px 32px;
+  }
+
+  .quiet-shadow {
+    box-shadow: 0 20px 55px rgba(31, 32, 29, 0.08), 0 2px 8px rgba(31, 32, 29, 0.04);
+  }
+
+  .quiet-divider {
+    background: linear-gradient(90deg, transparent, var(--color-outline), transparent);
   }
 
   /* Giữ nguyên Animation của bạn vì nó xử lý UX rất tốt */
   @keyframes messagePop {
-    0% { opacity: 0; transform: scale(0.92) translateY(12px); }
-    100% { opacity: 1; transform: scale(1) translateY(0); }
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
   }
 
   @keyframes fadeIn {
@@ -140,8 +163,7 @@
   }
 
   .animate-message-pop {
-    animation: messagePop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    transform-origin: bottom center;
+    animation: messagePop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .animate-fade-in {

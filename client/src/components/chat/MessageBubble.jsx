@@ -115,7 +115,7 @@ const LinkPreviewCard = ({ preview }) => {
       href={preview.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block w-[min(520px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-left shadow-sm transition-colors hover:bg-surface-container-low"
+      className="block w-[min(430px,72vw)] overflow-hidden rounded-[12px] border border-outline-variant bg-surface-container-lowest text-left transition-colors hover:bg-surface-container-low"
       onClick={stopInteractiveBubbleEvent}
       onPointerDown={stopInteractiveBubbleEvent}
       onTouchStart={stopInteractiveBubbleEvent}
@@ -522,8 +522,8 @@ const MessageBubble = ({
   const pinnedBadge =
     isPinned && !isRevoked ? (
       <span
-        className={`absolute -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#d7c7b5] bg-accent-soft px-1 text-on-surface shadow-sm ${
-          isOwn ? 'right-0.5' : 'left-0.5'
+        className={`absolute -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface shadow-sm ${
+          isOwn ? '-right-1' : '-left-1'
         }`}
         title="Tin nhắn đã ghim"
       >
@@ -668,7 +668,7 @@ const MessageBubble = ({
             </span>
           )}
 
-          <div className="inline-flex max-w-[min(420px,86vw)] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface shadow-sm">
+          <div className="inline-flex max-w-[min(420px,86vw)] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface">
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-container-low ${callMeta.tone}`}
             >
@@ -770,14 +770,14 @@ const MessageBubble = ({
       >
         <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
-            <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
+            <div className="h-8 w-8 overflow-hidden rounded-full border border-outline-variant">
               <img src={avatarSrc} alt="Người gửi" className="h-full w-full object-cover" />
             </div>
           )}
         </div>
 
         <div
-          className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}
+          className={`flex max-w-[84%] flex-col gap-1 md:max-w-[72%] ${isOwn ? 'items-end' : 'items-start'}`}
         >
           {!isOwn && showAvatar && message.senderName && (
             <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
@@ -801,7 +801,7 @@ const MessageBubble = ({
                   event.stopPropagation();
                   onJumpToMessage?.(message.replyTo.id);
                 }}
-                className={`max-w-[min(360px,68vw)] rounded-md border-l-2 border-accent bg-surface-container-low px-3 py-2 text-left transition-colors hover:bg-surface-container-high ${
+                className={`max-w-[min(360px,68vw)] rounded-[8px] border-l-2 border-secondary bg-surface-container-low px-3 py-2 text-left transition-colors hover:bg-surface-container-high ${
                   isOwn ? 'self-end' : 'self-start'
                 }`}
                 title="Đi tới tin nhắn gốc"
@@ -817,7 +817,7 @@ const MessageBubble = ({
 
             {isRevoked ? (
               <div
-                className={`inline-flex items-center gap-2 rounded-[12px] border border-dashed border-outline-variant bg-surface-container-low px-4 py-2.5 text-[14px] italic text-on-surface-variant shadow-sm ${
+                className={`inline-flex items-center gap-2 rounded-[12px] border border-dashed border-outline-variant bg-surface-container-low px-3.5 py-2 text-[14px] italic text-on-surface-variant ${
                   isOwn ? 'text-right rounded-br-[4px]' : 'rounded-bl-[4px]'
                 }`}
               >
@@ -826,7 +826,7 @@ const MessageBubble = ({
               </div>
             ) : (
               <div
-                className={`relative flex max-w-[min(540px,74vw)] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}
+                className={`relative flex max-w-[min(430px,74vw)] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
                 {imageAttachments.length > 0 && (
@@ -836,7 +836,7 @@ const MessageBubble = ({
                         <button
                           type="button"
                           onClick={() => openLightbox(0)}
-                          className="block w-[min(330px,72vw)] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm transition-opacity hover:opacity-90"
+                          className="block w-[min(330px,72vw)] overflow-hidden rounded-[12px] border border-outline-variant bg-surface-container-lowest transition-opacity hover:opacity-90"
                         >
                           <img
                             src={imageAttachments[0].url}
@@ -900,8 +900,8 @@ const MessageBubble = ({
                     <div
                       className={`hidden overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm md:grid ${
                         imageAttachments.length === 1
-                          ? 'w-[min(520px,72vw)] grid-cols-1'
-                          : 'w-[min(520px,72vw)] grid-cols-2 gap-1 p-1'
+                          ? 'w-[min(430px,72vw)] grid-cols-1'
+                          : 'w-[min(430px,72vw)] grid-cols-2 gap-1 p-1'
                       }`}
                     >
                       {imageAttachments.slice(0, 4).map((attachment, index) => {
@@ -942,11 +942,11 @@ const MessageBubble = ({
                 )}
 
                 {audioAttachments.length > 0 && (
-                  <div className="flex w-[min(280px,72vw)] flex-col gap-2 md:w-[min(420px,74vw)]">
+                  <div className="flex w-[min(280px,72vw)] flex-col gap-2 md:w-[min(390px,74vw)]">
                     {audioAttachments.map((attachment, index) => (
                       <div
                         key={`${attachment.url}-${index}`}
-                        className={`rounded-[12px] shadow-sm ${
+                        className={`rounded-[12px] ${
                           isOwn
                             ? 'bg-surface-container-high rounded-br-[4px]'
                             : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
@@ -984,13 +984,13 @@ const MessageBubble = ({
                 )}
 
                 {fileAttachments.length > 0 && (
-                  <div className="flex w-[min(420px,74vw)] flex-col gap-2">
+                  <div className="flex w-[min(390px,74vw)] flex-col gap-2">
                     {fileAttachments.map((attachment, index) => (
                       <a
                         key={`${attachment.url}-${index}`}
                         href={attachment.url}
                         download={attachment.filename}
-                        className={`flex min-w-[240px] items-center gap-3 rounded-[12px] px-4 py-3 shadow-sm transition-colors hover:bg-surface-container-low ${
+                        className={`flex min-w-[240px] items-center gap-3 rounded-[12px] px-3.5 py-2.5 transition-colors hover:bg-surface-container-low ${
                           isOwn ? 'bg-surface-container-high rounded-br-[4px]' : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
                         }`}
                         onClick={(event) => event.stopPropagation()}
@@ -1017,11 +1017,11 @@ const MessageBubble = ({
 
                 {message.content || !hasAttachments ? (
                   <div
-                    className={`rounded-[12px] px-4 py-2.5 text-[15px] leading-relaxed break-words shadow-sm ${
+                    className={`rounded-[12px] px-3.5 py-2.5 text-[15px] leading-relaxed break-words ${
                       isOwn
                         ? 'bg-surface-container-high text-on-surface rounded-br-[4px]'
                         : 'border border-outline-variant bg-surface-container-lowest text-on-surface rounded-bl-[4px]'
-                    } ${hasAttachments ? 'max-w-[min(520px,72vw)]' : ''}`}
+                    } ${hasAttachments ? 'max-w-[min(430px,72vw)]' : ''}`}
                   >
                     <span className="whitespace-pre-wrap">{renderMessageContent(message.content)}</span>
                   </div>
@@ -1036,7 +1036,7 @@ const MessageBubble = ({
                 type="button"
                 aria-label="Thả cảm xúc"
                 title="Thả cảm xúc"
-                className={`absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant shadow-sm transition-all hover:bg-surface-container-low hover:text-on-surface focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 group-hover:opacity-100 ${
+                className={`absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant shadow-sm transition-all hover:bg-surface-container-low hover:text-on-surface focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 group-hover:opacity-100 md:flex ${
                   showPicker ? 'opacity-100' : 'opacity-0'
                 } ${isOwn ? 'right-full mr-1.5' : 'left-full ml-1.5'}`}
                 onClick={togglePicker}
@@ -1058,7 +1058,7 @@ const MessageBubble = ({
             {showActions && (
               <div
                 ref={actionsRef}
-                className={`absolute top-1/2 z-[200] hidden w-52 -translate-y-1/2 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest py-1 shadow-sm md:block ${
+                className={`absolute top-1/2 z-[220] hidden w-48 -translate-y-1/2 overflow-hidden rounded-[12px] border border-outline-variant bg-surface-container-lowest py-1 shadow-sm md:block ${
                   isOwn ? 'right-full mr-3' : 'left-full ml-3'
                 }`}
                 onContextMenu={(event) => event.preventDefault()}
@@ -1127,7 +1127,7 @@ const MessageBubble = ({
             className={`px-1 text-[11px] text-on-surface-variant ${showMeta ? '' : 'hidden'} ${isOwn ? 'text-right' : ''}`}
           >
             {formatTime(message.timestamp)}
-            {!isRevoked && message.isEdited && <span className="ml-1">?? s?a</span>}
+            {!isRevoked && message.isEdited && <span className="ml-1">đã sửa</span>}
             {deliveryText && <span className="ml-1">{deliveryText}</span>}
           </span>
 
@@ -1158,7 +1158,9 @@ const MessageBubble = ({
                     +{readReceipts.length - 5}
                   </span>
                 )}
-                <AppIcon name={receiptSummary} className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${ isOwn ? 'right-0' : 'left-0' }`} />
+              <span className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${ isOwn ? 'right-0' : 'left-0' }`}>
+                {receiptSummary}
+              </span>
               </div>
             </div>
           )}
@@ -1167,25 +1169,25 @@ const MessageBubble = ({
 
       {showActions && (
         <div
-          className="fixed inset-0 z-40 bg-[#1f1d1a]/38 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-[210] bg-[#1f1d1a]/42 md:hidden"
           onClick={closeMenus}
         >
           <div
             ref={mobileActionsRef}
-            className="absolute inset-x-4 bottom-4"
+            className="absolute inset-x-0 bottom-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))]"
             onClick={(event) => event.stopPropagation()}
             onContextMenu={(event) => event.preventDefault()}
           >
-            <div className="mb-3 flex justify-center">
+            <div className="mb-2 flex justify-center rounded-[16px] border border-outline-variant bg-surface-container-lowest p-2 shadow-sm">
               <EmojiPicker emojis={QUICK_EMOJIS} onSelect={handleEmojiSelect} />
             </div>
-            <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-sm">
+            <div className="overflow-hidden rounded-[16px] border border-outline-variant bg-surface-container-lowest shadow-sm">
               {actionItems.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={item.onClick || closeMenus}
-                  className={`flex h-14 w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] last:border-b-0 ${
+                  className={`flex h-[52px] w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] last:border-b-0 ${
                     item.danger ? 'text-error' : 'text-on-surface'
                   }`}
                 >
@@ -1197,7 +1199,7 @@ const MessageBubble = ({
             <button
               type="button"
               onClick={closeMenus}
-              className="mt-3 h-14 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest text-[15px] font-semibold text-on-surface shadow-sm"
+              className="mt-2 h-[52px] w-full rounded-[16px] border border-outline-variant bg-surface-container-lowest text-[15px] font-semibold text-on-surface shadow-sm"
             >
               Hủy
             </button>

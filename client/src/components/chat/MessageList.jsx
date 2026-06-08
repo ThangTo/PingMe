@@ -38,7 +38,7 @@ const TypingIndicator = ({ typingUsers = [], floating = false }) => {
     <div
       className={`inline-flex items-center gap-2 ${
         floating
-          ? 'rounded-full border border-outline-variant bg-surface-container-lowest/95 px-2 py-1.5 shadow-sm backdrop-blur'
+          ? 'rounded-full border border-outline-variant bg-surface-container-lowest px-2 py-1.5 shadow-sm'
           : ''
       }`}
     >
@@ -330,10 +330,10 @@ const MessageList = ({
 
   const renderHeader = useCallback(
     () => (
-      <div className="mx-auto max-w-[900px] px-4 pb-2 pt-6 md:px-7">
+      <div className="mx-auto max-w-[820px] px-4 pb-2 pt-5 md:px-5">
         {isLoadingOlderMessages && !isSearchMode && (
           <div className="flex justify-center">
-            <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest/95 px-3 text-xs font-medium text-on-surface-variant shadow-sm backdrop-blur">
+            <div className="inline-flex h-8 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 text-xs font-medium text-on-surface-variant shadow-sm">
               <AppIcon name="hourglass_empty" className="text-[18px] animate-spin" />
               <span>Đang tải...</span>
             </div>
@@ -346,7 +346,7 @@ const MessageList = ({
 
   const renderFooter = useCallback(
     () => (
-      <div className="mx-auto max-w-[900px] px-4 pb-9 pt-1 md:px-7">
+      <div className="mx-auto max-w-[820px] px-4 pb-6 pt-1 md:px-5">
         {hasTypingUsers && (
           <div className="flex max-w-[72%] items-end gap-2 md:max-w-[58%]">
             <TypingIndicator typingUsers={typingUsers} />
@@ -386,16 +386,18 @@ const MessageList = ({
         <div
           data-message-row="true"
           data-message-index={virtualIndex}
-          className="mx-auto max-w-[900px] px-4 pb-3 md:px-7"
+          className="mx-auto max-w-[820px] px-4 pb-2 md:px-5"
         >
           {shouldShowDateSeparator && dateLabel && (
-            <div className="mb-5 mt-2 flex justify-center">
+            <div className="mb-4 mt-2 flex items-center justify-center gap-3">
+              <span className="h-px w-16 bg-outline-variant" />
               <span
                 data-date-separator="true"
-                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-xs text-on-surface-variant"
+                className="rounded-[8px] border border-outline-variant bg-surface-container-lowest px-3 py-1 text-[12px] text-on-surface-variant"
               >
                 {dateLabel}
               </span>
+              <span className="h-px w-16 bg-outline-variant" />
             </div>
           )}
 
@@ -454,7 +456,7 @@ const MessageList = ({
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-[900px] space-y-4 px-4 py-8 md:px-7">
+      <div className="mx-auto max-w-[820px] space-y-4 px-4 py-8 md:px-5">
         {[1, 2, 3, 4].map((item) => (
           <div
             key={item}
@@ -504,12 +506,12 @@ const MessageList = ({
   }
 
   return (
-    <div className="relative h-full bg-surface">
+    <div className="relative h-full bg-background">
       <Virtuoso
         key={conversationId || 'conversation'}
         ref={virtuosoRef}
         data={visibleMessages}
-        className="no-scrollbar h-full bg-surface"
+        className="no-scrollbar h-full bg-background"
         data-message-total={visibleMessages.length}
         firstItemIndex={safeFirstItemIndex}
         initialTopMostItemIndex={isSearchMode ? 0 : { index: 'LAST', align: 'end' }}

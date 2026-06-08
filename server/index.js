@@ -116,6 +116,17 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`[PingMe] Port ${PORT} is already in use. Backend may already be running.`);
+    console.error('[PingMe] Stop the existing Node process or set PORT to another value.');
+    process.exit(1);
+  }
+
+  console.error('[PingMe] HTTP server failed to start:', error);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io ready for connections`);
