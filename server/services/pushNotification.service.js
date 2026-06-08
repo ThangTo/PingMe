@@ -1,5 +1,5 @@
-import webpush from 'web-push';
 import User from '../models/User.js';
+import { getPushProvider } from '../integrations/push/pushProviderFactory.js';
 
 let activeVapidPublicKey = null;
 let activeVapidPrivateKey = null;
@@ -21,7 +21,7 @@ const getVapidKeys = () => {
   }
 
   if (!devVapidKeys) {
-    devVapidKeys = webpush.generateVAPIDKeys();
+    devVapidKeys = getPushProvider().generateVapidKeys();
     console.warn(
       'Web Push dang dung VAPID key tam thoi. Hay set VAPID_PUBLIC_KEY va VAPID_PRIVATE_KEY trong .env de subscription on dinh sau khi restart server.',
     );
@@ -37,7 +37,7 @@ const ensureWebPushConfigured = () => {
   const { publicKey, privateKey, isEphemeral } = getVapidKeys();
 
   if (activeVapidPublicKey !== publicKey || activeVapidPrivateKey !== privateKey) {
-    webpush.setVapidDetails(getVapidSubject(), publicKey, privateKey);
+    getPushProvider().setVapidDetails(getVapidSubject(), publicKey, privateKey);
     activeVapidPublicKey = publicKey;
     activeVapidPrivateKey = privateKey;
   }
@@ -140,10 +140,12 @@ const getAttachmentPreview = (attachments = []) => {
 
   const hasImage = attachments.some((item) => item.type === 'image');
   const hasAudio = attachments.some((item) => item.type === 'audio');
+  const hasVideo = attachments.some((item) => item.type === 'video');
 
   if (hasImage && attachments.length > 1) return `Da gui ${attachments.length} anh`;
   if (hasImage) return 'Da gui anh';
   if (hasAudio) return 'Da gui ghi am';
+  if (hasVideo) return attachments.length > 1 ? `Da gui ${attachments.length} video` : 'Da gui video';
   if (attachments.length > 1) return `Da gui ${attachments.length} tep`;
   return attachments[0]?.filename ? `Da gui tep: ${attachments[0].filename}` : 'Da gui tep';
 };
@@ -211,7 +213,7 @@ const sendPayloadToSubscriptions = async ({ user, payload }) => {
   await Promise.all(
     subscriptions.map(async (subscription) => {
       try {
-        await webpush.sendNotification(subscription, payloadString);
+        await getPushProvider().sendNotification(subscription, payloadString);
         sentCount += 1;
       } catch (error) {
         if (shouldRemoveSubscription(error)) {

@@ -1,30 +1,16 @@
 import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
-import fs from 'fs';
 
-// Đảm bảo thư mục uploads tồn tại
-const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+const storage = multer.memoryStorage();
 
-// Cấu hình lưu file
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Đặt tên: userId_timestamp_uuid_tên gốc
-    const ext = path.extname(file.originalname);
-    const filename = `${req.user?.id}_${Date.now()}_${uuidv4()}${ext}`;
-    cb(null, filename);
-  },
-});
+const normalizeMimeType = (mimeType = '') =>
+  mimeType.split(';')[0]?.trim().toLowerCase() || 'application/octet-stream';
 
-// Lọc loại file
+const extensionMatches = (extension, values) => values.includes(extension.toLowerCase());
+
 const fileFilter = (req, file, cb) => {
   const extension = path.extname(file.originalname || '').toLowerCase();
+  const normalizedMimeType = normalizeMimeType(file.mimetype);
   const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
   const allowedAudioTypes = [
     'audio/webm',
@@ -39,6 +25,13 @@ const fileFilter = (req, file, cb) => {
     'audio/x-m4a',
     'audio/aac',
   ];
+  const allowedVideoTypes = [
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+    'video/x-matroska',
+    'video/x-msvideo',
+  ];
   const allowedFileTypes = [
     'application/pdf',
     'application/msword',
@@ -52,27 +45,65 @@ const fileFilter = (req, file, cb) => {
     'application/x-zip-compressed',
     'multipart/x-zip',
     'application/x-rar-compressed',
+    'application/x-7z-compressed',
+    'application/json',
     'text/plain',
     'text/csv',
+    'text/markdown',
+    'text/html',
+    'text/css',
+    'text/javascript',
   ];
-  const allowedTypes = [...allowedImageTypes, ...allowedAudioTypes, ...allowedFileTypes];
-  const normalizedMimeType = file.mimetype.split(';')[0].trim().toLowerCase();
-  const isZipWithGenericMime =
-    extension === '.zip' &&
-    ['application/octet-stream', 'application/x-compressed', 'binary/octet-stream'].includes(normalizedMimeType);
+  const allowedTypes = [
+    ...allowedImageTypes,
+    ...allowedAudioTypes,
+    ...allowedVideoTypes,
+    ...allowedFileTypes,
+  ];
+  const allowedGenericExtensions = [
+    '.zip',
+    '.rar',
+    '.7z',
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.ppt',
+    '.pptx',
+    '.txt',
+    '.csv',
+    '.json',
+    '.md',
+    '.js',
+    '.jsx',
+    '.ts',
+    '.tsx',
+    '.html',
+    '.css',
+  ];
+  const hasGenericMime = [
+    'application/octet-stream',
+    'application/x-compressed',
+    'binary/octet-stream',
+  ].includes(normalizedMimeType);
 
-  if (allowedTypes.includes(normalizedMimeType) || isZipWithGenericMime) {
+  if (
+    allowedTypes.includes(normalizedMimeType) ||
+    (hasGenericMime && extensionMatches(extension, allowedGenericExtensions))
+  ) {
     cb(null, true);
-  } else {
-    cb(new Error('Định dạng không được hỗ trợ'), false);
+    return;
   }
+
+  cb(new Error('Định dạng không được hỗ trợ'), false);
 };
 
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB
+    fileSize: 25 * 1024 * 1024,
   },
 });
 

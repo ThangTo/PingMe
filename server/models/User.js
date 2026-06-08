@@ -72,6 +72,11 @@ const userSchema = new mongoose.Schema(
       default: 'https://via.placeholder.com/150', // Avatar mặc định
     },
 
+    avatarStorageKey: {
+      type: String,
+      default: '',
+    },
+
     // Giới thiệu ngắn trên profile
     bio: {
       type: String,
@@ -183,9 +188,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Index để tìm kiếm nhanh
-userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
-userSchema.index({ googleId: 1 }); // Index cho Google ID
 userSchema.index({ 'pushSubscriptions.endpoint': 1 });
 
 // Virtual field: URL ảnh đại diện đầy đủ (nếu cần)

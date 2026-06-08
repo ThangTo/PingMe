@@ -1,5 +1,13 @@
-import authService from '../services/auth.service.js';
+import authService, { assertRegisterPayload, normalizeEmail } from '../services/auth.service.js';
 import { normalizePrivacySettings } from '../services/privacy.service.js';
+import { consumeOtp, requestOtp } from '../services/otp.service.js';
+import {
+  clearGoogleStateCookie,
+  createGoogleAuthorization,
+  getGoogleProfileFromCallback,
+  validateGoogleState,
+} from '../services/oauth.service.js';
+import User from '../models/User.js';
 
 const getSessionMetadata = (req) => ({
   userAgent: req.get('user-agent') || '',
@@ -19,16 +27,60 @@ const formatAuthUser = (user) => ({
   privacySettings: normalizePrivacySettings(user.privacySettings),
 });
 
+const authCookieBaseOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  path: '/',
+});
+
+const cookieOptions = (maxAge) => ({
+  ...authCookieBaseOptions(),
+  maxAge,
+});
+
+const setAuthCookies = (res, tokens) => {
+  res.cookie('accessToken', tokens.accessToken, cookieOptions(15 * 60 * 1000));
+  res.cookie('refreshToken', tokens.refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+};
+
+const clearAuthCookies = (res) => {
+  res.clearCookie('accessToken', authCookieBaseOptions());
+  res.clearCookie('refreshToken', authCookieBaseOptions());
+};
+
+const getClientUrl = () => (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+
+const redirectWithAuthError = (res, message) => {
+  const url = new URL('/login', getClientUrl());
+  url.searchParams.set('authError', message);
+  return res.redirect(url.toString());
+};
+
 const authController = {
+  requestRegisterOtp: async (req, res) => {
+    try {
+      await assertRegisterPayload(req.body || {});
+      await requestOtp({ email: req.body.email, purpose: 'register' });
+      return res.status(200).json({
+        success: true,
+        message: 'Đã gửi mã OTP đăng ký đến email.',
+      });
+    } catch (error) {
+      console.error('Register OTP error:', error);
+      return res.status(400).json({ error: error.message || 'Không thể gửi OTP đăng ký' });
+    }
+  },
+
   register: async (req, res) => {
     try {
-      const { username, email, password, pingId } = req.body;
+      const { username, email, password, pingId, otpCode } = req.body;
 
-      // Validation
-      if (!username || !email || !password || !pingId) {
-        return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin' });
+      if (!username || !email || !password || !pingId || !otpCode) {
+        return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin và mã OTP' });
       }
 
+      await consumeOtp({ email, purpose: 'register', code: otpCode });
       const { user, tokens } = await authService.register(
         username,
         email,
@@ -37,114 +89,137 @@ const authController = {
         getSessionMetadata(req),
       );
 
-      // Set cookies
-      res.cookie('accessToken', tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        sameSite: 'strict',
-      });
+      setAuthCookies(res, tokens);
 
-      res.cookie('refreshToken', tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'strict',
-      });
-
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         user: formatAuthUser(user),
       });
     } catch (error) {
       console.error('Register error:', error);
-      res.status(400).json({ error: error.message || 'Đăng ký thất bại' });
+      return res.status(400).json({ error: error.message || 'Đăng ký thất bại' });
     }
   },
+
   login: async (req, res) => {
     try {
       const { email, password } = req.body;
 
-      // Validation
       if (!email || !password) {
         return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin' });
       }
 
       const { user, tokens } = await authService.login(email, password, getSessionMetadata(req));
+      setAuthCookies(res, tokens);
 
-      // Set cookies
-      res.cookie('accessToken', tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        sameSite: 'strict',
-      });
-
-      res.cookie('refreshToken', tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'strict',
-      });
-
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         user: formatAuthUser(user),
       });
     } catch (error) {
       console.error('Login error:', error);
-      res.status(401).json({ error: error.message || 'Đăng nhập thất bại' });
+      return res.status(401).json({ error: error.message || 'Đăng nhập thất bại' });
     }
   },
+
+  requestPasswordReset: async (req, res) => {
+    try {
+      const email = normalizeEmail(req.body?.email || '');
+      if (!/^\S+@\S+\.\S+$/.test(email)) {
+        return res.status(400).json({ error: 'Email không hợp lệ' });
+      }
+
+      const user = await User.findOne({ email }).select('provider password').lean();
+      if (user) {
+        await requestOtp({ email, purpose: 'password_reset' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Nếu email tồn tại, PingMe đã gửi mã OTP đặt lại mật khẩu.',
+      });
+    } catch (error) {
+      console.error('Password forgot error:', error);
+      return res.status(500).json({ error: error.message || 'Không thể gửi OTP đặt lại mật khẩu' });
+    }
+  },
+
+  resetPassword: async (req, res) => {
+    try {
+      const { email, otpCode, newPassword } = req.body || {};
+      if (!email || !otpCode || !newPassword) {
+        return res.status(400).json({ error: 'Vui lòng nhập email, OTP và mật khẩu mới' });
+      }
+
+      await consumeOtp({ email, purpose: 'password_reset', code: otpCode });
+      await authService.resetPasswordWithOtp({ email, newPassword });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Đã đặt lại mật khẩu. Vui lòng đăng nhập lại.',
+      });
+    } catch (error) {
+      console.error('Password reset error:', error);
+      return res.status(400).json({ error: error.message || 'Không thể đặt lại mật khẩu' });
+    }
+  },
+
+  googleStart: async (req, res) => {
+    try {
+      return res.redirect(createGoogleAuthorization(res));
+    } catch (error) {
+      console.error('Google OAuth start error:', error);
+      return redirectWithAuthError(res, error.message || 'Không thể bắt đầu đăng nhập Google');
+    }
+  },
+
+  googleCallback: async (req, res) => {
+    try {
+      if (req.query.error) {
+        clearGoogleStateCookie(res);
+        return redirectWithAuthError(res, 'Google đã hủy hoặc từ chối đăng nhập');
+      }
+
+      if (!req.query.code || !validateGoogleState(req)) {
+        clearGoogleStateCookie(res);
+        return redirectWithAuthError(res, 'Phiên đăng nhập Google không hợp lệ');
+      }
+
+      const profile = await getGoogleProfileFromCallback(req.query.code);
+      const { tokens } = await authService.loginWithOAuthProfile(profile, getSessionMetadata(req));
+
+      clearGoogleStateCookie(res);
+      setAuthCookies(res, tokens);
+      return res.redirect(`${getClientUrl()}/chat`);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      clearGoogleStateCookie(res);
+      return redirectWithAuthError(res, error.message || 'Đăng nhập Google thất bại');
+    }
+  },
+
   logout: async (req, res) => {
     try {
-      // Lấy userId từ token (nếu có middleware verify token)
-      // Hoặc từ req.user nếu đã có authentication middleware
       const userId = req.user?.id || null;
       const refreshToken = req.cookies.refreshToken || null;
 
-      // Clear cookies
-      res.clearCookie('accessToken', {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-      });
-      res.clearCookie('refreshToken', {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-      });
-
-      // Update user status trong database
+      clearAuthCookies(res);
       const result = await authService.logout({ userId, refreshToken });
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: result.message || 'Đăng xuất thành công',
       });
     } catch (error) {
       console.error('Logout error:', error);
-      // Vẫn clear cookies ngay cả khi có lỗi
-      res.clearCookie('accessToken', {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-      });
-      res.clearCookie('refreshToken', {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-      });
-      res.status(200).json({
+      clearAuthCookies(res);
+      return res.status(200).json({
         success: true,
         message: 'Đăng xuất thành công',
       });
     }
   },
+
   refresh: async (req, res) => {
     try {
       const refreshToken = req.cookies.refreshToken;
@@ -156,23 +231,11 @@ const authController = {
         refreshToken: newRefreshToken,
       } = await authService.refreshTokens(refreshToken, getSessionMetadata(req));
 
-      // Set lại Cookies mới
-      res.cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 15 * 60 * 1000,
-      });
-      res.cookie('refreshToken', newRefreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
+      setAuthCookies(res, { accessToken, refreshToken: newRefreshToken });
 
-      res.status(200).json({ success: true, user: formatAuthUser(user) });
+      return res.status(200).json({ success: true, user: formatAuthUser(user) });
     } catch (error) {
-      res.status(401).json({ error: error.message });
+      return res.status(401).json({ error: error.message });
     }
   },
 

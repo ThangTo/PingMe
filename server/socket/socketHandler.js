@@ -117,6 +117,7 @@ const getMessageNotificationBody = (messagePayload) => {
   if (messagePayload.content) return messagePayload.content;
   if (messagePayload.messageType === 'image') return 'Đã gửi ảnh';
   if (messagePayload.messageType === 'audio') return 'Đã gửi tin nhắn thoại';
+  if (messagePayload.messageType === 'video') return 'Đã gửi video';
   if (messagePayload.messageType === 'file') return 'Đã gửi tệp đính kèm';
   return 'Đã gửi một tin nhắn';
 };
@@ -415,6 +416,7 @@ const getMessageTypeFromAttachments = (attachments) => {
   if (!firstAttachment) return 'text';
   if (firstAttachment.type === 'image') return 'image';
   if (firstAttachment.type === 'audio') return 'audio';
+  if (firstAttachment.type === 'video') return 'video';
   return 'file';
 };
 

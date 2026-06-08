@@ -113,6 +113,7 @@ const AuthProvider = ({ children }) => {
         pingId: userData.pingId,
         email: userData.email,
         password: userData.password,
+        otpCode: userData.otpCode,
       });
 
       if (response.data?.success) {
@@ -130,6 +131,43 @@ const AuthProvider = ({ children }) => {
       return { success: false, error: errorMessage };
     }
     // KHÔNG set isLoading(false) ở đây
+  };
+
+  const requestRegisterOtp = async (userData) => {
+    try {
+      const response = await api.post('/auth/register/request-otp', {
+        username: userData.username,
+        pingId: userData.pingId,
+        email: userData.email,
+        password: userData.password,
+      });
+      return { success: true, message: response.data?.message };
+    } catch (error) {
+      return { success: false, error: error.message || 'Không thể gửi OTP đăng ký' };
+    }
+  };
+
+  const requestPasswordReset = async ({ email }) => {
+    try {
+      const response = await api.post('/auth/password/forgot', { email });
+      return { success: true, message: response.data?.message };
+    } catch (error) {
+      return { success: false, error: error.message || 'Không thể gửi OTP đặt lại mật khẩu' };
+    }
+  };
+
+  const resetPassword = async ({ email, otpCode, newPassword }) => {
+    try {
+      const response = await api.post('/auth/password/reset', { email, otpCode, newPassword });
+      return { success: true, message: response.data?.message };
+    } catch (error) {
+      return { success: false, error: error.message || 'Không thể đặt lại mật khẩu' };
+    }
+  };
+
+  const startGoogleAuth = () => {
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/+$/, '');
+    window.location.href = `${apiBaseUrl}/auth/google`;
   };
 
   /**
@@ -176,6 +214,10 @@ const AuthProvider = ({ children }) => {
     isLoading, // Loading state
     login, // Login function
     register, // Register function
+    requestRegisterOtp,
+    requestPasswordReset,
+    resetPassword,
+    startGoogleAuth,
     logout, // Logout function
     updateUser, // Update user function
   };

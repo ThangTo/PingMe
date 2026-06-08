@@ -1,0 +1,30 @@
+import ConsoleEmailProvider from './ConsoleEmailProvider.js';
+import SmtpEmailProvider from './SmtpEmailProvider.js';
+
+let providerInstance = null;
+let providerDriver = null;
+
+export const getEmailProvider = () => {
+  const driver = (process.env.EMAIL_DRIVER || 'smtp').trim().toLowerCase();
+
+  if (providerInstance && providerDriver === driver) return providerInstance;
+
+  if (driver === 'smtp') {
+    providerInstance = new SmtpEmailProvider();
+    providerDriver = driver;
+    return providerInstance;
+  }
+
+  if (driver === 'console') {
+    providerInstance = new ConsoleEmailProvider();
+    providerDriver = driver;
+    return providerInstance;
+  }
+
+  throw new Error(`Email driver khong duoc ho tro: ${driver}`);
+};
+
+export const resetEmailProviderForTests = () => {
+  providerInstance = null;
+  providerDriver = null;
+};

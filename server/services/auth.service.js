@@ -11,6 +11,64 @@ export const normalizePingId = (value = '') => value.trim().replace(/^@+/, '').t
 
 export const validatePingId = (value = '') => PING_ID_REGEX.test(normalizePingId(value));
 
+export const normalizeEmail = (value = '') => value.trim().toLowerCase();
+
+const createPingIdBaseFromEmail = (email = '') => {
+  const localPart = email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'user';
+  const withPrefix = /^[a-z]/.test(localPart) ? localPart : `u_${localPart}`;
+  return withPrefix.padEnd(5, '0').slice(0, 28);
+};
+
+export const createUniquePingIdFromEmail = async (email = '') => {
+  const base = createPingIdBaseFromEmail(email);
+  let candidate = base;
+  let suffix = 0;
+
+  while (await User.exists({ pingId: candidate })) {
+    suffix += 1;
+    const suffixText = `_${suffix}`;
+    candidate = `${base.slice(0, 32 - suffixText.length)}${suffixText}`;
+  }
+
+  return candidate;
+};
+
+export const assertRegisterPayload = async ({ username, email, password, pingId }) => {
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPingId = normalizePingId(pingId);
+
+  if (!username || username.trim().length < 3 || username.trim().length > 30) {
+    throw new Error('Tên hiển thị phải từ 3 đến 30 ký tự');
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+    throw new Error('Email không hợp lệ');
+  }
+
+  if (!password || password.length < 6) {
+    throw new Error('Mật khẩu phải có ít nhất 6 ký tự');
+  }
+
+  if (!validatePingId(normalizedPingId)) {
+    throw new Error(
+      'PingMe ID phải bắt đầu bằng chữ cái, dài 5-32 ký tự và chỉ gồm chữ, số, dấu gạch dưới.',
+    );
+  }
+
+  const existingUser = await User.findOne({
+    $or: [{ email: normalizedEmail }, { pingId: normalizedPingId }],
+  }).select('email pingId');
+  if (existingUser?.email === normalizedEmail) throw new Error('Email đã tồn tại!');
+  if (existingUser?.pingId === normalizedPingId) throw new Error('PingMe ID đã tồn tại!');
+
+  return {
+    username: username.trim(),
+    email: normalizedEmail,
+    password,
+    pingId: normalizedPingId,
+  };
+};
+
 const createSessionTokens = async (user, metadata = {}) => {
   const sessionId = randomUUID();
   await Session.create({
@@ -26,23 +84,13 @@ const createSessionTokens = async (user, metadata = {}) => {
 
 const authService = {
   register: async (username, email, password, pingId, metadata = {}) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedPingId = normalizePingId(pingId);
-    if (!validatePingId(normalizedPingId)) {
-      throw new Error('PingMe ID phải bắt đầu bằng chữ cái, dài 5-32 ký tự và chỉ gồm chữ, số, dấu gạch dưới.');
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const existingUser = await User.findOne({
-      $or: [{ email: normalizedEmail }, { pingId: normalizedPingId }],
-    }).select('email pingId');
-    if (existingUser?.email === normalizedEmail) throw new Error('Email đã tồn tại!');
-    if (existingUser?.pingId === normalizedPingId) throw new Error('PingMe ID đã tồn tại!');
+    const payload = await assertRegisterPayload({ username, email, password, pingId });
+    const hashedPassword = await bcrypt.hash(payload.password, 10);
 
     const user = await User.create({
-      username,
-      email: normalizedEmail,
-      pingId: normalizedPingId,
+      username: payload.username,
+      email: payload.email,
+      pingId: payload.pingId,
       password: hashedPassword,
     });
     const tokens = await createSessionTokens(user, metadata);
@@ -50,7 +98,7 @@ const authService = {
   },
 
   login: async (email, password, metadata = {}) => {
-    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: normalizeEmail(email) }).select('+password');
     if (!user?.password) throw new Error('Email hoặc mật khẩu không chính xác!');
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -58,6 +106,54 @@ const authService = {
 
     const tokens = await createSessionTokens(user, metadata);
     return { user, tokens };
+  },
+
+  loginWithOAuthProfile: async (profile, metadata = {}) => {
+    if (profile.provider !== 'google') throw new Error('OAuth provider không được hỗ trợ');
+
+    const normalizedEmail = normalizeEmail(profile.email);
+    let user = await User.findOne({ googleId: profile.providerId });
+
+    if (!user) {
+      user = await User.findOne({ email: normalizedEmail });
+      if (user) {
+        user.googleId = profile.providerId;
+        if (profile.avatar && (!user.avatar || user.avatar.includes('via.placeholder.com'))) {
+          user.avatar = profile.avatar;
+        }
+        await user.save();
+      }
+    }
+
+    if (!user) {
+      user = await User.create({
+        username: profile.name || normalizedEmail.split('@')[0],
+        email: normalizedEmail,
+        pingId: await createUniquePingIdFromEmail(normalizedEmail),
+        googleId: profile.providerId,
+        provider: 'google',
+        avatar: profile.avatar || 'https://via.placeholder.com/150',
+      });
+    }
+
+    const tokens = await createSessionTokens(user, metadata);
+    return { user, tokens };
+  },
+
+  resetPasswordWithOtp: async ({ email, newPassword }) => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự');
+    }
+
+    const user = await User.findOne({ email: normalizedEmail }).select('+password provider');
+    if (!user) return { success: true };
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    if (!user.provider || user.provider === 'google') user.provider = 'local';
+    await user.save();
+    await Session.updateMany({ user: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+    return { success: true };
   },
 
   logout: async ({ userId = null, refreshToken = null } = {}) => {

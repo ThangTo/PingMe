@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import connectDB from './config/db.js';
 import socketHandler from './socket/socketHandler.js';
 import authRoutes from './routers/auth.routes.js';
+import callRoutes from './routers/call.routes.js';
 import conversationRoutes from './routers/conversation.routes.js';
 import messageRoutes from './routers/message.routes.js';
 import notificationRoutes from './routers/notification.routes.js';
@@ -65,6 +66,7 @@ socketHandler(io);
 
 // routes
 app.use('/api/auth', authRoutes);
+app.use('/api/calls', callRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -73,8 +75,9 @@ app.use('/api/search', searchRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/users', userRoutes);
 
-// Static file serving cho uploads
-app.use('/uploads', express.static('uploads'));
+if (process.env.ENABLE_LEGACY_UPLOADS_STATIC === 'true') {
+  app.use('/uploads', express.static('uploads'));
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {

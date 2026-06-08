@@ -9,6 +9,7 @@ import {
   isConversationMember,
   toIdString,
 } from '../services/conversation.service.js';
+import { uploadFileToStorage } from '../services/storage.service.js';
 
 const populateMessageQuery = (query) =>
   query
@@ -47,9 +48,10 @@ const getMessageAttachments = (message = {}) => {
 
 const getAttachmentType = (attachment = {}) => {
   const type = attachment.type || attachment.mimeType || '';
-  if (['image', 'file', 'audio'].includes(type)) return type;
+  if (['image', 'file', 'audio', 'video'].includes(type)) return type;
   if (type.startsWith('image/')) return 'image';
   if (type.startsWith('audio/')) return 'audio';
+  if (type.startsWith('video/')) return 'video';
   return 'file';
 };
 
@@ -82,7 +84,7 @@ const serializeGalleryMessage = (message) => {
     const type = getAttachmentType(attachment);
     const item = serializeGalleryItem({ message, attachment, index, type });
 
-    if (type === 'image') {
+    if (type === 'image' || type === 'video') {
       gallery.media.push(item);
       return;
     }
@@ -110,24 +112,6 @@ const serializeGalleryMessage = (message) => {
   });
 
   return gallery;
-};
-
-const formatUploadedFile = (req, file) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  const fileUrl = `${baseUrl}/uploads/${file.filename}`;
-  const attachmentType = file.mimetype.startsWith('image/')
-    ? 'image'
-    : file.mimetype.startsWith('audio/')
-      ? 'audio'
-      : 'file';
-
-  return {
-    url: fileUrl,
-    filename: file.originalname,
-    size: file.size,
-    type: attachmentType,
-    mimeType: file.mimetype,
-  };
 };
 
 const DEFAULT_MESSAGE_LIMIT = 40;
@@ -446,7 +430,15 @@ const messageController = {
         return res.status(400).json({ error: 'Không có file được tải lên' });
       }
 
-      const files = uploadedFiles.map((file) => formatUploadedFile(req, file));
+      const files = await Promise.all(
+        uploadedFiles.map((file) =>
+          uploadFileToStorage({
+            file,
+            scope: 'messages',
+            userId: req.user.id,
+          }),
+        ),
+      );
 
       res.status(200).json({
         success: true,

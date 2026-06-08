@@ -4,25 +4,9 @@ import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import incomingCallRingtoneUrl from '../assets/audio/incoming-call-soft.wav';
 import { requestNotificationPermission } from '../services/pushNotifications';
+import api from '../config/api';
 
-const turnUrls = (import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL || '')
-  .split(',')
-  .map((url) => url.trim())
-  .filter(Boolean);
-const rtcConfig = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    ...(turnUrls.length > 0
-      ? [
-          {
-            urls: turnUrls,
-            username: import.meta.env.VITE_TURN_USERNAME || '',
-            credential: import.meta.env.VITE_TURN_CREDENTIAL || '',
-          },
-        ]
-      : []),
-  ],
-};
+const DEFAULT_RTC_CONFIG = { iceServers: [] };
 
 const CallContext = createContext(null);
 
@@ -68,6 +52,7 @@ export const CallProvider = ({ children }) => {
 
   const callStateRef = useRef(initialCallState);
   const peerConnectionRef = useRef(null);
+  const rtcConfigRef = useRef(DEFAULT_RTC_CONFIG);
   const pendingIceCandidatesRef = useRef([]);
   const noticeTimerRef = useRef(null);
   const ringtoneAudioRef = useRef(null);
@@ -77,6 +62,29 @@ export const CallProvider = ({ children }) => {
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    let cancelled = false;
+
+    api
+      .get('/calls/ice-config')
+      .then((response) => {
+        if (cancelled) return;
+        const iceServers = response.data?.iceServers;
+        rtcConfigRef.current = Array.isArray(iceServers) ? { iceServers } : DEFAULT_RTC_CONFIG;
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn('Không thể lấy RTC ICE config từ server:', error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const setCallStateSnapshot = useCallback((nextStateOrUpdater) => {
     setCallState((prev) => {
@@ -235,7 +243,7 @@ export const CallProvider = ({ children }) => {
   const createPeerConnection = useCallback(
     ({ callId, partnerId }) => {
       closePeerConnection();
-      const pc = new RTCPeerConnection(rtcConfig);
+      const pc = new RTCPeerConnection(rtcConfigRef.current);
 
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;

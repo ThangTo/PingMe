@@ -8,7 +8,7 @@ const MAX_ATTACHMENTS = 5;
 const TYPING_IDLE_TIMEOUT_MS = 1500;
 const TYPING_KEEPALIVE_MS = 2500;
 const ACCEPTED_FILE_TYPES =
-  'image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv,.json,.js,.jsx,.ts,.tsx,.html,.css,.md';
+  'image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv,.json,.js,.jsx,.ts,.tsx,.html,.css,.md';
 const AUDIO_MIME_TYPES = [
   'audio/webm;codecs=opus',
   'audio/webm',
@@ -54,9 +54,10 @@ const formatVoiceDuration = (seconds = 0) => {
 };
 
 const getAttachmentType = (type = '', fallback = 'file') => {
-  if (['image', 'file', 'audio'].includes(type)) return type;
+  if (['image', 'file', 'audio', 'video'].includes(type)) return type;
   if (type.startsWith('image/')) return 'image';
   if (type.startsWith('audio/')) return 'audio';
+  if (type.startsWith('video/')) return 'video';
   return fallback;
 };
 
@@ -389,10 +390,13 @@ const MessageInput = ({
   const validateFile = (file) => {
     const isImage = file.type.startsWith('image/');
     const isAudio = file.type.startsWith('audio/');
+    const isVideo = file.type.startsWith('video/');
     const maxSize = isImage ? 10 * 1024 * 1024 : 25 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      return `Kích thước tối đa ${isImage ? '10MB' : '25MB'} cho ${isAudio ? 'ghi âm' : file.name}`;
+      return `Kích thước tối đa ${isImage ? '10MB' : '25MB'} cho ${
+        isAudio ? 'ghi âm' : isVideo ? 'video' : file.name
+      }`;
     }
 
     return '';
@@ -486,6 +490,8 @@ const MessageInput = ({
         return {
           type: getAttachmentType(uploadedFile.type, preview?.type || getAttachmentType(mimeType)),
           url: uploadedFile.url,
+          storageKey: uploadedFile.storageKey,
+          storageProvider: uploadedFile.storageProvider,
           filename: uploadedFile.filename || preview?.name,
           size: uploadedFile.size || preview?.size,
           mimeType,
@@ -673,6 +679,8 @@ const MessageInput = ({
       const attachment = {
         type: 'audio',
         url: uploadedFile.url,
+        storageKey: uploadedFile.storageKey,
+        storageProvider: uploadedFile.storageProvider,
         filename: uploadedFile.filename || voiceFile.name,
         size: uploadedFile.size || voicePreview.size,
         mimeType: uploadedFile.mimeType || voiceFile.type,

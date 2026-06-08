@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
-import fs from 'fs/promises';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import { getUserRoomId } from '../services/conversation.service.js';
@@ -12,6 +11,7 @@ import {
   getVisibleOnlineStatus,
   normalizePrivacySettings,
 } from '../services/privacy.service.js';
+import { deleteStorageObject, uploadFileToStorage } from '../services/storage.service.js';
 
 const emitToUser = (req, userId, eventName, payload) => {
   req.app.get('io')?.to(getUserRoomId(userId)).emit(eventName, payload);
@@ -56,21 +56,8 @@ const formatUserProfile = (user) => ({
   createdAt: user.createdAt,
 });
 
-const PROFILE_SELECT = 'username pingId email avatar bio provider notificationSettings privacySettings createdAt';
-
-const getUploadedFileUrl = (req, file) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  return `${baseUrl}/uploads/${file.filename}`;
-};
-
-const deleteUploadedFile = async (file) => {
-  if (!file?.path) return;
-  try {
-    await fs.unlink(file.path);
-  } catch (error) {
-    console.warn('Khong the xoa file upload tam:', error.message || error);
-  }
-};
+const PROFILE_SELECT =
+  'username pingId email avatar avatarStorageKey bio provider notificationSettings privacySettings createdAt';
 
 const formatVisibleUser = (user, viewerId) => ({
   _id: user._id,
@@ -212,23 +199,42 @@ const userController = {
 
       const mimeType = req.file.mimetype.split(';')[0].trim().toLowerCase();
       if (!mimeType.startsWith('image/')) {
-        await deleteUploadedFile(req.file);
         return res.status(400).json({ error: 'Avatar phải là file ảnh' });
       }
 
       if (req.file.size > 5 * 1024 * 1024) {
-        await deleteUploadedFile(req.file);
         return res.status(400).json({ error: 'Avatar tối đa 5MB' });
       }
 
+      const currentUser = await User.findById(req.user.id).select('avatarStorageKey');
+      if (!currentUser) {
+        return res.status(404).json({ error: 'NgÆ°á»i dÃ¹ng khÃ´ng tá»“n táº¡i' });
+      }
+
+      const uploadedAvatar = await uploadFileToStorage({
+        file: req.file,
+        scope: 'avatars',
+        userId: req.user.id,
+      });
+
       const user = await User.findByIdAndUpdate(
         req.user.id,
-        { $set: { avatar: getUploadedFileUrl(req, req.file) } },
+        {
+          $set: {
+            avatar: uploadedAvatar.url,
+            avatarStorageKey: uploadedAvatar.storageKey,
+          },
+        },
         { new: true, runValidators: true },
       ).select(PROFILE_SELECT);
 
+      if (currentUser.avatarStorageKey) {
+        void deleteStorageObject({ storageKey: currentUser.avatarStorageKey }).catch((error) => {
+          console.warn('Khong the xoa avatar cu tren storage:', error.message || error);
+        });
+      }
+
       if (!user) {
-        await deleteUploadedFile(req.file);
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
       }
 
@@ -237,7 +243,6 @@ const userController = {
         user: formatUserProfile(user),
       });
     } catch (error) {
-      await deleteUploadedFile(req.file);
       console.error('Lỗi upload avatar:', error);
       res.status(500).json({ error: 'Không thể upload avatar' });
     }

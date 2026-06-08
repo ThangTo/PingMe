@@ -12,11 +12,14 @@ const Register = () => {
     password: '',
     confirmPassword: '',
   });
+  const [otpCode, setOtpCode] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpMessage, setOtpMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { register } = useAuth();
+  const { register, requestRegisterOtp, startGoogleAuth } = useAuth();
   const navigate = useNavigate();
 
   const passwordStrength = useMemo(() => {
@@ -85,6 +88,11 @@ const Register = () => {
     const { name, value } = event.target;
     const nextValue = name === 'pingId' ? normalizePingId(value) : value;
     setFormData((current) => ({ ...current, [name]: nextValue }));
+    if (otpRequested) {
+      setOtpRequested(false);
+      setOtpCode('');
+      setOtpMessage('');
+    }
     if (errors[name] || errors.form) {
       setErrors((current) => {
         const next = { ...current };
@@ -120,11 +128,34 @@ const Register = () => {
     setIsSubmitting(true);
 
     try {
+      if (!otpRequested) {
+        const otpResult = await requestRegisterOtp({
+          username: formData.username,
+          pingId: normalizePingId(formData.pingId),
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (otpResult?.success) {
+          setOtpRequested(true);
+          setOtpMessage(otpResult.message || 'Đã gửi OTP đến email của bạn.');
+        } else {
+          setErrors({ form: otpResult?.error || 'Không thể gửi OTP đăng ký' });
+        }
+        return;
+      }
+
+      if (!/^\d{6}$/.test(otpCode.trim())) {
+        setErrors({ otpCode: 'Nhập mã OTP gồm 6 chữ số' });
+        return;
+      }
+
       const result = await register({
         username: formData.username,
         pingId: normalizePingId(formData.pingId),
         email: formData.email,
         password: formData.password,
+        otpCode: otpCode.trim(),
       });
 
       if (result?.success) {
@@ -340,6 +371,37 @@ const Register = () => {
               )}
             </div>
 
+            {otpRequested && (
+              <div className="rounded-[10px] border border-secondary/20 bg-secondary-container/60 px-3 py-2.5">
+                <label htmlFor="register-otp" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+                  Mã OTP email
+                </label>
+                <input
+                  id="register-otp"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(event) => {
+                    setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6));
+                    if (errors.otpCode || errors.form) {
+                      setErrors((current) => {
+                        const next = { ...current };
+                        delete next.otpCode;
+                        delete next.form;
+                        return next;
+                      });
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className={`${inputClass(errors.otpCode)} text-center text-[18px] font-semibold tracking-[0.28em]`}
+                  placeholder="000000"
+                />
+                {otpMessage && <p className="mt-1.5 text-[10px] text-on-surface-variant">{otpMessage}</p>}
+                {errors.otpCode && <p className="mt-1 text-[10px] font-medium text-error">{errors.otpCode}</p>}
+              </div>
+            )}
+
             <label className="flex cursor-pointer items-start gap-2.5 py-1 text-[11px] leading-relaxed text-on-surface-variant">
               <input type="checkbox" defaultChecked className="mt-0.5 h-4 w-4 rounded-[3px] border-outline accent-[#2F8A63]" />
               <span>
@@ -366,8 +428,8 @@ const Register = () => {
             {/* Google auth chưa có backend, chỉ hiển thị preview trên desktop theo thiết kế. */}
             <button
               type="button"
-              disabled
-              className="hidden h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface opacity-70 md:flex"
+              onClick={startGoogleAuth}
+              className="hidden h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high md:flex"
               title="Đăng ký Google chưa được kết nối"
             >
               <span className="font-semibold text-secondary">G</span>
