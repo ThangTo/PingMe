@@ -1,7 +1,15 @@
 node_modules/
 .env
+.env.*
+!.env.example
 .DS_Store
 build/
 dist/
 
 .kiro/
+.vscode/
+.claude/settings.local.json
+server/uploads/
+docs/*.log
+pingme-playwright-notification.png
+nul

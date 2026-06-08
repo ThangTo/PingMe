@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PingMe">
+  <rect width="64" height="64" rx="12" fill="#111111"/>
+  <path d="M18 20h20c6 0 10 4 10 9.5S44 39 38 39h-9l-9 7v-7h-2V20z" fill="#FBFBFA"/>
+  <circle cx="27" cy="30" r="2.5" fill="#111111"/>
+  <circle cx="34" cy="30" r="2.5" fill="#111111"/>
+  <circle cx="41" cy="30" r="2.5" fill="#111111"/>
+</svg>

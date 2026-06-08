@@ -1,5 +1,16 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
 import socket, { connectSocket, disconnectSocket, isSocketConnected } from '../socket';
+import {
+  enablePushNotifications,
+  getPushNotificationStatus,
+  NOTIFICATION_PERMISSION_GRANTED_EVENT,
+  requestNotificationPermission,
+  registerPushNotifications,
+  sendServerTestPush,
+  showServiceWorkerTestNotification,
+} from '../services/pushNotifications';
 
 /**
  * Socket Context - Quản lý socket connection cho toàn bộ app
@@ -28,6 +39,7 @@ export const useSocket = () => {
  * Wrap component tree với provider này để sử dụng socket
  */
 export const SocketProvider = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
   // State để track connection status
   const [isConnected, setIsConnected] = useState(false);
   const [socketId, setSocketId] = useState(null);
@@ -56,10 +68,6 @@ export const SocketProvider = ({ children }) => {
     socket.on('disconnect', handleDisconnect);
     socket.on('connect_error', handleConnectError);
 
-    // Tự động connect khi component mount (optional)
-    // Nếu muốn connect thủ công, comment dòng này
-    connectSocket();
-
     // Cleanup: Disconnect và remove listeners khi unmount
     return () => {
       socket.off('connect', handleConnect);
@@ -70,6 +78,89 @@ export const SocketProvider = ({ children }) => {
       // disconnectSocket(); // Uncomment nếu muốn disconnect khi unmount
     };
   }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (isAuthenticated) {
+      connectSocket();
+      return;
+    }
+
+    disconnectSocket();
+  }, [isAuthenticated, isLoading]);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) return undefined;
+
+    let isMounted = true;
+    const syncPushSubscription = () => {
+      if (!isMounted) return;
+
+      void registerPushNotifications().catch((error) => {
+        console.warn('Khong the dang ky Web Push:', error);
+      });
+    };
+
+    syncPushSubscription();
+
+    const handleUserGesture = () => {
+      void requestNotificationPermission()
+        .then((permission) => {
+          if (permission === 'granted') syncPushSubscription();
+        })
+        .catch((error) => {
+          console.warn('Khong the xin quyen thong bao:', error);
+        });
+    };
+
+    const handlePushDebugMessage = (event) => {
+      if (event.data?.type !== 'PINGME_PUSH_DEBUG') return;
+
+      window.pingmePushEvents = [...(window.pingmePushEvents || []), event.data];
+      console.info('[PingMe Push SW]', event.data.eventName, event.data.detail);
+    };
+
+    window.addEventListener('pointerdown', handleUserGesture, { passive: true });
+    window.addEventListener('keydown', handleUserGesture);
+    window.addEventListener(NOTIFICATION_PERMISSION_GRANTED_EVENT, syncPushSubscription);
+    navigator.serviceWorker?.addEventListener('message', handlePushDebugMessage);
+
+    if (import.meta.env.DEV) {
+      window.pingmePushEvents = window.pingmePushEvents || [];
+      window.pingmePush = {
+        enable: enablePushNotifications,
+        clearEvents: () => {
+          window.pingmePushEvents = [];
+          return [];
+        },
+        getEvents: () => window.pingmePushEvents || [],
+        status: getPushNotificationStatus,
+        subscribe: registerPushNotifications,
+        testServer: sendServerTestPush,
+        testSw: showServiceWorkerTestNotification,
+        testLocal: () => {
+          if (typeof Notification === 'undefined') return 'unsupported';
+          if (Notification.permission !== 'granted') return Notification.permission;
+          return new Notification('PingMe test', {
+            body: 'Neu thay thong bao nay thi Browser Notification dang hoat dong.',
+            icon: '/pingme.svg',
+          });
+        },
+      };
+    }
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('pointerdown', handleUserGesture);
+      window.removeEventListener('keydown', handleUserGesture);
+      window.removeEventListener(NOTIFICATION_PERMISSION_GRANTED_EVENT, syncPushSubscription);
+      navigator.serviceWorker?.removeEventListener('message', handlePushDebugMessage);
+      if (import.meta.env.DEV && window.pingmePush?.subscribe === registerPushNotifications) {
+        delete window.pingmePush;
+      }
+    };
+  }, [isAuthenticated, isLoading]);
 
   // Context value
   const value = {

@@ -13,6 +13,7 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 // Cấu hình socket options
 const socketOptions = {
   autoConnect: false, // Không tự động connect khi khởi tạo (sẽ connect thủ công)
+  withCredentials: true, // Gửi cookie accessToken trong Socket.IO handshake
   reconnection: true, // Tự động reconnect khi mất kết nối
   reconnectionAttempts: 5, // Thử reconnect tối đa 5 lần
   reconnectionDelay: 1000, // Delay 1s giữa các lần thử reconnect

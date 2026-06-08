@@ -1,68 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /* Tailwind CSS v4 core */
 @import 'tailwindcss';
 
 /* Theme tokens (Tailwind v4) */
 @theme {
-  --color-primary: #0084ff;
-  --color-primary-dark: #0068cc;
-  --color-primary-light: #4da3ff;
+  /* LIGHT MODE TOKENS (Default - Quiet Signal) */
+  --color-background: #F4F3EF;
+  --color-surface: #FBFAF7;
 
-  --color-dark-default: #1c1e21;
-  --color-dark-secondary: #242526;
-  --color-dark-tertiary: #3a3b3c;
+  --color-surface-container-lowest: #FBFAF7;
+  --color-surface-container-low: #F4F3EF;
+  --color-surface-container: #FFFFFF;
+  --color-surface-container-high: #EEECE6;
+  --color-surface-container-highest: #DDDCD5;
 
-  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
-    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --color-on-background: #222320;
+  --color-on-surface: #222320;
+  --color-on-surface-variant: #73756F;
+
+  --color-outline: #DDDCD5;
+  --color-outline-variant: #EEECE6;
+
+  --color-primary: #222320;
+  --color-secondary: #2F8A63;
+  --color-secondary-container: #E1F1E8;
+  --color-error: #D85E4A;
+  --color-error-container: #F8E7E2;
+  --color-accent: #356F92;
+  --color-accent-soft: #EEECE6;
+
+  --font-family-body: 'Inter', 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-headline: 'Inter', 'Geist Sans', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-label: 'Inter', 'Geist Mono', 'SF Mono', monospace;
 }
 
 /* Custom color utilities cho Tailwind v4 */
 @layer utilities {
-  .bg-primary {
-    background-color: var(--color-primary);
-  }
+  .bg-primary { background-color: var(--color-primary); }
+  .bg-secondary { background-color: var(--color-secondary); }
+  .bg-accent { background-color: var(--color-accent); }
+  .bg-accent-soft { background-color: var(--color-accent-soft); }
 
-  .bg-primary-dark {
-    background-color: var(--color-primary-dark);
-  }
+  .text-primary { color: var(--color-primary); }
+  .text-secondary { color: var(--color-secondary); }
+  .text-accent { color: var(--color-accent); }
 
-  .bg-primary-light {
-    background-color: var(--color-primary-light);
-  }
+  .border-primary { border-color: var(--color-primary); }
+  .border-accent { border-color: var(--color-accent); }
 
-  .text-primary {
-    color: var(--color-primary);
-  }
-
-  .text-primary-light {
-    color: var(--color-primary-light);
-  }
-
-  .border-primary {
-    border-color: var(--color-primary);
-  }
-
-  .ring-primary {
-    --tw-ring-color: var(--color-primary);
-  }
+  .ring-primary { --tw-ring-color: var(--color-primary); }
 }
 
 /* Base styles (apply cho toàn app) */
 @layer base {
-  * {
-    box-sizing: border-box;
+  * { box-sizing: border-box; }
+
+  html[data-theme='dark'] {
+    /* DARK MODE TOKENS (Quiet Signal) */
+    --color-background: #111311;
+    --color-surface: #171A17;
+
+    --color-surface-container-lowest: #171A17;
+    --color-surface-container-low: #111311;
+    --color-surface-container: #1D211E;
+    --color-surface-container-high: #262B27;
+    --color-surface-container-highest: #303630;
+
+    --color-on-background: #F2F1EC;
+    --color-on-surface: #F2F1EC;
+    --color-on-surface-variant: #A5AAA3;
+
+    --color-outline: #303630;
+    --color-outline-variant: #262B27;
+
+    --color-primary: #F2F1EC;
+    --color-secondary: #5BC18D;
+    --color-secondary-container: #1E3B2C;
+    --color-error: #F07A68;
+    --color-error-container: #482923;
+    --color-accent: #77B4D5;
+    --color-accent-soft: #262B27;
   }
 
   body {
     margin: 0;
-    min-height: 100vh;
-    font-family: var(--font-family-sans);
-    @apply bg-slate-900 text-white;
+    min-height: 100dvh;
+    font-family: var(--font-family-body);
+    background-color: var(--color-background);
+    color: var(--color-on-background);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 }
 
 /* Custom utility classes */
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+  .font-headline { font-family: var(--font-family-headline); }
+  .font-body { font-family: var(--font-family-body); }
+  .font-label { font-family: var(--font-family-label); }
+
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  .prism-border { position: relative; }
+  .prism-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--color-outline-variant);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .auth-canvas {
+    background:
+      radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--color-surface) 72%, transparent), transparent 48%),
+      var(--color-background);
+  }
+
+  .quiet-shadow {
+    box-shadow: 0 20px 55px rgba(31, 32, 29, 0.08), 0 2px 8px rgba(31, 32, 29, 0.04);
+  }
+
+  .quiet-divider {
+    background: linear-gradient(90deg, transparent, var(--color-outline), transparent);
+  }
+
+  /* Giữ nguyên Animation của bạn vì nó xử lý UX rất tốt */
+  @keyframes messagePop {
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .animate-message-pop {
+    animation: messagePop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
   }
 }

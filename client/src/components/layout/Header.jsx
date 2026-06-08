@@ -1,57 +1,121 @@
-import Avatar from '../ui/Avatar';
-import Button from '../ui/Button';
+import { useCall } from '../../context/CallContext';
+import AppIcon from '../ui/AppIcon';
 
-/**
- * Header Component - Header của chat area với thông tin user và actions
- */
-const Header = ({ user, onVideoCall, onVoiceCall, onMenuClick }) => {
+const fallbackAvatar =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
+
+const getInitials = (name = '') =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || '?';
+
+const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
+  const { callState, initiateCall } = useCall();
+  const isGroup = Boolean(user?.isGroup);
+  const canStartCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
+  const subtitle = isGroup
+    ? `${user?.memberCount || 0} thành viên`
+    : user?.isOnline
+      ? 'Đang online'
+      : 'Ngoại tuyến';
+
+  const displaySubtitle = !isGroup && user?.pingId ? `@${user.pingId} - ${subtitle}` : subtitle;
+
+  const handleStartCall = (type) => {
+    if (!canStartCall) return;
+
+    initiateCall(user.peerId, type, {
+      name: user.name,
+      avatar: user.avatar,
+      conversationId: user.id,
+    });
+  };
+
+  const actions = [
+    {
+      icon: 'call',
+      label: 'Gọi thoại',
+      directOnly: true,
+      disabled: !canStartCall,
+      onClick: () => handleStartCall('voice'),
+    },
+    {
+      icon: 'videocam',
+      label: 'Gọi video',
+      directOnly: true,
+      disabled: !canStartCall,
+      onClick: () => handleStartCall('video'),
+    },
+    { icon: 'search', label: 'Tìm kiếm', onClick: onToggleSearch },
+  ].filter((item) => !(isGroup && item.directOnly));
+
   return (
-    <div className="h-16 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4">
-      {/* User info */}
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <Avatar src={user?.avatar} size="md" online={user?.isOnline} />
+    <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-3 md:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-on-surface transition-colors hover:bg-surface-container-low md:hidden"
+          title="Quay lại"
+        >
+          <AppIcon name="arrow_back" className="text-[22px]" />
+        </button>
+
+        <div className="relative h-10 w-10 shrink-0">
+          {user?.avatar || !isGroup ? (
+            <img
+              alt={user?.name || 'User'}
+              className="h-full w-full rounded-full border border-outline-variant object-cover"
+              src={user?.avatar || fallbackAvatar}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center rounded-full border border-outline-variant bg-surface-container-low text-[13px] font-medium text-on-surface">
+              {getInitials(user?.name)}
+            </div>
+          )}
+          {!isGroup && user?.isOnline && (
+            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
+          )}
+        </div>
+
         <div className="min-w-0">
-          <h3 className="text-white font-semibold truncate">{user?.name || 'User'}</h3>
-          <p className="text-xs text-slate-400">{user?.isOnline ? 'Đang hoạt động' : 'Offline'}</p>
+          <h2 className="truncate text-[17px] font-semibold tracking-tight text-on-surface md:text-[16px]">
+            {user?.name || 'Cuộc trò chuyện'}
+          </h2>
+          <p className={`mt-0.5 truncate text-[13px] ${!isGroup && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
+            {displaySubtitle}
+          </p>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onVoiceCall} title="Gọi thoại">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
+      <div className="flex items-center gap-1">
+        {actions.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            onClick={item.onClick}
+            disabled={item.disabled}
+            className="flex h-10 w-10 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-45 md:h-9 md:w-9"
+            title={item.label}
           >
-            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-          </svg>
-        </Button>
+            <AppIcon name={item.icon} className="text-[20px]" />
+          </button>
+        ))}
 
-        <Button variant="ghost" size="sm" onClick={onVideoCall} title="Gọi video">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-          </svg>
-        </Button>
-
-        <Button variant="ghost" size="sm" onClick={onMenuClick} title="Menu">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
-        </Button>
+        <button
+          type="button"
+          onClick={onToggleDetails}
+          className="flex h-9 w-9 items-center justify-center rounded-[8px] text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface"
+          title="Thông tin cuộc trò chuyện"
+        >
+          <AppIcon name="more_vert" className="text-[20px]" />
+        </button>
       </div>
-    </div>
+    </header>
   );
 };
 

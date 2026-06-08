@@ -32,4 +32,3 @@ const SearchBar = ({ value, onChange, placeholder = 'Tìm kiếm...', className 
 };
 
 export default SearchBar;
-

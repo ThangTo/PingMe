@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import AuthLayout from './components/layout/AuthLayout';
 import Chat from './pages/Chat';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -12,8 +14,8 @@ const ProtectedRoute = ({ children }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <div className="text-white">Đang tải...</div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-on-surface">Đang tải...</div>
       </div>
     );
   }
@@ -29,54 +31,63 @@ const PublicRoute = ({ children }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <div className="text-white">Đang tải...</div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-on-surface">Đang tải...</div>
       </div>
     );
   }
 
   return !isAuthenticated ? children : <Navigate to="/chat" replace />;
+    };
+
+/**
+ * App Routes
+ */
+const AnimatedRoutes = () => {
+  return (
+    <Routes>
+      {/* Public routes wrapped in AuthLayout (Framer Motion 3D Peel) */}
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      </Route>
+
+      {/* Protected routes */}
+      <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+
+      {/* Default redirect */}
+      <Route path="/" element={<Navigate to="/chat" replace />} />
+      <Route path="*" element={<Navigate to="/chat" replace />} />
+    </Routes>
+  );
 };
 
 /**
  * Main App Component với Routing
  */
 function App() {
+  useEffect(() => {
+    const applyTheme = () => {
+      const preference = localStorage.getItem('pingme_theme') || 'system';
+      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const resolvedTheme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
+      document.documentElement.dataset.theme = resolvedTheme;
+    };
+
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('pingme-theme-change', applyTheme);
+
+    return () => {
+      mediaQuery.removeEventListener('change', applyTheme);
+      window.removeEventListener('pingme-theme-change', applyTheme);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <Register />
-            </PublicRoute>
-          }
-        />
-
-        {/* Protected routes */}
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute>
-              <Chat />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/chat" replace />} />
-        <Route path="*" element={<Navigate to="/chat" replace />} />
-      </Routes>
+      <AnimatedRoutes />
     </BrowserRouter>
   );
 }
