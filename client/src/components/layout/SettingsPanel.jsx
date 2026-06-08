@@ -64,6 +64,7 @@ function SettingsPanel({ onBack, onNavigate }) {
   );
   const [profile, setProfile] = useState({
     username: user?.username || user?.name || '',
+    pingId: user?.pingId || '',
     email: user?.email || '',
     avatar: user?.avatar || '',
     bio: user?.bio || '',
@@ -343,6 +344,14 @@ function SettingsPanel({ onBack, onNavigate }) {
               />
             </label>
             <label className="grid gap-1.5 text-[11px] font-medium text-on-surface">
+              PingMe ID
+              <input
+                value={profile.pingId ? `@${profile.pingId}` : ''}
+                disabled
+                className="h-11 rounded-[8px] border border-outline-variant bg-surface-container-low px-3 text-[13px] font-medium text-secondary"
+              />
+            </label>
+            <label className="grid gap-1.5 text-[11px] font-medium text-on-surface">
               Email
               <input
                 value={profile.email || ''}
@@ -615,6 +624,9 @@ function SettingsPanel({ onBack, onNavigate }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[16px] font-semibold text-on-surface">{profile.username || 'Tài khoản'}</span>
+            {profile.pingId && (
+              <span className="mt-1 block truncate text-[12px] font-medium text-secondary">@{profile.pingId}</span>
+            )}
             <span className="mt-1 block truncate text-[12px] text-on-surface-variant">{profile.email}</span>
             <span className="mt-1 block text-[11px] text-secondary">● Đang online</span>
           </span>

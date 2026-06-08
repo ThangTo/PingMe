@@ -9,6 +9,7 @@
     "start": "node index.js",
     "check": "node scripts/check-syntax.js",
     "backfill:conversations": "node scripts/backfill-conversations.js",
+    "backfill:ping-ids": "node scripts/backfill-ping-ids.js",
     "seed:test-users": "node scripts/seed-test-users.js",
     "push:vapid": "node scripts/generate-vapid-keys.js",
     "smoke": "node scripts/smoke-basic.js",

@@ -5,6 +5,11 @@ import Session from '../models/Session.js';
 import User from '../models/User.js';
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const PING_ID_REGEX = /^[a-z][a-z0-9_]{4,31}$/;
+
+export const normalizePingId = (value = '') => value.trim().replace(/^@+/, '').toLowerCase();
+
+export const validatePingId = (value = '') => PING_ID_REGEX.test(normalizePingId(value));
 
 const createSessionTokens = async (user, metadata = {}) => {
   const sessionId = randomUUID();
@@ -20,18 +25,32 @@ const createSessionTokens = async (user, metadata = {}) => {
 };
 
 const authService = {
-  register: async (username, email, password, metadata = {}) => {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const existingUser = await User.findOne({ email });
-    if (existingUser) throw new Error('Email đã tồn tại!');
+  register: async (username, email, password, pingId, metadata = {}) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPingId = normalizePingId(pingId);
+    if (!validatePingId(normalizedPingId)) {
+      throw new Error('PingMe ID phải bắt đầu bằng chữ cái, dài 5-32 ký tự và chỉ gồm chữ, số, dấu gạch dưới.');
+    }
 
-    const user = await User.create({ username, email, password: hashedPassword });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const existingUser = await User.findOne({
+      $or: [{ email: normalizedEmail }, { pingId: normalizedPingId }],
+    }).select('email pingId');
+    if (existingUser?.email === normalizedEmail) throw new Error('Email đã tồn tại!');
+    if (existingUser?.pingId === normalizedPingId) throw new Error('PingMe ID đã tồn tại!');
+
+    const user = await User.create({
+      username,
+      email: normalizedEmail,
+      pingId: normalizedPingId,
+      password: hashedPassword,
+    });
     const tokens = await createSessionTokens(user, metadata);
     return { user, tokens };
   },
 
   login: async (email, password, metadata = {}) => {
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
     if (!user?.password) throw new Error('Email hoặc mật khẩu không chính xác!');
 
     const isPasswordValid = await bcrypt.compare(password, user.password);

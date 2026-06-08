@@ -23,6 +23,8 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
       ? 'Đang online'
       : 'Ngoại tuyến';
 
+  const displaySubtitle = !isGroup && user?.pingId ? `@${user.pingId} - ${subtitle}` : subtitle;
+
   const handleStartCall = (type) => {
     if (!canStartCall) return;
 
@@ -85,7 +87,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
             {user?.name || 'Cuộc trò chuyện'}
           </h2>
           <p className={`mt-0.5 truncate text-[13px] ${!isGroup && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
-            {subtitle}
+            {displaySubtitle}
           </p>
         </div>
       </div>

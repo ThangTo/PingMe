@@ -110,6 +110,7 @@ const AuthProvider = ({ children }) => {
       // Gọi API register endpoint
       const response = await api.post('/auth/register', {
         username: userData.username,
+        pingId: userData.pingId,
         email: userData.email,
         password: userData.password,
       });

@@ -90,7 +90,9 @@ const formatConversationMembers = (conversation, currentUserId) =>
     return {
       id: toIdString(memberUser),
       username: memberUser?.username || 'Nguoi dung',
+      pingId: memberUser?.pingId || '',
       avatar: getVisibleAvatar(currentUserId, memberUser),
+      isOnline: getVisibleOnlineStatus(currentUserId, memberUser),
       role: member.role || 'member',
     };
   });
@@ -137,6 +139,7 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
     _id: conversation._id,
     type: conversation.type,
     peerId: conversation.type === 'direct' ? toIdString(peer) : null,
+    pingId: conversation.type === 'direct' ? peer?.pingId || '' : '',
     name: conversation.type === 'direct' ? peer?.username || 'Người dùng' : conversation.title,
     avatar: conversation.type === 'direct' ? getVisibleAvatar(currentUserId, peer) : conversation.avatar,
     isOnline: conversation.type === 'direct' ? getVisibleOnlineStatus(currentUserId, peer) : false,
@@ -166,7 +169,7 @@ const canRemoveGroupMember = (actorRole, targetRole) => {
 
 const populateConversationSummary = (conversationId) =>
   Conversation.findById(conversationId)
-    .populate('members.user', 'username email avatar isOnline friends privacySettings')
+    .populate('members.user', 'username pingId email avatar isOnline friends privacySettings')
     .populate('lastMessage')
     .populate({
       path: 'pinnedMessage',
@@ -274,7 +277,7 @@ const conversationController = {
       });
 
       const populatedConversation = await Conversation.findById(conversation._id)
-        .populate('members.user', 'username email avatar isOnline friends privacySettings')
+        .populate('members.user', 'username pingId email avatar isOnline friends privacySettings')
         .populate('lastMessage')
         .populate({
           path: 'pinnedMessage',
@@ -601,7 +604,7 @@ const conversationController = {
       await Promise.all(directConversations.map((conversation) => attachLegacyDirectMessages(conversation)));
 
       const conversations = await Conversation.find({ 'members.user': currentUserObjectId })
-        .populate('members.user', 'username email avatar isOnline friends privacySettings')
+        .populate('members.user', 'username pingId email avatar isOnline friends privacySettings')
         .populate('lastMessage')
         .populate({
           path: 'pinnedMessage',

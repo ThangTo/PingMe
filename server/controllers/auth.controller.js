@@ -9,6 +9,7 @@ const getSessionMetadata = (req) => ({
 const formatAuthUser = (user) => ({
   id: user._id,
   username: user.username,
+  pingId: user.pingId,
   email: user.email,
   avatar: user.avatar,
   bio: user.bio || '',
@@ -21,10 +22,10 @@ const formatAuthUser = (user) => ({
 const authController = {
   register: async (req, res) => {
     try {
-      const { username, email, password } = req.body;
+      const { username, email, password, pingId } = req.body;
 
       // Validation
-      if (!username || !email || !password) {
+      if (!username || !email || !password || !pingId) {
         return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin' });
       }
 
@@ -32,6 +33,7 @@ const authController = {
         username,
         email,
         password,
+        pingId,
         getSessionMetadata(req),
       );
 

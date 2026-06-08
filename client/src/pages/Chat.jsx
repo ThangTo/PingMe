@@ -69,7 +69,9 @@ const normalizeMembers = (members = []) =>
       return {
         id,
         username: member.username || member.userName || member.user?.username || 'Người dùng',
+        pingId: member.pingId || member.user?.pingId || '',
         avatar: member.avatar || member.user?.avatar || '',
+        isOnline: Boolean(member.isOnline || member.user?.isOnline),
         role: member.role || 'member',
       };
     })
@@ -314,6 +316,7 @@ const formatConversationSummary = (conversation) => {
   return {
     id: conversation._id || conversation.id,
     peerId: conversation.peerId || null,
+    pingId: conversation.pingId || conversation.peerPingId || '',
     type: conversation.type || 'direct',
     name: conversation.name,
     avatar: conversation.avatar,
@@ -723,6 +726,7 @@ const Chat = () => {
           return {
             id: conversation._id,
             peerId: conversation.peerId || null,
+            pingId: conversation.pingId || conversation.peerPingId || '',
             type: conversation.type || 'direct',
             name: conversation.name,
             avatar: conversation.avatar,

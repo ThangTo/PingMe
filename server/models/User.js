@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 
+const createPingIdFromEmail = (email = '') => {
+  const localPart = email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'user';
+  const normalized = /^[a-z]/.test(localPart) ? localPart : `u_${localPart}`;
+  return normalized.padEnd(5, '0').slice(0, 32);
+};
+
 /**
  * User Schema - Định nghĩa cấu trúc dữ liệu cho User
  */
@@ -23,6 +29,20 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
+    },
+
+    // Mật khẩu (optional - không bắt buộc nếu đăng nhập bằng Google)
+    // PingMe ID duy nhất để tìm người dùng, tương tự handle của Telegram
+    pingId: {
+      type: String,
+      required: [true, 'PingMe ID is required'],
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      minlength: [5, 'PingMe ID must be at least 5 characters'],
+      maxlength: [32, 'PingMe ID cannot exceed 32 characters'],
+      match: [/^[a-z][a-z0-9_]{4,31}$/, 'PingMe ID is invalid'],
     },
 
     // Mật khẩu (optional - không bắt buộc nếu đăng nhập bằng Google)
@@ -187,6 +207,7 @@ userSchema.methods.generateAuthTokens = function (sessionId = null) {
   const payload = {
     userId: this._id,
     username: this.username,
+    pingId: this.pingId,
     email: this.email,
     ...(sessionId ? { sid: sessionId } : {}),
   };
@@ -241,6 +262,7 @@ userSchema.statics.findOrCreateGoogleUser = async function (profile) {
     user = await this.create({
       username: profile.name || profile.email.split('@')[0],
       email: profile.email,
+      pingId: createPingIdFromEmail(profile.email),
       googleId: profile.id,
       provider: 'google',
       avatar: profile.picture || 'https://via.placeholder.com/150',

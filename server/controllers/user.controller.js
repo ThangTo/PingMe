@@ -44,6 +44,7 @@ const getMessagePreview = (message) => {
 const formatUserProfile = (user) => ({
   id: user._id,
   username: user.username,
+  pingId: user.pingId,
   email: user.email,
   avatar: user.avatar,
   bio: user.bio || '',
@@ -55,7 +56,7 @@ const formatUserProfile = (user) => ({
   createdAt: user.createdAt,
 });
 
-const PROFILE_SELECT = 'username email avatar bio provider notificationSettings privacySettings createdAt';
+const PROFILE_SELECT = 'username pingId email avatar bio provider notificationSettings privacySettings createdAt';
 
 const getUploadedFileUrl = (req, file) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -74,6 +75,7 @@ const deleteUploadedFile = async (file) => {
 const formatVisibleUser = (user, viewerId) => ({
   _id: user._id,
   username: user.username,
+  pingId: user.pingId,
   email: user.email,
   avatar: getVisibleAvatar(viewerId, user),
   isOnline: getVisibleOnlineStatus(viewerId, user),
@@ -99,6 +101,7 @@ const getMutualFriendInfo = (currentUser, targetUser) => {
       return {
         _id: friend._id,
         username: friend.username,
+        pingId: friend.pingId,
         avatar: friend.avatar,
       };
     }),
@@ -358,7 +361,7 @@ const userController = {
     try {
       const currentUserId = req.user.id;
       const currentUser = await User.findById(currentUserId)
-        .populate('friends', 'username avatar')
+        .populate('friends', 'username pingId avatar')
         .select('friends friendRequests blockedUsers')
         .lean();
 
@@ -374,7 +377,7 @@ const userController = {
           $ne: currentUserId,
           $nin: [...blockedUserIds, ...usersWhoBlockedCurrent],
         },
-      }).select('username email avatar isOnline friendRequests friends privacySettings');
+      }).select('username pingId email avatar isOnline friendRequests friends privacySettings');
 
       res.status(200).json({
         success: true,
@@ -390,7 +393,7 @@ const userController = {
     try {
       const currentUserId = req.user.id;
       const user = await User.findById(currentUserId)
-        .populate('friends', 'username email avatar isOnline friends privacySettings')
+        .populate('friends', 'username pingId email avatar isOnline friends privacySettings')
         .lean();
 
       if (!user) {
@@ -448,6 +451,7 @@ const userController = {
           return {
             _id: friend._id,
             username: friend.username,
+            pingId: friend.pingId,
             email: friend.email,
             avatar: getVisibleAvatar(currentUserId, friend),
             isOnline: getVisibleOnlineStatus(currentUserId, friend),
@@ -470,7 +474,7 @@ const userController = {
     try {
       const user = await User.findById(req.user.id).populate(
         'friendRequests',
-        'username email avatar isOnline friends privacySettings',
+        'username pingId email avatar isOnline friends privacySettings',
       );
       res.status(200).json({
         success: true,
@@ -485,14 +489,16 @@ const userController = {
   searchUsers: async (req, res) => {
     try {
       const query = (req.query.query || req.query.q || '').trim();
+      const normalizedPingQuery = query.replace(/^@+/, '').toLowerCase();
 
       if (query.length < 2) {
         return res.status(200).json({ success: true, users: [] });
       }
 
       const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedPingQuery = normalizedPingQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const currentUser = await User.findById(req.user.id)
-        .populate('friends', 'username avatar')
+        .populate('friends', 'username pingId avatar')
         .select('friends friendRequests blockedUsers')
         .lean();
 
@@ -514,10 +520,11 @@ const userController = {
             $or: [
               { username: { $regex: escapedQuery, $options: 'i' } },
               { email: { $regex: escapedQuery, $options: 'i' } },
+              { pingId: { $regex: escapedPingQuery, $options: 'i' } },
             ],
           },
         ],
-      }).select('username email avatar isOnline friendRequests friends privacySettings');
+      }).select('username pingId email avatar isOnline friendRequests friends privacySettings');
 
       // Gắn trạng thái cho từng kết quả để client biết cần hiện nút gì.
       const formattedUsers = users.map((u) => formatDiscoverableUser(u, currentUser, req.user.id));

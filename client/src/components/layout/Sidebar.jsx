@@ -258,7 +258,7 @@ const Sidebar = ({
         if (activeTab === 'group') return conv.isGroup;
         return true;
       })
-      .filter((conv) => conv.name?.toLowerCase().includes(normalizedQuery));
+      .filter((conv) => `${conv.name || ''} ${conv.pingId || ''}`.toLowerCase().includes(normalizedQuery));
   }, [activeTab, conversations, searchQuery]);
 
   const friendOptions = useMemo(
@@ -268,7 +268,9 @@ const Sidebar = ({
   const filteredGroupFriends = useMemo(() => {
     const normalizedQuery = groupMemberQuery.trim().toLowerCase();
     if (!normalizedQuery) return friendOptions;
-    return friendOptions.filter((friend) => friend.name?.toLowerCase().includes(normalizedQuery));
+    return friendOptions.filter((friend) =>
+      `${friend.name || ''} ${friend.pingId || ''}`.toLowerCase().includes(normalizedQuery),
+    );
   }, [friendOptions, groupMemberQuery]);
 
   const directoryUserById = useMemo(() => {
@@ -401,6 +403,9 @@ const Sidebar = ({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-on-surface">{user.username}</span>
+          {user.pingId && (
+            <span className="mt-0.5 block truncate text-[11px] text-secondary">@{user.pingId}</span>
+          )}
           <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
             {user.status === 'none' && getMutualText(user)
               ? getMutualText(user)
@@ -554,9 +559,11 @@ const Sidebar = ({
             className="h-11 w-full rounded-[8px] border border-outline bg-surface-container-lowest pl-10 pr-4 text-[13px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent focus:ring-1 focus:ring-accent"
             placeholder={
               activeTab === 'discover'
-                ? 'Tìm người dùng mới'
-                : activeTab === 'search' || activeTab === 'requests'
-                  ? 'Tìm kiếm danh bạ'
+                ? 'Tìm toàn bộ hệ thống theo tên hoặc ID'
+                : activeTab === 'search'
+                  ? 'Tìm người theo tên hoặc ID'
+                  : activeTab === 'requests'
+                    ? 'Tìm kiếm lời mời'
                   : 'Tìm kiếm cuộc trò chuyện'
             }
             type="text"
@@ -698,6 +705,11 @@ const Sidebar = ({
                           <span className="block truncate text-[13px] font-semibold text-on-surface">
                             {friend.name}
                           </span>
+                          {friend.pingId && (
+                            <span className="mt-0.5 block truncate text-[11px] font-medium text-secondary">
+                              @{friend.pingId}
+                            </span>
+                          )}
                           <span className="mt-1 block truncate text-[11px] text-on-surface-variant">
                             {friend.isOnline ? 'Đang hoạt động' : 'Bắt đầu trò chuyện'}
                           </span>
@@ -942,6 +954,11 @@ const Sidebar = ({
                       <h3 className="truncate text-[18px] font-semibold text-on-surface">
                         {selectedConnectionUser.username}
                       </h3>
+                      {selectedConnectionUser.pingId && (
+                        <p className="mt-0.5 text-[12px] font-medium text-secondary">
+                          @{selectedConnectionUser.pingId}
+                        </p>
+                      )}
                       <p className="mt-1 text-[12px] text-on-surface-variant">
                         {selectedConnectionUser.status === 'none' && getMutualText(selectedConnectionUser)
                           ? getMutualText(selectedConnectionUser)

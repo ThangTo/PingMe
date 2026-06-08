@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 const Register = () => {
   const [formData, setFormData] = useState({
     username: '',
+    pingId: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -36,6 +37,19 @@ const Register = () => {
     return '';
   };
 
+  const normalizePingId = (value = '') => value.trim().replace(/^@+/, '').toLowerCase();
+
+  const validatePingId = (pingId) => {
+    const normalized = normalizePingId(pingId);
+    if (!normalized) return 'PingMe ID là bắt buộc';
+    if (normalized.length < 5) return 'PingMe ID phải có ít nhất 5 ký tự';
+    if (normalized.length > 32) return 'PingMe ID không được vượt quá 32 ký tự';
+    if (!/^[a-z][a-z0-9_]{4,31}$/.test(normalized)) {
+      return 'Bắt đầu bằng chữ cái, chỉ gồm chữ thường, số và dấu gạch dưới';
+    }
+    return '';
+  };
+
   const validateEmail = (email) => {
     if (!email) return 'Email là bắt buộc';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -58,6 +72,7 @@ const Register = () => {
   const validateField = (fieldName) => {
     const validators = {
       username: () => validateUsername(formData.username),
+      pingId: () => validatePingId(formData.pingId),
       email: () => validateEmail(formData.email),
       password: () => validatePassword(formData.password),
       confirmPassword: () => validateConfirmPassword(formData.confirmPassword, formData.password),
@@ -68,7 +83,8 @@ const Register = () => {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setFormData((current) => ({ ...current, [name]: value }));
+    const nextValue = name === 'pingId' ? normalizePingId(value) : value;
+    setFormData((current) => ({ ...current, [name]: nextValue }));
     if (errors[name] || errors.form) {
       setErrors((current) => {
         const next = { ...current };
@@ -85,6 +101,7 @@ const Register = () => {
 
     const nextErrors = {
       username: validateUsername(formData.username),
+      pingId: validatePingId(formData.pingId),
       email: validateEmail(formData.email),
       password: validatePassword(formData.password),
       confirmPassword: validateConfirmPassword(formData.confirmPassword, formData.password),
@@ -105,6 +122,7 @@ const Register = () => {
     try {
       const result = await register({
         username: formData.username,
+        pingId: normalizePingId(formData.pingId),
         email: formData.email,
         password: formData.password,
       });
@@ -187,6 +205,36 @@ const Register = () => {
                 )}
               </div>
               {errors.username && <p className="mt-1 text-[10px] font-medium text-error">{errors.username}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="register-ping-id" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+                PingMe ID
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-on-surface-variant">
+                  @
+                </span>
+                <input
+                  id="register-ping-id"
+                  type="text"
+                  name="pingId"
+                  value={formData.pingId}
+                  onChange={handleChange}
+                  onBlur={() => validateField('pingId')}
+                  autoComplete="username"
+                  disabled={isSubmitting}
+                  className={`${inputClass(errors.pingId)} pl-8 pr-11`}
+                  placeholder="thangto"
+                />
+                {formData.pingId && !errors.pingId && (
+                  <AppIcon name="check" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary" />
+                )}
+              </div>
+              <p className="mt-1 text-[9px] text-on-surface-variant">
+                Dùng để người khác tìm bạn. ID là duy nhất, tên hiển thị vẫn có thể trùng.
+              </p>
+              {errors.pingId && <p className="mt-1 text-[10px] font-medium text-error">{errors.pingId}</p>}
             </div>
 
             <div>

@@ -550,6 +550,9 @@ const ChatDetailsPanel = ({
               <h2 className="truncate text-[18px] font-medium tracking-tight text-on-surface">
                 {user?.name || 'Cuộc trò chuyện'}
               </h2>
+              {!isGroup && user?.pingId && (
+                <p className="mt-1 truncate text-[13px] font-medium text-secondary">@{user.pingId}</p>
+              )}
               {isGroup && (
                 <p className="mt-1 text-sm text-secondary">
                   {user?.memberCount || 0} thành viên
@@ -808,6 +811,9 @@ const ChatDetailsPanel = ({
                           <p className="truncate text-sm font-medium text-on-surface">
                             {member.id === currentUserId ? 'Bạn' : member.username}
                           </p>
+                          {member.pingId && (
+                            <p className="truncate text-xs font-medium text-secondary">@{member.pingId}</p>
+                          )}
                           <p className="text-xs text-on-surface-variant">
                             {member.isOnline ? 'Đang online' : roleLabels[member.role] || 'Thành viên'}
                           </p>
