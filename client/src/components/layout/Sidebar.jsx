@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import socket from '../../socket';
+import { getPresenceText } from '../../utils/presence';
 import AppIcon from '../ui/AppIcon';
 import Avatar from '../ui/Avatar';
 import { ListSkeleton } from '../ui/LoadingState';
@@ -168,6 +169,31 @@ const Sidebar = ({
   }, [fetchDirectoryUsers]);
 
   useEffect(() => {
+    const applyPresence = (users, data) =>
+      users.map((item) =>
+        item._id === data.userId
+          ? {
+              ...item,
+              isOnline: data.canViewPresence !== false && data.status === 'online',
+              lastSeen:
+                data.canViewPresence !== false ? data.lastSeen || item.lastSeen || null : null,
+              canViewPresence: data.canViewPresence ?? true,
+            }
+          : item,
+      );
+
+    const handleStatusChanged = (data) => {
+      if (!data?.userId) return;
+      setFriendRequests((prev) => applyPresence(prev, data));
+      setSearchResults((prev) => applyPresence(prev, data));
+      setDirectoryUsers((prev) => applyPresence(prev, data));
+    };
+
+    socket.on('user_status_changed', handleStatusChanged);
+    return () => socket.off('user_status_changed', handleStatusChanged);
+  }, []);
+
+  useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if ((activeTab === 'search' || activeTab === 'discover') && searchQuery.trim().length > 1) {
         try {
@@ -306,6 +332,9 @@ const Sidebar = ({
     discoverList[0] ||
     receivedRequestUsers[0] ||
     null;
+  const selectedConnectionPresenceText = getPresenceText(selectedConnectionUser, {
+    onlineText: 'Đang hoạt động',
+  });
 
   const getRelationshipText = (status) => {
     if (status === 'friend') return 'Đã là bạn';
@@ -384,38 +413,45 @@ const Sidebar = ({
     );
   };
 
-  const renderDirectoryUserRow = (user) => (
-    <div
-      key={user._id}
-      className={`flex items-center gap-3 px-5 py-4 transition-colors ${
-        selectedConnectionUserId === user._id
-          ? 'bg-surface-container-high'
-          : 'hover:bg-surface-container-low'
-      }`}
-    >
-      <button
-        type="button"
-        onClick={() => setSelectedConnectionUserId(user._id)}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+  const renderDirectoryUserRow = (user) => {
+    const presenceText = getPresenceText(user, { onlineText: 'Đang hoạt động' });
+    const secondaryText =
+      presenceText ||
+      (user.status === 'none' && getMutualText(user)
+        ? getMutualText(user)
+        : getRelationshipText(user.status));
+
+    return (
+      <div
+        key={user._id}
+        className={`flex items-center gap-3 px-5 py-4 transition-colors ${
+          selectedConnectionUserId === user._id
+            ? 'bg-surface-container-high'
+            : 'hover:bg-surface-container-low'
+        }`}
       >
-        <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="lg" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-on-surface">
-            {user.username}
+        <button
+          type="button"
+          onClick={() => setSelectedConnectionUserId(user._id)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <Avatar src={user.avatar} name={user.username} online={user.isOnline} size="lg" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-on-surface">
+              {user.username}
+            </span>
+            {user.pingId && (
+              <span className="mt-0.5 block truncate text-[11px] text-secondary">@{user.pingId}</span>
+            )}
+            <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+              {secondaryText}
+            </span>
           </span>
-          {user.pingId && (
-            <span className="mt-0.5 block truncate text-[11px] text-secondary">@{user.pingId}</span>
-          )}
-          <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
-            {user.status === 'none' && getMutualText(user)
-              ? getMutualText(user)
-              : getRelationshipText(user.status)}
-          </span>
-        </span>
-      </button>
-      {renderConnectionActions(user, true)}
-    </div>
-  );
+        </button>
+        {renderConnectionActions(user, true)}
+      </div>
+    );
+  };
 
   const resetGroupComposer = () => {
     setGroupTitle('');
@@ -709,37 +745,45 @@ const Sidebar = ({
                       Nhập ít nhất 2 ký tự để tìm người dùng.
                     </p>
                   ) : (
-                    friendOptions.map((friend) => (
-                      <button
-                        key={friend.id}
-                        type="button"
-                        onClick={() => onSelectConversation(friend.id)}
-                        className="flex w-full items-center gap-3 border-b border-outline-variant px-5 py-3 text-left hover:bg-surface-container-low"
-                      >
-                        <Avatar
-                          src={friend.avatar}
-                          name={friend.name}
-                          online={friend.isOnline}
-                          size="contact"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-semibold text-on-surface">
-                            {friend.name}
-                          </span>
-                          {friend.pingId && (
-                            <span className="mt-0.5 block truncate text-[11px] font-medium text-secondary">
-                              @{friend.pingId}
+                    friendOptions.map((friend) => {
+                      const friendPresenceText = getPresenceText(friend, {
+                        onlineText: 'Đang hoạt động',
+                        fallbackText: 'Bắt đầu trò chuyện',
+                        hiddenText: 'Bắt đầu trò chuyện',
+                      });
+
+                      return (
+                        <button
+                          key={friend.id}
+                          type="button"
+                          onClick={() => onSelectConversation(friend.id)}
+                          className="flex w-full items-center gap-3 border-b border-outline-variant px-5 py-3 text-left hover:bg-surface-container-low"
+                        >
+                          <Avatar
+                            src={friend.avatar}
+                            name={friend.name}
+                            online={friend.isOnline}
+                            size="contact"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-semibold text-on-surface">
+                              {friend.name}
                             </span>
-                          )}
-                          <span className="mt-1 block truncate text-[11px] text-on-surface-variant">
-                            {friend.isOnline ? 'Đang hoạt động' : 'Bắt đầu trò chuyện'}
+                            {friend.pingId && (
+                              <span className="mt-0.5 block truncate text-[11px] font-medium text-secondary">
+                                @{friend.pingId}
+                              </span>
+                            )}
+                            <span className="mt-1 block truncate text-[11px] text-on-surface-variant">
+                              {friendPresenceText}
+                            </span>
                           </span>
-                        </span>
-                        <span className="grid h-9 w-9 place-items-center rounded-[8px] border border-outline text-on-surface-variant">
-                          <AppIcon name="chat_bubble" className="text-[16px]" />
-                        </span>
-                      </button>
-                    ))
+                          <span className="grid h-9 w-9 place-items-center rounded-[8px] border border-outline text-on-surface-variant">
+                            <AppIcon name="chat_bubble" className="text-[16px]" />
+                          </span>
+                        </button>
+                      );
+                    })
                   )}
                 </section>
               </div>
@@ -937,6 +981,11 @@ const Sidebar = ({
                       {selectedConnectionUser.pingId && (
                         <p className="mt-0.5 text-[12px] font-medium text-secondary">
                           @{selectedConnectionUser.pingId}
+                        </p>
+                      )}
+                      {selectedConnectionPresenceText && (
+                        <p className="mt-1 text-[12px] text-on-surface-variant">
+                          {selectedConnectionPresenceText}
                         </p>
                       )}
                       <p className="mt-1 text-[12px] text-on-surface-variant">
@@ -1177,6 +1226,10 @@ const Sidebar = ({
                   ) : (
                     filteredGroupFriends.map((friend) => {
                       const isSelected = selectedGroupMemberIds.includes(friend.peerId);
+                      const friendPresenceText = getPresenceText(friend, {
+                        fallbackText: 'Bắt đầu trò chuyện',
+                        hiddenText: 'Bắt đầu trò chuyện',
+                      });
 
                       return (
                         <button
@@ -1196,7 +1249,7 @@ const Sidebar = ({
                               {friend.name}
                             </span>
                             <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
-                              {friend.isOnline ? 'Đang online' : 'Ngoại tuyến'}
+                              {friendPresenceText}
                             </span>
                           </span>
                           <span

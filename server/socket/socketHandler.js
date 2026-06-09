@@ -26,6 +26,7 @@ import {
 import {
   canViewOnlineStatus,
   getVisibleAvatar,
+  getVisiblePresence,
 } from '../services/privacy.service.js';
 
 /**
@@ -62,6 +63,17 @@ const getOnlineSocketIds = (userId) => {
 };
 
 const isUserOnline = (userId) => getOnlineSocketIds(userId).length > 0;
+
+const buildUserPresencePayload = (viewerId, targetUser) => {
+  const presence = getVisiblePresence(viewerId, targetUser);
+
+  return {
+    userId: toIdString(targetUser),
+    status: presence.isOnline ? 'online' : 'offline',
+    canViewPresence: presence.canViewPresence,
+    lastSeen: presence.lastSeen ? new Date(presence.lastSeen).toISOString() : null,
+  };
+};
 
 const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, conversation, senderUser }) => {
   const offlineRecipientIds = memberIds.filter(
@@ -951,14 +963,14 @@ const socketHandler = (io) => {
         );
 
         // 1. Tìm User A trong DB, lấy ra cái mảng ID bạn bè của A
-        const user = await User.findById(userId).select('friends privacySettings isOnline');
+        const user = await User.findById(userId).select('friends privacySettings isOnline lastSeen');
         if (!user) return;
 
         const friendIds = user.friends.map((id) => id.toString());
 
         // 2. Tách ra: "Trong đám bạn A, ai đang online?"
         const friendUsers = await User.find({ _id: { $in: friendIds } })
-          .select('friends privacySettings isOnline')
+          .select('friends privacySettings isOnline lastSeen')
           .lean();
         const onlineFriends = friendUsers
           .filter((friend) => isUserOnline(friend._id) && canViewOnlineStatus(userId, friend))
@@ -978,10 +990,7 @@ const socketHandler = (io) => {
         if (wasOffline) {
           friendIds.forEach((friendId) => {
             if (!isUserOnline(friendId)) return;
-            emitToUser(io, friendId, 'user_status_changed', {
-              userId: userId,
-              status: canViewOnlineStatus(friendId, user) ? 'online' : 'offline',
-            });
+            emitToUser(io, friendId, 'user_status_changed', buildUserPresencePayload(friendId, user));
           });
         }
 
@@ -2200,17 +2209,13 @@ const socketHandler = (io) => {
           { $set: { socketId: null, isOnline: false, lastSeen: new Date() } },
         );
 
-        const user = await User.findById(disconnectedUserId).select('friends privacySettings isOnline');
+        const user = await User.findById(disconnectedUserId).select('friends privacySettings isOnline lastSeen');
         if (user) {
           const friendIds = user.friends.map((id) => id.toString());
 
           friendIds.forEach((friendId) => {
             if (isUserOnline(friendId)) {
-              if (!canViewOnlineStatus(friendId, user)) return;
-              emitToUser(io, friendId, 'user_status_changed', {
-                userId: disconnectedUserId,
-                status: 'offline',
-              });
+              emitToUser(io, friendId, 'user_status_changed', buildUserPresencePayload(friendId, user));
             }
           });
         }

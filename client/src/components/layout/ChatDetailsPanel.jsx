@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import { useCall } from '../../context/CallContext';
+import { getPresenceText } from '../../utils/presence';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import AppModal from '../ui/AppModal';
@@ -172,6 +173,7 @@ const ChatDetailsPanel = ({
   const [isReporting, setIsReporting] = useState(false);
   const memberMenuRef = useRef(null);
   const isGroup = Boolean(user?.isGroup);
+  const presenceText = !isGroup ? getPresenceText(user) : '';
   const { callState, initiateCall } = useCall();
   const canStartDirectCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
   const notificationsMuted = Boolean(user?.notificationsMuted);
@@ -607,9 +609,9 @@ const ChatDetailsPanel = ({
                   {user?.memberCount || 0} thành viên
                 </p>
               )}
-              <p className={`mt-1 text-[13px] text-on-surface-variant ${isGroup ? 'hidden' : ''}`}>
-                {user?.isOnline ? 'Đang online' : 'Ngoại tuyến'}
-              </p>
+              {!isGroup && presenceText && (
+                <p className="mt-1 text-[13px] text-on-surface-variant">{presenceText}</p>
+              )}
             </div>
           </div>
 
@@ -767,6 +769,7 @@ const ChatDetailsPanel = ({
                   ) : (
                     availableFriends.map((friend) => {
                       const isSelected = selectedMemberIds.includes(friend.peerId);
+                      const friendPresenceText = getPresenceText(friend);
 
                       return (
                         <button
@@ -780,9 +783,11 @@ const ChatDetailsPanel = ({
                             <span className="block truncate text-sm font-medium text-on-surface">
                               {friend.name}
                             </span>
-                            <span className="block text-xs text-on-surface-variant">
-                              {friend.isOnline ? 'Đang online' : 'Ngoại tuyến'}
-                            </span>
+                            {friendPresenceText && (
+                              <span className="block text-xs text-on-surface-variant">
+                                {friendPresenceText}
+                              </span>
+                            )}
                           </span>
                           <span
                             className={`flex h-5 w-5 items-center justify-center rounded-md border ${
@@ -829,6 +834,11 @@ const ChatDetailsPanel = ({
                   {group.members.map((member) => {
                     const canOpenMemberMenu = canUpdateMemberRole(member) || canRemoveMember(member);
                     const isMenuOpen = activeMemberMenuId === member.id;
+                    const memberRoleLabel = roleLabels[member.role] || 'Thành viên';
+                    const memberPresenceText = getPresenceText(member, {
+                      fallbackText: memberRoleLabel,
+                      hiddenText: memberRoleLabel,
+                    });
 
                     return (
                       <div
@@ -844,7 +854,7 @@ const ChatDetailsPanel = ({
                             <p className="truncate text-xs font-medium text-secondary">@{member.pingId}</p>
                           )}
                           <p className="text-xs text-on-surface-variant">
-                            {member.isOnline ? 'Đang online' : roleLabels[member.role] || 'Thành viên'}
+                            {memberPresenceText}
                           </p>
                         </div>
                         <span
@@ -854,7 +864,7 @@ const ChatDetailsPanel = ({
                               : 'border-outline-variant text-on-surface-variant'
                           }`}
                         >
-                          {roleLabels[member.role] || 'Thành viên'}
+                          {memberRoleLabel}
                         </span>
 
                         {canOpenMemberMenu && (

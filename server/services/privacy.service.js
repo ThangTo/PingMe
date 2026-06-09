@@ -58,3 +58,13 @@ export const getVisibleAvatar = (viewerId, targetUser) =>
 export const getVisibleOnlineStatus = (viewerId, targetUser) =>
   canViewOnlineStatus(viewerId, targetUser) ? Boolean(targetUser?.isOnline) : false;
 
+export const getVisiblePresence = (viewerId, targetUser) => {
+  const canViewPresence = canViewOnlineStatus(viewerId, targetUser);
+
+  return {
+    canViewPresence,
+    isOnline: canViewPresence ? Boolean(targetUser?.isOnline) : false,
+    lastSeen: canViewPresence ? targetUser?.lastSeen || null : null,
+  };
+};
+

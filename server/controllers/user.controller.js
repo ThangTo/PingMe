@@ -6,9 +6,8 @@ import { getUserRoomId } from '../services/conversation.service.js';
 import { createNotification } from '../services/notification.service.js';
 import {
   PRIVACY_VISIBILITY_VALUES,
-  canViewOnlineStatus,
   getVisibleAvatar,
-  getVisibleOnlineStatus,
+  getVisiblePresence,
   normalizePrivacySettings,
 } from '../services/privacy.service.js';
 import { deleteStorageObject, uploadFileToStorage } from '../services/storage.service.js';
@@ -65,7 +64,7 @@ const formatVisibleUser = (user, viewerId) => ({
   pingId: user.pingId,
   email: user.email,
   avatar: getVisibleAvatar(viewerId, user),
-  isOnline: getVisibleOnlineStatus(viewerId, user),
+  ...getVisiblePresence(viewerId, user),
 });
 
 const toIdString = (value) => value?._id?.toString?.() || value?.toString?.() || '';
@@ -113,10 +112,12 @@ const emitPresenceForPrivacyChange = (req, user) => {
   if (!io) return;
 
   (user.friends || []).forEach((friendId) => {
-    const canView = canViewOnlineStatus(friendId, user);
+    const presence = getVisiblePresence(friendId, user);
     io.to(getUserRoomId(friendId)).emit('user_status_changed', {
       userId: user._id.toString(),
-      status: canView && user.isOnline ? 'online' : 'offline',
+      status: presence.isOnline ? 'online' : 'offline',
+      canViewPresence: presence.canViewPresence,
+      lastSeen: presence.lastSeen ? new Date(presence.lastSeen).toISOString() : null,
     });
   });
 };
@@ -275,7 +276,7 @@ const userController = {
         req.user.id,
         { $set: updates },
         { new: true, runValidators: true },
-      ).select(`${PROFILE_SELECT} friends isOnline`);
+      ).select(`${PROFILE_SELECT} friends isOnline lastSeen`);
 
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
@@ -382,7 +383,7 @@ const userController = {
           $ne: currentUserId,
           $nin: [...blockedUserIds, ...usersWhoBlockedCurrent],
         },
-      }).select('username pingId email avatar isOnline friendRequests friends privacySettings');
+      }).select('username pingId email avatar isOnline lastSeen friendRequests friends privacySettings');
 
       res.status(200).json({
         success: true,
@@ -398,7 +399,7 @@ const userController = {
     try {
       const currentUserId = req.user.id;
       const user = await User.findById(currentUserId)
-        .populate('friends', 'username pingId email avatar isOnline friends privacySettings')
+        .populate('friends', 'username pingId email avatar isOnline lastSeen friends privacySettings')
         .lean();
 
       if (!user) {
@@ -459,7 +460,7 @@ const userController = {
             pingId: friend.pingId,
             email: friend.email,
             avatar: getVisibleAvatar(currentUserId, friend),
-            isOnline: getVisibleOnlineStatus(currentUserId, friend),
+            ...getVisiblePresence(currentUserId, friend),
             lastMessage: getMessagePreview(lastMessage),
             lastMessageAt: lastMessage?.createdAt || null,
             unreadCount: unreadCountByFriend.get(friendId) || 0,
@@ -479,7 +480,7 @@ const userController = {
     try {
       const user = await User.findById(req.user.id).populate(
         'friendRequests',
-        'username pingId email avatar isOnline friends privacySettings',
+        'username pingId email avatar isOnline lastSeen friends privacySettings',
       );
       res.status(200).json({
         success: true,
@@ -529,7 +530,7 @@ const userController = {
             ],
           },
         ],
-      }).select('username pingId email avatar isOnline friendRequests friends privacySettings');
+      }).select('username pingId email avatar isOnline lastSeen friendRequests friends privacySettings');
 
       // Gắn trạng thái cho từng kết quả để client biết cần hiện nút gì.
       const formattedUsers = users.map((u) => formatDiscoverableUser(u, currentUser, req.user.id));

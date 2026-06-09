@@ -1,4 +1,5 @@
 import { useCall } from '../../context/CallContext';
+import { getPresenceText } from '../../utils/presence';
 import AppIcon from '../ui/AppIcon';
 
 const fallbackAvatar =
@@ -17,13 +18,14 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
   const { callState, initiateCall } = useCall();
   const isGroup = Boolean(user?.isGroup);
   const canStartCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
+  const presenceText = !isGroup ? getPresenceText(user) : '';
   const subtitle = isGroup
     ? `${user?.memberCount || 0} thành viên`
-    : user?.isOnline
-      ? 'Đang online'
-      : 'Ngoại tuyến';
+    : presenceText;
 
-  const displaySubtitle = !isGroup && user?.pingId ? `@${user.pingId} - ${subtitle}` : subtitle;
+  const displaySubtitle = !isGroup && user?.pingId
+    ? [user.pingId ? `@${user.pingId}` : '', subtitle].filter(Boolean).join(' - ')
+    : subtitle;
 
   const handleStartCall = (type) => {
     if (!canStartCall) return;
@@ -77,7 +79,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
               {getInitials(user?.name)}
             </div>
           )}
-          {!isGroup && user?.isOnline && (
+          {!isGroup && user?.isOnline && user?.canViewPresence !== false && (
             <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
           )}
         </div>
@@ -86,9 +88,11 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
           <h2 className="truncate text-[17px] font-semibold tracking-tight text-on-surface md:text-[16px]">
             {user?.name || 'Cuộc trò chuyện'}
           </h2>
-          <p className={`mt-0.5 truncate text-[13px] ${!isGroup && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
-            {displaySubtitle}
-          </p>
+          {displaySubtitle && (
+            <p className={`mt-0.5 truncate text-[13px] ${!isGroup && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
+              {displaySubtitle}
+            </p>
+          )}
         </div>
       </div>
 

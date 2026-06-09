@@ -13,7 +13,7 @@ import {
   getPeerMember,
   toIdString,
 } from '../services/conversation.service.js';
-import { getVisibleAvatar, getVisibleOnlineStatus } from '../services/privacy.service.js';
+import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -92,7 +92,7 @@ const formatConversationMembers = (conversation, currentUserId) =>
       username: memberUser?.username || 'Nguoi dung',
       pingId: memberUser?.pingId || '',
       avatar: getVisibleAvatar(currentUserId, memberUser),
-      isOnline: getVisibleOnlineStatus(currentUserId, memberUser),
+      ...getVisiblePresence(currentUserId, memberUser),
       role: member.role || 'member',
     };
   });
@@ -142,7 +142,9 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
     pingId: conversation.type === 'direct' ? peer?.pingId || '' : '',
     name: conversation.type === 'direct' ? peer?.username || 'Người dùng' : conversation.title,
     avatar: conversation.type === 'direct' ? getVisibleAvatar(currentUserId, peer) : conversation.avatar,
-    isOnline: conversation.type === 'direct' ? getVisibleOnlineStatus(currentUserId, peer) : false,
+    ...(conversation.type === 'direct'
+      ? getVisiblePresence(currentUserId, peer)
+      : { isOnline: false, lastSeen: null, canViewPresence: false }),
     members,
     memberCount: members.length,
     lastMessage: getMessagePreview(lastMessage),
@@ -169,7 +171,7 @@ const canRemoveGroupMember = (actorRole, targetRole) => {
 
 const populateConversationSummary = (conversationId) =>
   Conversation.findById(conversationId)
-    .populate('members.user', 'username pingId email avatar isOnline friends privacySettings')
+    .populate('members.user', 'username pingId email avatar isOnline lastSeen friends privacySettings')
     .populate('lastMessage')
     .populate({
       path: 'pinnedMessage',
@@ -277,7 +279,7 @@ const conversationController = {
       });
 
       const populatedConversation = await Conversation.findById(conversation._id)
-        .populate('members.user', 'username pingId email avatar isOnline friends privacySettings')
+        .populate('members.user', 'username pingId email avatar isOnline lastSeen friends privacySettings')
         .populate('lastMessage')
         .populate({
           path: 'pinnedMessage',
@@ -604,7 +606,7 @@ const conversationController = {
       await Promise.all(directConversations.map((conversation) => attachLegacyDirectMessages(conversation)));
 
       const conversations = await Conversation.find({ 'members.user': currentUserObjectId })
-        .populate('members.user', 'username pingId email avatar isOnline friends privacySettings')
+        .populate('members.user', 'username pingId email avatar isOnline lastSeen friends privacySettings')
         .populate('lastMessage')
         .populate({
           path: 'pinnedMessage',

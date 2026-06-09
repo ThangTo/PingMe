@@ -73,6 +73,8 @@ const normalizeMembers = (members = []) =>
         pingId: member.pingId || member.user?.pingId || '',
         avatar: member.avatar || member.user?.avatar || '',
         isOnline: Boolean(member.isOnline || member.user?.isOnline),
+        lastSeen: member.lastSeen || member.user?.lastSeen || null,
+        canViewPresence: member.canViewPresence ?? member.user?.canViewPresence ?? true,
         role: member.role || 'member',
       };
     })
@@ -324,6 +326,8 @@ const formatConversationSummary = (conversation) => {
     name: conversation.name,
     avatar: conversation.avatar,
     isOnline: !isGroup ? Boolean(conversation.isOnline) : false,
+    lastSeen: !isGroup ? conversation.lastSeen || null : null,
+    canViewPresence: !isGroup ? conversation.canViewPresence ?? true : false,
     isGroup,
     members: normalizeMembers(conversation.members),
     memberCount: conversation.memberCount || conversation.members?.length || 0,
@@ -416,6 +420,7 @@ const Chat = () => {
   const [appNotifications, setAppNotifications] = useState([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [friendRequestCount, setFriendRequestCount] = useState(0);
+  const [, setPresenceClock] = useState(0);
   const messagesRef = useRef(messages);
   const conversationsRef = useRef(conversations);
   const messageTargetRef = useRef(null);
@@ -497,6 +502,14 @@ const Chat = () => {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setPresenceClock((tick) => tick + 1);
+    }, 60 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   const typingUsers = useMemo(() => Object.values(typingUsersById), [typingUsersById]);
 
@@ -715,17 +728,27 @@ const Chat = () => {
       setConversations((prev) =>
         prev.map((conversation) =>
           conversation.peerId
-            ? { ...conversation, isOnline: friendsList.includes(conversation.peerId) }
+            ? {
+                ...conversation,
+                isOnline:
+                  conversation.canViewPresence !== false &&
+                  friendsList.includes(conversation.peerId),
+              }
             : conversation,
         ),
       );
     };
 
     const handleStatusChanged = (data) => {
-      const { userId, status } = data;
+      const {
+        userId,
+        status,
+        lastSeen = null,
+        canViewPresence = true,
+      } = data;
       console.log(`🚦 User ${userId} thay đổi trạng thái thành ${status}`);
       setOnlineUsers((prev) => {
-        if (status === 'online') {
+        if (canViewPresence && status === 'online') {
           if (!prev.includes(userId)) return [...prev, userId];
           return prev;
         } else {
@@ -733,11 +756,40 @@ const Chat = () => {
         }
       });
       setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.peerId === userId
-            ? { ...conversation, isOnline: status === 'online' }
-            : conversation,
-        ),
+        prev.map((conversation) => {
+          const nextPresence = {
+            isOnline: canViewPresence && status === 'online',
+            lastSeen: canViewPresence ? lastSeen || conversation.lastSeen || null : null,
+            canViewPresence,
+          };
+          let hasUpdatedMember = false;
+          const nextMembers = conversation.members?.map((member) => {
+            if (member.id !== userId) return member;
+            hasUpdatedMember = true;
+            return {
+              ...member,
+              ...nextPresence,
+              lastSeen: canViewPresence ? lastSeen || member.lastSeen || null : null,
+            };
+          });
+
+          if (conversation.peerId === userId) {
+            return {
+              ...conversation,
+              ...nextPresence,
+              members: nextMembers || conversation.members,
+            };
+          }
+
+          if (hasUpdatedMember && nextMembers) {
+            return {
+              ...conversation,
+              members: nextMembers,
+            };
+          }
+
+          return conversation;
+        }),
       );
     };
 
@@ -769,6 +821,9 @@ const Chat = () => {
             name: conversation.name,
             avatar: conversation.avatar,
             isOnline: conversation.type === 'group' ? false : Boolean(conversation.isOnline),
+            lastSeen: conversation.type === 'group' ? null : conversation.lastSeen || null,
+            canViewPresence:
+              conversation.type === 'group' ? false : conversation.canViewPresence ?? true,
             isGroup: conversation.type === 'group',
             members: normalizeMembers(conversation.members),
             memberCount: conversation.memberCount || conversation.members?.length || 0,
