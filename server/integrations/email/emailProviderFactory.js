@@ -1,3 +1,4 @@
+import BrevoEmailProvider from './BrevoEmailProvider.js';
 import ConsoleEmailProvider from './ConsoleEmailProvider.js';
 import SmtpEmailProvider from './SmtpEmailProvider.js';
 
@@ -11,6 +12,12 @@ export const getEmailProvider = () => {
 
   if (driver === 'smtp') {
     providerInstance = new SmtpEmailProvider();
+    providerDriver = driver;
+    return providerInstance;
+  }
+
+  if (driver === 'brevo') {
+    providerInstance = new BrevoEmailProvider();
     providerDriver = driver;
     return providerInstance;
   }

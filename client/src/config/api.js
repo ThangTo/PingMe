@@ -26,6 +26,10 @@ api.interceptors.response.use(
     const isLoginRequest = requestUrl === '/auth/login';
     const serverMessage = error.response?.data?.error || error.response?.data?.message;
 
+    if (error.code === 'ECONNABORTED') {
+      error.message = 'Máy chủ phản hồi chậm. Vui lòng kiểm tra mạng và thử lại.';
+    }
+
     // QUAN TRỌNG: Nếu lỗi 401 VÀ request đó KHÔNG PHẢI là request refresh
     if (
       originalRequest &&

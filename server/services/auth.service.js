@@ -33,7 +33,10 @@ export const createUniquePingIdFromEmail = async (email = '') => {
   return candidate;
 };
 
-export const assertRegisterPayload = async ({ username, email, password, pingId }) => {
+export const assertRegisterPayload = async (
+  { username, email, password, pingId },
+  { requirePassword = true } = {},
+) => {
   const normalizedEmail = normalizeEmail(email);
   const normalizedPingId = normalizePingId(pingId);
 
@@ -45,7 +48,7 @@ export const assertRegisterPayload = async ({ username, email, password, pingId 
     throw new Error('Email không hợp lệ');
   }
 
-  if (!password || password.length < 6) {
+  if (requirePassword && (!password || password.length < 6)) {
     throw new Error('Mật khẩu phải có ít nhất 6 ký tự');
   }
 

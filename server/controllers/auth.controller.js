@@ -60,11 +60,11 @@ const redirectWithAuthError = (res, message) => {
 const authController = {
   requestRegisterOtp: async (req, res) => {
     try {
-      await assertRegisterPayload(req.body || {});
+      await assertRegisterPayload(req.body || {}, { requirePassword: false });
       await requestOtp({ email: req.body.email, purpose: 'register' });
-      return res.status(200).json({
+      return res.status(202).json({
         success: true,
-        message: 'Đã gửi mã OTP đăng ký đến email.',
+        message: 'Mã OTP đang được gửi đến email của bạn.',
       });
     } catch (error) {
       console.error('Register OTP error:', error);

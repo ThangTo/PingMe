@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
+    "worker:email": "node workers/email.worker.js",
     "check": "node scripts/check-syntax.js",
     "backfill:conversations": "node scripts/backfill-conversations.js",
     "backfill:ping-ids": "node scripts/backfill-ping-ids.js",

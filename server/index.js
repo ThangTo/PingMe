@@ -19,6 +19,7 @@ import pushRoutes from './routers/push.routes.js';
 import searchRoutes from './routers/search.routes.js';
 import socialRoutes from './routers/social.routes.js';
 import userRoutes from './routers/user.routes.js';
+import { startEmailQueueWorker } from './services/emailQueue.service.js';
 
 // Load biến môi trường từ file .env
 dotenv.config();
@@ -43,7 +44,7 @@ app.use(
   }),
 );
 
-connectDB();
+const databaseReady = connectDB();
 
 // Tạo HTTP server từ Express app
 const server = http.createServer(app);
@@ -130,19 +131,37 @@ server.on('error', (error) => {
   process.exit(1);
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Socket.io ready for connections`);
-  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+let stopEmailQueueWorker = null;
+
+databaseReady.then(() => {
+  const runEmbeddedEmailWorker =
+    process.env.EMAIL_QUEUE_WORKER_ENABLED === 'true' ||
+    (!process.env.EMAIL_QUEUE_WORKER_ENABLED && process.env.NODE_ENV !== 'production');
+
+  if (runEmbeddedEmailWorker) {
+    stopEmailQueueWorker = startEmailQueueWorker();
+  }
+
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 Socket.io ready for connections`);
+    console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+  });
 });
 
 // Xử lý graceful shutdown
 process.on('SIGTERM', () => {
+  stopEmailQueueWorker?.();
   console.log('👋 SIGTERM received. Closing server...');
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
   });
+});
+
+process.on('SIGINT', () => {
+  stopEmailQueueWorker?.();
+  server.close(() => process.exit(0));
 });
 
 export { io };

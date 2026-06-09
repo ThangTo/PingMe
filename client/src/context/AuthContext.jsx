@@ -139,7 +139,6 @@ const AuthProvider = ({ children }) => {
         username: userData.username,
         pingId: userData.pingId,
         email: userData.email,
-        password: userData.password,
       });
       return { success: true, message: response.data?.message };
     } catch (error) {

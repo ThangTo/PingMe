@@ -31,7 +31,20 @@ const otpTokenSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
+    },
+    emailDeliveryStatus: {
+      type: String,
+      enum: ['queued', 'sent', 'failed'],
+      default: 'queued',
+    },
+    emailSentAt: {
+      type: Date,
+      default: null,
+    },
+    emailDeliveryError: {
+      type: String,
+      default: '',
+      maxlength: 1000,
     },
   },
   { timestamps: true },

@@ -7,7 +7,7 @@ class ConsoleEmailProvider extends EmailProvider {
 
   async sendMail({ to, subject, text }) {
     console.log('[Email:console]', { to, subject, text });
-    return { messageId: `console-${Date.now()}` };
+    return { messageId: `console-${Date.now()}`, provider: this.providerName };
   }
 }
 

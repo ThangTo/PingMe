@@ -1,9 +1,10 @@
 import { randomInt } from 'crypto';
 import bcrypt from 'bcrypt';
 import OtpToken from '../models/OtpToken.js';
-import { sendOtpEmail } from './email.service.js';
+import { enqueueOtpEmail } from './emailQueue.service.js';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 const OTP_PURPOSES = ['register', 'password_reset'];
 
@@ -24,9 +25,26 @@ export const requestOtp = async ({ email, purpose }) => {
     throw new Error('Email khong hop le');
   }
 
+  const latestToken = await OtpToken.findOne({
+    email: normalizedEmail,
+    purpose,
+    emailDeliveryStatus: { $ne: 'failed' },
+    createdAt: { $gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_MS) },
+  })
+    .sort({ createdAt: -1 })
+    .select('createdAt')
+    .lean();
+
+  if (latestToken) {
+    const elapsedMs = Date.now() - new Date(latestToken.createdAt).getTime();
+    const waitSeconds = Math.max(1, Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000));
+    throw new Error(`Vui lòng đợi ${waitSeconds} giây trước khi gửi lại OTP`);
+  }
+
   const code = createOtpCode();
   const codeHash = await bcrypt.hash(code, 10);
   const now = new Date();
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
   await OtpToken.updateMany(
     {
@@ -38,14 +56,31 @@ export const requestOtp = async ({ email, purpose }) => {
     { $set: { consumedAt: now } },
   );
 
-  await OtpToken.create({
+  const token = await OtpToken.create({
     email: normalizedEmail,
     purpose,
     codeHash,
-    expiresAt: new Date(Date.now() + OTP_TTL_MS),
+    expiresAt,
+    emailDeliveryStatus: 'queued',
   });
 
-  await sendOtpEmail({ email: normalizedEmail, code, purpose });
+  try {
+    await enqueueOtpEmail({
+      tokenId: token._id,
+      email: normalizedEmail,
+      code,
+      purpose,
+      expiresAt,
+    });
+  } catch (error) {
+    token.consumedAt = new Date();
+    token.emailDeliveryStatus = 'failed';
+    token.emailDeliveryError = String(error?.message || error).slice(0, 1000);
+    await token.save();
+    throw new Error('Không thể đưa email OTP vào hàng đợi');
+  }
+
+  return { tokenId: token._id, expiresAt };
 };
 
 export const consumeOtp = async ({ email, purpose, code }) => {
