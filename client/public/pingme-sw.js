@@ -1,4 +1,100 @@
 const DEFAULT_ICON = '/logo.png';
+const SW_VERSION = 'pingme-pwa-v1';
+const APP_SHELL_CACHE = `${SW_VERSION}-shell`;
+const RUNTIME_CACHE = `${SW_VERSION}-runtime`;
+const APP_SHELL_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/logo.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-192.png',
+  '/icons/maskable-512.png',
+  '/icons/apple-touch-icon.png',
+];
+
+const shouldRuntimeCache = (request) => {
+  if (request.method !== 'GET') return false;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return false;
+  if (url.pathname === '/pingme-sw.js') return false;
+  if (url.pathname.startsWith('/api')) return false;
+
+  return (
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/icons/') ||
+    ['script', 'style', 'font', 'image'].includes(request.destination)
+  );
+};
+
+const cacheFirst = async (request) => {
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) return cachedResponse;
+
+  const response = await fetch(request);
+  if (response && response.ok) {
+    const cache = await caches.open(RUNTIME_CACHE);
+    cache.put(request, response.clone());
+  }
+
+  return response;
+};
+
+const networkFirstNavigation = async (request) => {
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      const cache = await caches.open(APP_SHELL_CACHE);
+      cache.put('/index.html', response.clone());
+    }
+    return response;
+  } catch {
+    return (
+      (await caches.match('/index.html')) ||
+      (await caches.match('/')) ||
+      new Response('PingMe dang ngoai tuyen. Vui long thu lai khi co mang.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    );
+  }
+};
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(APP_SHELL_CACHE).then((cache) => cache.addAll(APP_SHELL_URLS)).then(() => self.skipWaiting()),
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith('pingme-pwa-') && !cacheName.startsWith(SW_VERSION))
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
+      )
+      .then(() => self.clients.claim()),
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirstNavigation(request));
+    return;
+  }
+
+  if (shouldRuntimeCache(request)) {
+    event.respondWith(cacheFirst(request));
+  }
+});
 
 const broadcastDebugEvent = async (eventName, detail = {}) => {
   const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

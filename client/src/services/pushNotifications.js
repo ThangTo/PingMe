@@ -1,8 +1,8 @@
 import api from '../config/api';
+import { PINGME_SERVICE_WORKER_PATH } from './pwaRegistration';
 
 export const NOTIFICATION_PERMISSION_GRANTED_EVENT = 'pingme:notification-permission-granted';
 
-const SERVICE_WORKER_PATH = '/pingme-sw.js';
 const VAPID_PUBLIC_KEY_STORAGE_KEY = 'pingme_vapid_public_key';
 
 let notificationPermissionRequestPromise = null;
@@ -107,7 +107,7 @@ export const registerPushNotifications = async () => {
     return { subscribed: false, reason: 'missing_vapid_public_key' };
   }
 
-  const registration = await navigator.serviceWorker.register(SERVICE_WORKER_PATH);
+  const registration = await navigator.serviceWorker.register(PINGME_SERVICE_WORKER_PATH);
   const readyRegistration = await navigator.serviceWorker.ready;
   const applicationServerKey = urlBase64ToUint8Array(publicKey);
 
@@ -186,7 +186,7 @@ export const showClientNotification = async ({ title = 'PingMe', options = {}, o
     try {
       const registration =
         (await navigator.serviceWorker.getRegistration()) ||
-        (await navigator.serviceWorker.register(SERVICE_WORKER_PATH));
+        (await navigator.serviceWorker.register(PINGME_SERVICE_WORKER_PATH));
       await registration.showNotification(title, options);
       debugPush('client notification shown by service worker', options);
       return { shown: true, channel: 'service_worker' };
@@ -215,7 +215,7 @@ export const showServiceWorkerTestNotification = async () => {
     return { shown: false, reason: `permission_${Notification.permission}` };
   }
 
-  await navigator.serviceWorker.register(SERVICE_WORKER_PATH);
+  await navigator.serviceWorker.register(PINGME_SERVICE_WORKER_PATH);
   const readyRegistration = await navigator.serviceWorker.ready;
 
   await readyRegistration.showNotification('PingMe Service Worker test', {

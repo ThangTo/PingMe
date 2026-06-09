@@ -21,7 +21,7 @@ export const LoadingState = ({
 }) => (
   <div
     className={`flex flex-col items-center justify-center text-center ${
-      fullscreen ? 'min-h-screen bg-background px-6' : compact ? 'px-4 py-6' : 'h-full px-6 py-12'
+      fullscreen ? 'min-h-[100dvh] w-full bg-background px-6' : compact ? 'px-4 py-6' : 'h-full w-full px-6 py-12'
     } ${className}`}
   >
     <div className="relative grid h-14 w-14 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest shadow-sm">

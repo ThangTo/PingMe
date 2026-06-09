@@ -9,6 +9,7 @@ import AuthProvider from './context/AuthContext.jsx';
 import { CallProvider } from './context/CallContext.jsx';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog.jsx';
 import { ToastProvider } from './components/ui/ToastProvider.jsx';
+import { registerPingMeServiceWorker } from './services/pwaRegistration.js';
 
 /**
  * Entry Point của React App
@@ -34,3 +35,7 @@ createRoot(document.getElementById('root')).render(
     </AuthProvider>
   </StrictMode>,
 );
+
+window.addEventListener('load', () => {
+  void registerPingMeServiceWorker();
+});
