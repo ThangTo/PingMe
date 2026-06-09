@@ -188,6 +188,32 @@ const buildMessagePushPayload = ({ message, conversation, senderUser }) => {
   };
 };
 
+const buildIncomingCallPushPayload = ({ callerUser, type, conversationId, callId }) => {
+  const callerName = callerUser?.username || 'Nguoi dung PingMe';
+  const callTypeLabel = type === 'video' ? 'video' : 'thoai';
+  const url = conversationId
+    ? `/chat?conversationId=${encodeURIComponent(conversationId)}&callId=${encodeURIComponent(callId)}`
+    : `/chat?callId=${encodeURIComponent(callId)}`;
+
+  return {
+    title: `Cuoc goi ${callTypeLabel} den`,
+    body: `${callerName} dang goi cho ban`,
+    icon: '/logo.png',
+    badge: '/logo.png',
+    tag: callId ? `pingme-call-${callId}` : `pingme-call-${Date.now()}`,
+    timestamp: Date.now(),
+    renotify: true,
+    requireInteraction: true,
+    data: {
+      type: 'call',
+      callId,
+      callType: type,
+      conversationId,
+      url,
+    },
+  };
+};
+
 const shouldRemoveSubscription = (error = {}) => [403, 404, 410].includes(error.statusCode);
 
 const isActiveMute = (value) => {
@@ -315,5 +341,45 @@ export const sendMessagePushToUsers = async ({ recipientIds = [], message, conve
 
   console.log(
     `[Push] message recipients=${usersToNotify.length} subscriptions=${subscriptions} sent=${sent} removed=${removed}`,
+  );
+};
+
+export const sendIncomingCallPushToUser = async ({
+  recipientId,
+  callerUser,
+  type,
+  conversationId,
+  callId,
+  conversation = null,
+}) => {
+  const recipientIdString = recipientId?.toString();
+  if (!recipientIdString) return;
+
+  const conversationMutedUserIds = conversation ? getConversationMutedUserIds(conversation) : new Set();
+  if (conversationMutedUserIds.has(recipientIdString)) return;
+
+  ensureWebPushConfigured();
+
+  const user = await User.findOne({
+    _id: recipientIdString,
+    'pushSubscriptions.0': { $exists: true },
+  })
+    .select('pushSubscriptions notificationSettings')
+    .lean();
+
+  if (!user || user.notificationSettings?.muteAll) return;
+
+  const result = await sendPayloadToSubscriptions({
+    user,
+    payload: buildIncomingCallPushPayload({
+      callerUser,
+      type,
+      conversationId,
+      callId,
+    }),
+  });
+
+  console.log(
+    `[Push] incoming-call recipient=${recipientIdString} subscriptions=${result.subscriptions} sent=${result.sent} removed=${result.removed}`,
   );
 };

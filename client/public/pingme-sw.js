@@ -116,6 +116,7 @@ const getNotificationOptions = (payload = {}) => ({
   tag: payload.tag || `pingme-${Date.now()}`,
   timestamp: payload.timestamp || Date.now(),
   renotify: true,
+  requireInteraction: Boolean(payload.requireInteraction),
   data: payload.data || {},
 });
 
@@ -192,6 +193,7 @@ self.addEventListener('notificationclick', (event) => {
         chatClient?.postMessage({
           type: 'PINGME_OPEN_CONVERSATION',
           conversationId,
+          callId: data.callId || '',
         });
         return chatClient?.focus();
       }

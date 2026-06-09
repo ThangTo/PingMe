@@ -2,12 +2,16 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import Conversation from '../models/Conversation.js';
+import CallSession from '../models/CallSession.js';
 import Message from '../models/Message.js';
 import Session from '../models/Session.js';
 import User from '../models/User.js';
 import { updateMessageLinkPreview } from '../services/linkPreview.service.js';
 import { createNotification } from '../services/notification.service.js';
-import { sendMessagePushToUsers } from '../services/pushNotification.service.js';
+import {
+  sendIncomingCallPushToUser,
+  sendMessagePushToUsers,
+} from '../services/pushNotification.service.js';
 import {
   getConversationRoomId,
   getConversationMember,
@@ -34,6 +38,7 @@ const onlineUsers = new Map();
 const activeCallsByUser = new Map();
 const activeCallSessions = new Map();
 const CALL_RING_TIMEOUT_MS = 45_000;
+const CALL_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const parseCookieHeader = (cookieHeader = '') =>
   cookieHeader.split(';').reduce((cookies, pair) => {
@@ -254,6 +259,56 @@ const emitCallFailed = (socket, payload) => {
   });
 };
 
+const getCallRingExpiresAt = () => new Date(Date.now() + CALL_RING_TIMEOUT_MS);
+
+const getCallSessionExpiresAt = () => new Date(Date.now() + CALL_SESSION_TTL_MS);
+
+const getCallTimeoutDelay = (session) => {
+  const expiresAt = session?.ringExpiresAt ? new Date(session.ringExpiresAt).getTime() : 0;
+  if (!expiresAt || Number.isNaN(expiresAt)) return CALL_RING_TIMEOUT_MS;
+  return Math.max(0, expiresAt - Date.now());
+};
+
+const toRuntimeCallSession = (session) => {
+  if (!session) return null;
+
+  return {
+    id: session.callId || session.id,
+    callerId: toIdString(session.caller || session.callerId),
+    calleeId: toIdString(session.callee || session.calleeId),
+    type: session.type,
+    conversationId: toIdString(session.conversation || session.conversationId) || null,
+    status: session.status,
+    createdAt: session.createdAt || new Date(),
+    ringExpiresAt: session.ringExpiresAt || getCallRingExpiresAt(),
+    acceptedAt: session.acceptedAt || null,
+  };
+};
+
+const persistCallSessionStatus = async (callId, status, extra = {}) => {
+  if (!callId) return;
+
+  await CallSession.updateOne(
+    { callId },
+    {
+      $set: {
+        status,
+        ...extra,
+      },
+    },
+  );
+};
+
+const getIncomingCallPayload = ({ session, callerUser, calleeId, resumed = false }) => ({
+  callId: session.id,
+  fromUserId: session.callerId,
+  toUserId: calleeId || session.calleeId,
+  type: session.type,
+  conversationId: session.conversationId,
+  caller: formatCallUser(callerUser, calleeId || session.calleeId),
+  resumed,
+});
+
 const scheduleCallTimeout = (io, callId) => {
   const session = activeCallSessions.get(callId);
   if (!session) return;
@@ -264,6 +319,7 @@ const scheduleCallTimeout = (io, callId) => {
 
     const sessionSnapshot = { ...currentSession };
     releaseCallSession(callId);
+    void persistCallSessionStatus(callId, 'missed', { resolvedAt: new Date() });
     void createAndEmitCallLogMessage({
       io,
       session: sessionSnapshot,
@@ -282,7 +338,7 @@ const scheduleCallTimeout = (io, callId) => {
       toUserId: currentSession.callerId,
       reason: 'missed',
     });
-  }, CALL_RING_TIMEOUT_MS);
+  }, getCallTimeoutDelay(session));
 };
 
 const endActiveCallForUser = async (io, userId, reason = 'ended') => {
@@ -292,6 +348,9 @@ const endActiveCallForUser = async (io, userId, reason = 'ended') => {
   if (!session) return;
 
   const partnerId = getCallPartnerId(session, normalizedUserId);
+  await persistCallSessionStatus(callId, getCallLogStatus({ session, actorId: normalizedUserId, reason }), {
+    resolvedAt: new Date(),
+  });
   await createAndEmitCallLogMessage({
     io,
     session,
@@ -317,6 +376,64 @@ const joinOnlineUsersToConversation = (io, userIds, conversationId) => {
   });
 
   return roomId;
+};
+
+const emitPendingCallToSocket = async (io, socket, userId) => {
+  const normalizedUserId = toIdString(userId);
+  if (!normalizedUserId) return;
+
+  let session = null;
+  const activeCallId = getActiveCallId(normalizedUserId);
+  if (activeCallId) {
+    const activeSession = activeCallSessions.get(activeCallId);
+    if (activeSession?.status === 'ringing' && activeSession.calleeId === normalizedUserId) {
+      session = activeSession;
+    } else {
+      return;
+    }
+  }
+
+  let callerUser = null;
+
+  if (!session) {
+    const pendingCall = await CallSession.findOne({
+      callee: normalizedUserId,
+      status: 'ringing',
+      ringExpiresAt: { $gt: new Date() },
+    })
+      .sort({ createdAt: -1 })
+      .populate('caller', 'username avatar friends privacySettings')
+      .lean();
+
+    if (!pendingCall) return;
+
+    if (!isUserOnline(pendingCall.caller?._id || pendingCall.caller)) {
+      await persistCallSessionStatus(pendingCall.callId, 'missed', { resolvedAt: new Date() });
+      return;
+    }
+
+    session = toRuntimeCallSession(pendingCall);
+    callerUser = pendingCall.caller;
+    activeCallSessions.set(session.id, session);
+    setActiveCallForUsers(session.id, [session.callerId, session.calleeId]);
+    scheduleCallTimeout(io, session.id);
+  }
+
+  if (!callerUser) {
+    callerUser = await User.findById(session.callerId)
+      .select('username avatar friends privacySettings')
+      .lean();
+  }
+
+  socket.emit(
+    'call_incoming',
+    getIncomingCallPayload({
+      session,
+      callerUser,
+      calleeId: normalizedUserId,
+      resumed: true,
+    }),
+  );
 };
 
 const loadConversationForSend = async ({ conversationId, recipientId, senderId }) => {
@@ -867,6 +984,8 @@ const socketHandler = (io) => {
             });
           });
         }
+
+        await emitPendingCallToSocket(io, socket, userId);
       } catch (error) {
         console.error('Lỗi lấy danh sách bạn bè online:', error);
       }
@@ -933,6 +1052,8 @@ const socketHandler = (io) => {
         const callConversation = resolvedConversationId
           ? await Conversation.findById(resolvedConversationId).select('type members')
           : await getOrCreateDirectConversation(callerId, calleeId);
+        const finalConversationId = callConversation?._id?.toString() || resolvedConversationId || null;
+        const allowOfflineRinging = process.env.ENABLE_OFFLINE_CALL_INVITES !== 'false';
         if (await isDirectConversationBlocked(callConversation)) {
           emitCallFailed(socket, {
             toUserId: calleeId,
@@ -951,7 +1072,7 @@ const socketHandler = (io) => {
           return;
         }
 
-        if (!isUserOnline(calleeId)) {
+        if (!allowOfflineRinging && !isUserOnline(calleeId)) {
           emitCallFailed(socket, {
             toUserId: calleeId,
             reason: 'offline',
@@ -975,15 +1096,28 @@ const socketHandler = (io) => {
         }
 
         const callId = randomUUID();
+        const ringExpiresAt = getCallRingExpiresAt();
         const session = {
           id: callId,
           callerId,
           calleeId,
           type,
-          conversationId: resolvedConversationId,
+          conversationId: finalConversationId,
           status: 'ringing',
           createdAt: new Date(),
+          ringExpiresAt,
         };
+
+        await CallSession.create({
+          callId,
+          caller: callerId,
+          callee: calleeId,
+          type,
+          conversation: finalConversationId,
+          status: 'ringing',
+          ringExpiresAt,
+          expiresAt: getCallSessionExpiresAt(),
+        });
 
         activeCallSessions.set(callId, session);
         setActiveCallForUsers(callId, [callerId, calleeId]);
@@ -993,18 +1127,33 @@ const socketHandler = (io) => {
           callId,
           toUserId: calleeId,
           type,
-          conversationId: resolvedConversationId,
+          conversationId: finalConversationId,
           partner: formatCallUser(calleeUser, callerId),
         });
 
-        emitToUser(io, calleeId, 'call_incoming', {
-          callId,
-          fromUserId: callerId,
-          toUserId: calleeId,
-          type,
-          conversationId: resolvedConversationId,
-          caller: formatCallUser(callerUser, calleeId),
-        });
+        if (isUserOnline(calleeId)) {
+          emitToUser(
+            io,
+            calleeId,
+            'call_incoming',
+            getIncomingCallPayload({
+              session,
+              callerUser,
+              calleeId,
+            }),
+          );
+        } else {
+          void sendIncomingCallPushToUser({
+            recipientId: calleeId,
+            callerUser,
+            type,
+            conversationId: finalConversationId,
+            callId,
+            conversation: callConversation,
+          }).catch((error) => {
+            console.warn('Khong the gui push cuoc goi den:', error.message || error);
+          });
+        }
       } catch (error) {
         console.error('Lỗi call_request:', error);
         emitCallFailed(socket, {
@@ -1032,6 +1181,9 @@ const socketHandler = (io) => {
         session.status = 'connected';
         session.acceptedAt = new Date();
         clearCallTimeout(session);
+        await persistCallSessionStatus(callId, 'connected', {
+          acceptedAt: session.acceptedAt,
+        });
 
         const [callerUser, calleeUser] = await Promise.all([
           User.findById(session.callerId).select('username avatar friends privacySettings').lean(),
@@ -1077,6 +1229,9 @@ const socketHandler = (io) => {
       if (!session || session.calleeId !== userId) return;
 
       releaseCallSession(callId);
+      await persistCallSessionStatus(callId, getCallLogStatus({ session, actorId: userId, reason }), {
+        resolvedAt: new Date(),
+      });
       await createAndEmitCallLogMessage({
         io,
         session,
@@ -1107,6 +1262,9 @@ const socketHandler = (io) => {
 
       const partnerId = getCallPartnerId(session, userId);
       releaseCallSession(callId);
+      await persistCallSessionStatus(callId, getCallLogStatus({ session, actorId: userId, reason }), {
+        resolvedAt: new Date(),
+      });
       await createAndEmitCallLogMessage({
         io,
         session,

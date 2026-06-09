@@ -475,6 +475,10 @@ export const CallProvider = ({ children }) => {
     const handleCallIncoming = (payload) => {
       const currentCall = callStateRef.current;
 
+      if (currentCall.callId && currentCall.callId === payload.callId) {
+        return;
+      }
+
       if (currentCall.status !== 'idle') {
         socket.emit('call_reject', {
           callId: payload.callId,
