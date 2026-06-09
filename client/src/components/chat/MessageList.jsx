@@ -367,6 +367,8 @@ const MessageList = ({
       const dateLabel = getDateLabel(message.timestamp);
       const showAvatar =
         shouldShowDateSeparator || !prevMessage || prevMessage.senderId !== message.senderId;
+      const startsSenderGroup =
+        Boolean(prevMessage) && prevMessage.senderId !== message.senderId && !shouldShowDateSeparator;
       const isActionMenuOpen = activeActionMessageId === message.id;
       const readReceipts = readReceiptsByMessageId[message.id] || [];
       const showMeta = message.id === latestMessageId || expandedMetaMessageIds.has(message.id);
@@ -375,7 +377,7 @@ const MessageList = ({
         <div
           data-message-row="true"
           data-message-index={virtualIndex}
-          className="w-full px-4 pb-2 md:px-5"
+          className={`w-full px-4 pb-2 md:px-5 ${startsSenderGroup ? 'pt-2 md:pt-2.5' : ''}`}
         >
           {shouldShowDateSeparator && dateLabel && (
             <div className="mb-4 mt-2 flex items-center justify-center gap-3">

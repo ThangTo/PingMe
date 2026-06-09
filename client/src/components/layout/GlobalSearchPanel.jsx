@@ -149,7 +149,7 @@ const GlobalSearchPanel = ({
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="h-11 w-full rounded-[8px] border border-outline bg-surface-container-lowest pl-10 pr-10 text-[13px] text-on-surface outline-none placeholder:text-on-surface-variant focus:border-secondary focus:ring-1 focus:ring-secondary/20"
+                className="h-11 w-full rounded-[8px] border border-outline bg-surface-container-lowest pl-10 pr-10 text-[16px] text-on-surface outline-none placeholder:text-on-surface-variant focus:border-secondary focus:ring-1 focus:ring-secondary/20 md:text-[13px]"
                 placeholder="Tìm nội dung tin nhắn hoặc tên tệp"
               />
               {query && (

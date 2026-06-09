@@ -56,6 +56,8 @@ export const CallProvider = ({ children }) => {
   const pendingIceCandidatesRef = useRef([]);
   const noticeTimerRef = useRef(null);
   const ringtoneAudioRef = useRef(null);
+  const ringtoneUnlockedRef = useRef(false);
+  const ringtoneUnlockPromiseRef = useRef(null);
   const incomingCallNotificationRef = useRef(null);
   const notificationPermissionRequestedRef = useRef(false);
 
@@ -184,8 +186,12 @@ export const CallProvider = ({ children }) => {
   }, []);
 
   const unlockRingtoneAudio = useCallback(async () => {
+    if (ringtoneUnlockedRef.current) return true;
+    if (ringtoneUnlockPromiseRef.current) return false;
+    if (callStateRef.current.status !== 'idle') return false;
     const audio = getRingtoneAudio();
     if (!audio) return false;
+    ringtoneUnlockPromiseRef.current = true;
 
     try {
       audio.muted = true;
@@ -193,9 +199,12 @@ export const CallProvider = ({ children }) => {
       audio.pause();
       audio.currentTime = 0;
       audio.muted = false;
+      ringtoneUnlockedRef.current = true;
+      ringtoneUnlockPromiseRef.current = null;
       return true;
     } catch (error) {
       audio.muted = false;
+      ringtoneUnlockPromiseRef.current = null;
       console.warn('Không thể bật âm thanh chuông:', error);
       return false;
     }

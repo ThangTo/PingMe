@@ -172,4 +172,12 @@
   .animate-fade-in {
     animation: fadeIn 0.2s ease-out forwards;
   }
+
+  @media (max-width: 767px) {
+    input[class]:not([type='checkbox']):not([type='radio']):not([type='range']),
+    textarea[class],
+    select[class] {
+      font-size: 16px !important;
+    }
+  }
 }

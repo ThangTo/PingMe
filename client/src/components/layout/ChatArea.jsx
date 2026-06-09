@@ -326,7 +326,7 @@ const ChatArea = ({
                 setActiveSearchIndex(0);
               }}
               placeholder="Tìm trong cuộc trò chuyện..."
-              className="h-[36px] w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest pl-9 pr-3 text-[14px] outline-none transition-colors focus:border-outline focus:ring-1 focus:ring-outline"
+              className="h-[36px] w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest pl-9 pr-3 text-[16px] outline-none transition-colors focus:border-outline focus:ring-1 focus:ring-outline md:text-[14px]"
             />
           </div>
           <div className="hidden items-center gap-1.5 sm:flex">

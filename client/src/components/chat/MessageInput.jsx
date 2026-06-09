@@ -1064,7 +1064,7 @@ const MessageInput = ({
           disabled={disabled || isRecordingVoice}
           autoComplete="off"
           rows={1}
-          className="min-w-0 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[15px] text-on-surface outline-none placeholder:text-on-surface-variant no-scrollbar"
+          className="min-w-0 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[16px] text-on-surface outline-none placeholder:text-on-surface-variant no-scrollbar md:text-[15px]"
           placeholder={
             editingMessage
               ? 'Chỉnh sửa tin nhắn...'

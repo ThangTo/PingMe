@@ -577,7 +577,7 @@ const Sidebar = ({
           />
           <input
             ref={searchInputRef}
-            className="h-11 w-full rounded-[8px] border border-outline bg-surface-container-lowest pl-10 pr-4 text-[13px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent focus:ring-1 focus:ring-accent"
+            className="h-11 w-full rounded-[8px] border border-outline bg-surface-container-lowest pl-10 pr-4 text-[16px] text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:border-accent focus:ring-1 focus:ring-accent md:text-[13px]"
             placeholder={
               activeTab === 'discover'
                 ? 'Tìm toàn bộ hệ thống theo tên hoặc ID'

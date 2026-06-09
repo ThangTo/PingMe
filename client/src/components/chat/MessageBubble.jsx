@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import EmojiPicker from './EmojiPicker';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
@@ -83,7 +84,7 @@ const renderMessageContent = (content = '') => {
         href={normalizeLinkHref(displayUrl)}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-medium text-primary underline decoration-primary/35 underline-offset-2 transition-colors hover:text-primary-dark hover:decoration-primary"
+        className="font-medium text-primary underline decoration-primary/35 underline-offset-2 transition-colors [overflow-wrap:anywhere] hover:text-primary-dark hover:decoration-primary"
         onClick={stopInteractiveBubbleEvent}
         onPointerDown={stopInteractiveBubbleEvent}
         onTouchStart={stopInteractiveBubbleEvent}
@@ -630,9 +631,10 @@ const MessageBubble = ({
     { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
   ];
 
+  const avatarName = encodeURIComponent(message.senderName || 'User');
   const avatarSrc =
     message.senderAvatar ||
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
+    `https://ui-avatars.com/api/?name=${avatarName}&background=d9c8b4&color=2a2520&bold=true`;
   const deliveryText =
     isOwn && !isRevoked
       ? message.status === 'sending'
@@ -653,7 +655,7 @@ const MessageBubble = ({
         className={`group flex animate-message-pop items-start gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
         onClick={handleMessageClick}
       >
-        <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
+        <div className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
             <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
               <img src={avatarSrc} alt="Người gọi" className="h-full w-full object-cover" />
@@ -663,7 +665,7 @@ const MessageBubble = ({
 
         <div className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}>
           {!isOwn && showAvatar && message.senderName && (
-            <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
+            <span className="ml-0.5 hidden px-1 text-[11px] font-medium text-on-surface-variant md:inline">
               {message.senderName}
             </span>
           )}
@@ -688,9 +690,9 @@ const MessageBubble = ({
 
   return (
     <>
-      {activeLightboxImage && (
+      {activeLightboxImage && typeof document !== 'undefined' && createPortal((
         <div
-          className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#111111]/92 px-4 py-6"
+          className="fixed inset-0 z-[1000] flex cursor-pointer items-center justify-center bg-[#111111]/92 px-4 py-6"
           onClick={closeLightbox}
           onTouchStart={handleLightboxTouchStart}
           onTouchEnd={handleLightboxTouchEnd}
@@ -763,31 +765,31 @@ const MessageBubble = ({
             </div>
           )}
         </div>
-      )}
+      ), document.body)}
 
       <div
         className={`group flex animate-message-pop items-start gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
       >
-        <div className={`hidden w-7 shrink-0 md:block ${showAvatar ? '' : 'invisible'}`}>
+        <div className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
-            <div className="h-8 w-8 overflow-hidden rounded-full border border-outline-variant">
+            <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
               <img src={avatarSrc} alt="Người gửi" className="h-full w-full object-cover" />
             </div>
           )}
         </div>
 
         <div
-          className={`flex max-w-[84%] flex-col gap-1 md:max-w-[72%] ${isOwn ? 'items-end' : 'items-start'}`}
+          className={`flex min-w-0 max-w-[78%] flex-col gap-1 md:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}
         >
           {!isOwn && showAvatar && message.senderName && (
-            <span className="ml-0.5 px-1 text-[11px] font-medium text-on-surface-variant">
+            <span className="ml-0.5 hidden px-1 text-[11px] font-medium text-on-surface-variant md:inline">
               {message.senderName}
             </span>
           )}
 
           <div
             ref={messageRef}
-            className="relative inline-flex max-w-full flex-col items-stretch gap-1"
+            className="relative inline-flex min-w-0 max-w-full flex-col items-stretch gap-1"
             onContextMenu={openContextMenu}
             onClick={handleMessageClick}
             onTouchStart={handleTouchStart}
@@ -826,7 +828,7 @@ const MessageBubble = ({
               </div>
             ) : (
               <div
-                className={`relative flex max-w-[min(430px,74vw)] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}
+                className={`relative flex min-w-0 max-w-[min(350px,76vw)] flex-col gap-1 md:max-w-[min(560px,70vw)] ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
                 {imageAttachments.length > 0 && (
@@ -1041,13 +1043,15 @@ const MessageBubble = ({
 
                 {message.content || !hasAttachments ? (
                   <div
-                    className={`rounded-[12px] px-3.5 py-2.5 text-[15px] leading-relaxed break-words ${
+                    className={`min-w-0 max-w-[min(320px,64vw)] rounded-[12px] px-3.5 py-2.5 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere] md:max-w-[min(520px,68vw)] ${
                       isOwn
                         ? 'bg-surface-container-high text-on-surface rounded-br-[4px]'
                         : 'border border-outline-variant bg-surface-container-lowest text-on-surface rounded-bl-[4px]'
-                    } ${hasAttachments ? 'max-w-[min(430px,72vw)]' : ''}`}
+                    }`}
                   >
-                    <span className="whitespace-pre-wrap">{renderMessageContent(message.content)}</span>
+                    <span className="block whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                      {renderMessageContent(message.content)}
+                    </span>
                   </div>
                 ) : null}
 
