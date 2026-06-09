@@ -649,7 +649,7 @@ const Sidebar = ({
         }`}
       >
         {activeTab === 'search' ? (
-          <div className="divide-y divide-outline-variant md:overflow-y-auto">
+          <div className="no-scrollbar divide-y divide-outline-variant md:overflow-y-auto">
             {searchQuery.length < 2 ? (
               <div>
                 {friendRequests.length > 0 && (
@@ -752,7 +752,7 @@ const Sidebar = ({
             )}
           </div>
         ) : activeTab === 'discover' ? (
-          <div className="divide-y divide-outline-variant md:overflow-y-auto">
+          <div className="no-scrollbar divide-y divide-outline-variant md:overflow-y-auto">
             {isDirectoryLoading ? (
               <ListSkeleton rows={4} action className="px-5 py-5" />
             ) : directoryError ? (
@@ -780,7 +780,7 @@ const Sidebar = ({
             )}
           </div>
         ) : activeTab === 'requests' ? (
-          <div className="divide-y divide-outline-variant md:overflow-y-auto">
+          <div className="no-scrollbar divide-y divide-outline-variant md:overflow-y-auto">
             {friendRequests.length === 0 ? (
               <p className="px-6 py-12 text-center text-sm text-on-surface-variant">
                 Không có lời mời kết bạn nào.
