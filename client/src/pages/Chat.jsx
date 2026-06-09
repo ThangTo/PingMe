@@ -376,7 +376,7 @@ const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
               type="button"
               onClick={() => onDismiss(notification.id)}
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
-              aria-label="Dong thong bao"
+              aria-label="Đóng thông báo"
             >
               <AppIcon name="close" className="text-lg" />
             </button>
@@ -579,7 +579,7 @@ const Chat = () => {
   }, []);
 
   const showAppNotification = useCallback(
-    ({ title = 'PingMe', body = 'Thong bao moi', conversationId = null }) => {
+    ({ title = 'PingMe', body = 'Thông báo mới', conversationId = null }) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const nextNotification = {
         id,
@@ -620,7 +620,7 @@ const Chat = () => {
     window.pingmeAppNotify = (payload = {}) =>
       showAppNotification({
         title: payload.title || 'PingMe test',
-        body: payload.body || 'Thong bao fallback trong app dang hoat dong.',
+        body: payload.body || 'Thông báo fallback trong app đang hoạt động.',
         conversationId: payload.conversationId || selectedConversationId || null,
       });
 
@@ -639,7 +639,7 @@ const Chat = () => {
 
     showAppNotification({
       title: 'PingMe notification',
-      body: 'Fallback notification trong app dang hoat dong.',
+      body: 'Fallback notification trong app đang hoạt động.',
       conversationId: selectedConversationId || null,
     });
 
@@ -1053,7 +1053,7 @@ const Chat = () => {
         setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
       }
     } catch (error) {
-      console.error('Khong the tai tin nhan cu hon:', error);
+      console.error('Không thể tải tin nhắn cũ hơn:', error);
     } finally {
       setIsLoadingOlderMessages(false);
     }
@@ -1930,7 +1930,7 @@ const Chat = () => {
 
         showAppNotification({
           title: event.data.detail.title,
-          body: event.data.detail.body || 'Thong bao moi',
+          body: event.data.detail.body || 'Thông báo mới',
           conversationId: pushConversationId,
         });
       }

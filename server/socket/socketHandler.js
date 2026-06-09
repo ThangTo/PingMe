@@ -80,7 +80,7 @@ const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, con
     conversation,
     senderUser,
   }).catch((error) => {
-    console.warn('Khong the gui push notification cho tin nhan:', error.message || error);
+    console.warn('Không thể gửi push notification cho tin nhắn:', error.message || error);
   });
 };
 
@@ -1151,7 +1151,7 @@ const socketHandler = (io) => {
             callId,
             conversation: callConversation,
           }).catch((error) => {
-            console.warn('Khong the gui push cuoc goi den:', error.message || error);
+            console.warn('Không thể gửi push cuộc gọi đến:', error.message || error);
           });
         }
       } catch (error) {

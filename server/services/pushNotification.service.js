@@ -23,7 +23,7 @@ const getVapidKeys = () => {
   if (!devVapidKeys) {
     devVapidKeys = getPushProvider().generateVapidKeys();
     console.warn(
-      'Web Push dang dung VAPID key tam thoi. Hay set VAPID_PUBLIC_KEY va VAPID_PRIVATE_KEY trong .env de subscription on dinh sau khi restart server.',
+      'Web Push đang dùng VAPID key tạm thời. Hãy set VAPID_PUBLIC_KEY và VAPID_PRIVATE_KEY trong .env để subscription ổn định sau khi restart server.',
     );
   }
 
@@ -73,7 +73,7 @@ const normalizePushSubscription = (subscription = {}) => {
 export const saveUserPushSubscription = async ({ userId, subscription, userAgent = '' }) => {
   const normalized = normalizePushSubscription(subscription);
   if (!normalized) {
-    const error = new Error('Push subscription khong hop le');
+    const error = new Error('Push subscription không hợp lệ');
     error.statusCode = 400;
     throw error;
   }
@@ -142,12 +142,12 @@ const getAttachmentPreview = (attachments = []) => {
   const hasAudio = attachments.some((item) => item.type === 'audio');
   const hasVideo = attachments.some((item) => item.type === 'video');
 
-  if (hasImage && attachments.length > 1) return `Da gui ${attachments.length} anh`;
-  if (hasImage) return 'Da gui anh';
-  if (hasAudio) return 'Da gui ghi am';
-  if (hasVideo) return attachments.length > 1 ? `Da gui ${attachments.length} video` : 'Da gui video';
-  if (attachments.length > 1) return `Da gui ${attachments.length} tep`;
-  return attachments[0]?.filename ? `Da gui tep: ${attachments[0].filename}` : 'Da gui tep';
+  if (hasImage && attachments.length > 1) return `Đã gửi ${attachments.length} ảnh`;
+  if (hasImage) return 'Đã gửi ảnh';
+  if (hasAudio) return 'Đã gửi ghi âm';
+  if (hasVideo) return attachments.length > 1 ? `Đã gửi ${attachments.length} video` : 'Đã gửi video';
+  if (attachments.length > 1) return `Đã gửi ${attachments.length} tệp`;
+  return attachments[0]?.filename ? `Đã gửi tệp: ${attachments[0].filename}` : 'Đã gửi tệp';
 };
 
 const getMessagePushBody = (message = {}) => {
@@ -162,14 +162,14 @@ const getMessagePushBody = (message = {}) => {
   const attachmentPreview = getAttachmentPreview(attachments);
   if (attachmentPreview) return truncateText(attachmentPreview);
 
-  if (message.messageType === 'call') return 'Tin nhan cuoc goi';
-  return 'Tin nhan moi';
+  if (message.messageType === 'call') return 'Tin nhắn cuộc gọi';
+  return 'Tin nhắn mới';
 };
 
 const buildMessagePushPayload = ({ message, conversation, senderUser }) => {
   const conversationId = message.conversationId || message.conversation?.toString();
   const senderName = senderUser?.username || message.senderName || 'PingMe';
-  const conversationTitle = conversation?.type === 'group' ? conversation.title || 'Nhom chat' : '';
+  const conversationTitle = conversation?.type === 'group' ? conversation.title || 'Nhóm chat' : '';
   const title = conversationTitle ? `${senderName} trong ${conversationTitle}` : senderName;
 
   return {
@@ -189,21 +189,29 @@ const buildMessagePushPayload = ({ message, conversation, senderUser }) => {
 };
 
 const buildIncomingCallPushPayload = ({ callerUser, type, conversationId, callId }) => {
-  const callerName = callerUser?.username || 'Nguoi dung PingMe';
-  const callTypeLabel = type === 'video' ? 'video' : 'thoai';
+  const callerName = callerUser?.username || 'Người dùng PingMe';
+  const callTypeLabel = type === 'video' ? 'video' : 'thoại';
   const url = conversationId
     ? `/chat?conversationId=${encodeURIComponent(conversationId)}&callId=${encodeURIComponent(callId)}`
     : `/chat?callId=${encodeURIComponent(callId)}`;
 
   return {
-    title: `Cuoc goi ${callTypeLabel} den`,
-    body: `${callerName} dang goi cho ban`,
+    title: `Cuộc gọi ${callTypeLabel} đến`,
+    body: `${callerName} đang gọi cho bạn`,
     icon: '/logo.png',
     badge: '/logo.png',
     tag: callId ? `pingme-call-${callId}` : `pingme-call-${Date.now()}`,
     timestamp: Date.now(),
     renotify: true,
     requireInteraction: true,
+    silent: false,
+    vibrate: [220, 120, 220, 120, 420],
+    actions: [
+      {
+        action: 'open-call',
+        title: 'Mở cuộc gọi',
+      },
+    ],
     data: {
       type: 'call',
       callId,
@@ -247,7 +255,7 @@ const sendPayloadToSubscriptions = async ({ user, payload }) => {
           return;
         }
 
-        console.warn('Khong the gui Web Push notification:', error.message || error);
+        console.warn('Không thể gửi Web Push notification:', error.message || error);
       }
     }),
   );
@@ -286,7 +294,7 @@ export const sendTestPushToUser = async (userId) => {
     user,
     payload: {
       title: 'PingMe server test',
-      body: 'Neu thay thong bao nay thi Web Push tu server dang hoat dong.',
+      body: 'Nếu thấy thông báo này thì Web Push từ server đang hoạt động.',
       icon: '/pingme.svg',
       badge: '/pingme.svg',
       tag: `pingme-server-test-${Date.now()}`,

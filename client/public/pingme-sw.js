@@ -54,7 +54,7 @@ const networkFirstNavigation = async (request) => {
     return (
       (await caches.match('/index.html')) ||
       (await caches.match('/')) ||
-      new Response('PingMe dang ngoai tuyen. Vui long thu lai khi co mang.', {
+      new Response('PingMe đang ngoại tuyến. Vui lòng thử lại khi có mạng.', {
         status: 503,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       })
@@ -109,16 +109,32 @@ const broadcastDebugEvent = async (eventName, detail = {}) => {
   });
 };
 
-const getNotificationOptions = (payload = {}) => ({
-  body: payload.body || 'Ban co thong bao moi',
-  icon: payload.icon || DEFAULT_ICON,
-  badge: payload.badge || DEFAULT_ICON,
-  tag: payload.tag || `pingme-${Date.now()}`,
-  timestamp: payload.timestamp || Date.now(),
-  renotify: true,
-  requireInteraction: Boolean(payload.requireInteraction),
-  data: payload.data || {},
-});
+const getNotificationOptions = (payload = {}) => {
+  const options = {
+    body: payload.body || 'Bạn có thông báo mới',
+    icon: payload.icon || DEFAULT_ICON,
+    badge: payload.badge || DEFAULT_ICON,
+    tag: payload.tag || `pingme-${Date.now()}`,
+    timestamp: payload.timestamp || Date.now(),
+    renotify: payload.renotify ?? true,
+    requireInteraction: Boolean(payload.requireInteraction),
+    data: payload.data || {},
+  };
+
+  if (typeof payload.silent === 'boolean') {
+    options.silent = payload.silent;
+  }
+
+  if (Array.isArray(payload.vibrate)) {
+    options.vibrate = payload.vibrate;
+  }
+
+  if (Array.isArray(payload.actions)) {
+    options.actions = payload.actions;
+  }
+
+  return options;
+};
 
 self.addEventListener('push', (event) => {
   let payload = {};
@@ -128,7 +144,7 @@ self.addEventListener('push', (event) => {
   } catch {
     payload = {
       title: 'PingMe',
-      body: event.data?.text() || 'Ban co thong bao moi',
+      body: event.data?.text() || 'Bạn có thông báo mới',
     };
   }
 
@@ -162,7 +178,7 @@ self.addEventListener('message', (event) => {
     self.registration.showNotification(
       event.data.title || 'PingMe Service Worker test',
       getNotificationOptions({
-        body: event.data.body || 'Neu thay thong bao nay thi Service Worker notification hien duoc.',
+        body: event.data.body || 'Nếu thấy thông báo này thì Service Worker notification hiện được.',
         tag: `pingme-sw-test-${Date.now()}`,
         data: {
           type: 'test',

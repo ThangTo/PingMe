@@ -126,7 +126,7 @@ export const registerPushNotifications = async () => {
         data: { endpoint: subscription.endpoint },
       });
     } catch (error) {
-      console.warn('Khong the xoa push subscription cu:', error);
+      console.warn('Không thể xóa push subscription cũ:', error);
     }
 
     await subscription.unsubscribe();
@@ -191,7 +191,7 @@ export const showClientNotification = async ({ title = 'PingMe', options = {}, o
       debugPush('client notification shown by service worker', options);
       return { shown: true, channel: 'service_worker' };
     } catch (error) {
-      console.warn('Khong the hien thi thong bao bang Service Worker:', error);
+      console.warn('Không thể hiển thị thông báo bằng Service Worker:', error);
     }
   }
 
@@ -201,7 +201,7 @@ export const showClientNotification = async ({ title = 'PingMe', options = {}, o
     debugPush('client notification shown by Notification API', options);
     return { shown: true, channel: 'notification_api' };
   } catch (error) {
-    console.warn('Khong the hien thi thong bao tin nhan:', error);
+    console.warn('Không thể hiển thị thông báo tin nhắn:', error);
     return { shown: false, reason: 'show_failed' };
   }
 };
@@ -219,7 +219,7 @@ export const showServiceWorkerTestNotification = async () => {
   const readyRegistration = await navigator.serviceWorker.ready;
 
   await readyRegistration.showNotification('PingMe Service Worker test', {
-    body: 'Neu thay thong bao nay thi Service Worker notification hien duoc.',
+    body: 'Nếu thấy thông báo này thì Service Worker notification hiện được.',
     icon: '/logo.png',
     badge: '/logo.png',
     tag: `pingme-sw-direct-test-${Date.now()}`,

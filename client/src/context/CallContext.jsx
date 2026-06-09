@@ -148,6 +148,8 @@ export const CallProvider = ({ children }) => {
           tag: payload.callId ? `pingme-call-${payload.callId}` : 'pingme-call-incoming',
           renotify: true,
           requireInteraction: true,
+          silent: false,
+          vibrate: [220, 120, 220, 120, 420],
         });
       } catch (error) {
         console.warn('Không thể hiển thị thông báo cuộc gọi:', error);

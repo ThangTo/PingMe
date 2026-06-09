@@ -98,7 +98,7 @@ export const SocketProvider = ({ children }) => {
       if (!isMounted) return;
 
       void registerPushNotifications().catch((error) => {
-        console.warn('Khong the dang ky Web Push:', error);
+        console.warn('Không thể đăng ký Web Push:', error);
       });
     };
 
@@ -110,7 +110,7 @@ export const SocketProvider = ({ children }) => {
           if (permission === 'granted') syncPushSubscription();
         })
         .catch((error) => {
-          console.warn('Khong the xin quyen thong bao:', error);
+          console.warn('Không thể xin quyền thông báo:', error);
         });
     };
 
@@ -143,7 +143,7 @@ export const SocketProvider = ({ children }) => {
           if (typeof Notification === 'undefined') return 'unsupported';
           if (Notification.permission !== 'granted') return Notification.permission;
           return new Notification('PingMe test', {
-            body: 'Neu thay thong bao nay thi Browser Notification dang hoat dong.',
+            body: 'Nếu thấy thông báo này thì Browser Notification đang hoạt động.',
             icon: '/logo.png',
           });
         },
