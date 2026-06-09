@@ -85,17 +85,24 @@
     --color-accent-soft: #262B27;
   }
 
-  body {
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--color-background);
+  }
+
+  body,
+  #root {
     margin: 0;
     min-height: 100dvh;
-    font-family: var(--font-family-body);
     background-color: var(--color-background);
+  }
+
+  body {
+    font-family: var(--font-family-body);
     color: var(--color-on-background);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-
-  html { scroll-behavior: smooth; }
 
   button,
   input,

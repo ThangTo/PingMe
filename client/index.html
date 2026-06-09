@@ -6,8 +6,34 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#2F8A63" />
+    <meta name="theme-color" content="#FBFAF7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111311" />
     <meta name="color-scheme" content="light dark" />
+    <script>
+      (() => {
+        try {
+          const colors = { light: '#FBFAF7', dark: '#111311' };
+          const preference = localStorage.getItem('pingme_theme') || 'system';
+          const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const theme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
+          const color = colors[theme] || colors.light;
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.backgroundColor = color;
+          const applyThemeColor = () => {
+            document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+              meta.setAttribute('content', color);
+            });
+          };
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', applyThemeColor, { once: true });
+          } else {
+            applyThemeColor();
+          }
+        } catch {
+          // Nếu trình duyệt chặn storage, app giữ màu light mặc định.
+        }
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="PingMe" />

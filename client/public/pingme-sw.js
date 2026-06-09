@@ -1,5 +1,5 @@
 const DEFAULT_ICON = '/logo.png';
-const SW_VERSION = 'pingme-pwa-v1';
+const SW_VERSION = 'pingme-pwa-v2';
 const APP_SHELL_CACHE = `${SW_VERSION}-shell`;
 const RUNTIME_CACHE = `${SW_VERSION}-runtime`;
 const APP_SHELL_URLS = [

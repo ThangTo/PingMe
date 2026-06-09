@@ -7,6 +7,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import LoadingState from './components/ui/LoadingState';
 
+const THEME_COLORS = {
+  light: '#FBFAF7',
+  dark: '#111311',
+};
+
 /**
  * Protected Route Component - Chỉ cho phép truy cập khi đã đăng nhập
  */
@@ -61,6 +66,11 @@ function App() {
       const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const resolvedTheme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
       document.documentElement.dataset.theme = resolvedTheme;
+      document.documentElement.style.backgroundColor = THEME_COLORS[resolvedTheme];
+      document.body.style.backgroundColor = THEME_COLORS[resolvedTheme];
+      document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+        meta.setAttribute('content', THEME_COLORS[resolvedTheme]);
+      });
     };
 
     applyTheme();

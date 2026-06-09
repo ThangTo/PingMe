@@ -8,7 +8,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FBFAF7",
-  "theme_color": "#2F8A63",
+  "theme_color": "#FBFAF7",
   "categories": ["social", "communication", "productivity"],
   "lang": "vi",
   "dir": "ltr",
