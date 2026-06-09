@@ -419,18 +419,17 @@ const Register = () => {
               {isSubmitting && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />}
             </button>
 
-            <div className="hidden items-center gap-4 py-1 md:flex">
+            <div className="flex items-center gap-4 py-1">
               <span className="h-px flex-1 bg-outline-variant" />
               <span className="text-[11px] text-on-surface-variant">hoặc</span>
               <span className="h-px flex-1 bg-outline-variant" />
             </div>
 
-            {/* Google auth chưa có backend, chỉ hiển thị preview trên desktop theo thiết kế. */}
             <button
               type="button"
               onClick={startGoogleAuth}
-              className="hidden h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high md:flex"
-              title="Đăng ký Google chưa được kết nối"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high"
+              title="Tiếp tục với Google"
             >
               <span className="font-semibold text-secondary">G</span>
               Tiếp tục với Google

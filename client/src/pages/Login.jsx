@@ -310,12 +310,11 @@ const Login = () => {
               Tạo tài khoản
             </button>
 
-            {/* Google auth chưa có backend, chỉ hiển thị preview trên desktop theo thiết kế. */}
             <button
               type="button"
               onClick={startGoogleAuth}
-              className="hidden h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high md:flex"
-              title="Đăng nhập Google chưa được kết nối"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high"
+              title="Tiếp tục với Google"
             >
               <span className="font-semibold text-secondary">G</span>
               Tiếp tục với Google
