@@ -9,7 +9,7 @@ import LoadingState from './components/ui/LoadingState';
 
 const THEME_COLORS = {
   light: '#FBFAF7',
-  dark: '#111311',
+  dark: '#171A17',
 };
 
 /**
