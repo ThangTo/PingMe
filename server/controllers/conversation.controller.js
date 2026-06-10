@@ -26,6 +26,9 @@ const getMessageAttachments = (message) => {
 const getMessagePreview = (message) => {
   if (!message) return 'Bắt đầu trò chuyện';
   if (message.isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (message.messageType === 'sticker' || message.sticker?.url) {
+    return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Đã gửi nhãn dán';
+  }
   const attachments = getMessageAttachments(message);
 
   if (message.content) return message.content;
@@ -47,6 +50,8 @@ const formatPinnedMessage = (message) => {
     senderId: toIdString(message.sender),
     senderName: message.sender?.username || '',
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    messageType: message.messageType || 'text',
+    sticker: message.isDeleted ? null : message.sticker || null,
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: getMessageAttachments(message),
     isDeleted: Boolean(message.isDeleted),

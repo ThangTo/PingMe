@@ -1,0 +1,191 @@
+﻿[
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "crying-emoji",
+        "name":  "Crying emoji",
+        "fallbackName":  "Crying emoji",
+        "tags":  [
+                     "cry",
+                     "sad",
+                     "emoji"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/crying-emoji-2mGWc6v5n5",
+        "creatorName":  "Shubh Dubey",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/2ad05e8c-980f-11ee-8c0a-c361959ff3cf/wRhiPSY7nr.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/crying-emoji.json",
+        "width":  500,
+        "height":  600,
+        "size":  29352
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "emoji-bouncing",
+        "name":  "Emoji bouncing animation",
+        "fallbackName":  "Emoji bouncing",
+        "tags":  [
+                     "emoji",
+                     "bounce",
+                     "happy"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/emoji-bouncing-animation-WxaBPZIokt",
+        "creatorName":  "Abdul Latif",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/fdf30488-7c65-11ee-b608-2fbd9c965df4/JrdTqC88pB.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/emoji-bouncing.json",
+        "width":  1000,
+        "height":  1000,
+        "size":  14866
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "birthday-emoji",
+        "name":  "celebration and birthday emoji",
+        "fallbackName":  "Celebration birthday emoji",
+        "tags":  [
+                     "birthday",
+                     "celebration",
+                     "party"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/celebration-and-birthday-emoji-PbPAzivZTt",
+        "creatorName":  "Hamza",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/9dff713c-b14a-11ee-8cd9-031c36efa8f0/LkZtUINyJv.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/birthday-emoji.json",
+        "width":  800,
+        "height":  800,
+        "size":  12937
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "emoji-happy",
+        "name":  "Emoji - Happy",
+        "fallbackName":  "Emoji happy",
+        "tags":  [
+                     "happy",
+                     "smile",
+                     "emoji"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/emoji-happy-UMwhHPsYK3",
+        "creatorName":  "Gio",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/d142f874-8f36-11ee-9184-5f2bc120fe78/ADgicCV8ek.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/emoji-happy.json",
+        "width":  500,
+        "height":  500,
+        "size":  86172
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "emoji-sad",
+        "name":  "Emoji - Sad",
+        "fallbackName":  "Emoji sad",
+        "tags":  [
+                     "sad",
+                     "emoji",
+                     "buon"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/emoji-sad-amOYZnPvoN",
+        "creatorName":  "Gio",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/8a5d6192-8f36-11ee-9481-3f2e4a675642/oysjb94Pql.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/emoji-sad.json",
+        "width":  500,
+        "height":  500,
+        "size":  84589
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "laughing-emoji",
+        "name":  "laughing emoji",
+        "fallbackName":  "Laughing emoji",
+        "tags":  [
+                     "laugh",
+                     "haha",
+                     "lol"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/laughing-emoji-yoZMkMYD1j",
+        "creatorName":  "Duong Nguyen",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/050881f0-1161-11ee-b74c-178ed4dd23b2/IJYWfhEvhW.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/laughing-emoji.json",
+        "width":  1750,
+        "height":  1750,
+        "size":  303276
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "smiley-emoji",
+        "name":  "smiley emoji",
+        "fallbackName":  "Smiley emoji",
+        "tags":  [
+                     "smile",
+                     "happy",
+                     "emoji"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/smiley-emoji-fJ6sc1Zk2c",
+        "creatorName":  "jk kim",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/6afc298a-1152-11ee-a83b-bb6fdedf312d/IWLnpmxQ1e.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/smiley-emoji.json",
+        "width":  1500,
+        "height":  1500,
+        "size":  13506
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "emojis-love",
+        "name":  "Emojis - Love",
+        "fallbackName":  "Emojis love",
+        "tags":  [
+                     "love",
+                     "heart",
+                     "emoji"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/emojis-love-kYtnx3yyst",
+        "creatorName":  "Jon Ward",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/23ab9cfe-1162-11ee-be0d-430168da63f4/z0FoXDDWLJ.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/emojis-love.json",
+        "width":  500,
+        "height":  500,
+        "size":  11936
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "idea-emoji",
+        "name":  "Idea emoji",
+        "fallbackName":  "Idea emoji",
+        "tags":  [
+                     "idea",
+                     "light",
+                     "emoji"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/idea-emoji-NafbrpMLLK",
+        "creatorName":  "Anshul Bhatia",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/ae1ad146-117d-11ee-b89c-734442107338/jVJOp49tXs.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/idea-emoji.json",
+        "width":  600,
+        "height":  600,
+        "size":  26377
+    },
+    {
+        "packId":  "lottiefiles-emoji",
+        "id":  "emoji-generic",
+        "name":  "Emoji",
+        "fallbackName":  "Emoji",
+        "tags":  [
+                     "emoji",
+                     "reaction"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/emoji-qgFPfc3TdE",
+        "creatorName":  "LanaNguyen",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/372fb132-cc94-11ee-a8b2-5f11b1d51d05/eRtPNFOaM0.lottie",
+        "file":  "/stickers/lottie/lottiefiles-emoji/emoji-generic.json",
+        "width":  500,
+        "height":  500,
+        "size":  14040
+    }
+]

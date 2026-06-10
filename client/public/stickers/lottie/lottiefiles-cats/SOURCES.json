@@ -1,0 +1,115 @@
+﻿[
+    {
+        "packId":  "lottiefiles-cats",
+        "id":  "cat-playing",
+        "name":  "Cat playing animation",
+        "fallbackName":  "Cat playing",
+        "tags":  [
+                     "cat",
+                     "play",
+                     "cute"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/cat-playing-animation-1cwXJbHzz7",
+        "creatorName":  "Abdul Latif",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/e88e947e-117e-11ee-b32b-1f49352a17f5/h9q2N827xF.lottie",
+        "file":  "/stickers/lottie/lottiefiles-cats/cat-playing.json",
+        "width":  1070,
+        "height":  456,
+        "size":  65934
+    },
+    {
+        "packId":  "lottiefiles-cats",
+        "id":  "cat-typing",
+        "name":  "Cat typing",
+        "fallbackName":  "Cat typing",
+        "tags":  [
+                     "cat",
+                     "typing",
+                     "work"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/cat-typing-KARC3za3ij",
+        "creatorName":  "Kelly Loh",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/6ca2e0da-c68d-11ee-ad85-1bdaabc3acb5/ZkJsgE3Xy0.lottie",
+        "file":  "/stickers/lottie/lottiefiles-cats/cat-typing.json",
+        "width":  500,
+        "height":  500,
+        "size":  13423
+    },
+    {
+        "packId":  "lottiefiles-cats",
+        "id":  "cat-pookie",
+        "name":  "Cat Pookie",
+        "fallbackName":  "Cat pookie",
+        "tags":  [
+                     "cat",
+                     "cute"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/cat-pookie-Xn4nExF37z",
+        "creatorName":  "Viktoriia",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/4e784ad0-f128-11ee-bbb7-b76f60dbd4ce/1auxNojWLm.lottie",
+        "file":  "/stickers/lottie/lottiefiles-cats/cat-pookie.json",
+        "width":  800,
+        "height":  800,
+        "size":  46106
+    },
+    {
+        "packId":  "lottiefiles-cats",
+        "id":  "8-bit-cat",
+        "name":  "8-bit Cat",
+        "fallbackName":  "8-bit cat",
+        "tags":  [
+                     "cat",
+                     "8bit",
+                     "retro"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/8-bit-cat-BSlQH8qg6q",
+        "creatorName":  "Yaamin",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/fceb21a2-4d7e-11ef-9b93-73f27179fc5e/ftodabZA3k.lottie",
+        "file":  "/stickers/lottie/lottiefiles-cats/8-bit-cat.json",
+        "width":  356,
+        "height":  364,
+        "size":  481374
+    },
+    {
+        "packId":  "lottiefiles-cats",
+        "id":  "dance-cat",
+        "name":  "Dance cat",
+        "fallbackName":  "Dance cat",
+        "tags":  [
+                     "cat",
+                     "dance",
+                     "party"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/dance-cat-5wfbtgfSi0",
+        "creatorName":  "Alice",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/189cc3fc-b31e-11ee-b055-5ff315846604/qti0Fn7Efd.lottie",
+        "file":  "/stickers/lottie/lottiefiles-cats/dance-cat.json",
+        "width":  512,
+        "height":  512,
+        "size":  132934
+    },
+    {
+        "packId":  "lottiefiles-cats",
+        "id":  "cat-fishing-moon",
+        "name":  "Cat fishing on moon",
+        "fallbackName":  "Cat fishing on moon",
+        "tags":  [
+                     "cat",
+                     "moon",
+                     "sleep"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/cat-fishing-on-moon-Bz64NakoZn",
+        "creatorName":  "Mohammad Saiduzzaman",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/7260a746-a612-11ee-b2ee-2f3d03bd5fdb/oqNsqxh0Bd.lottie",
+        "file":  "/stickers/lottie/lottiefiles-cats/cat-fishing-moon.json",
+        "width":  1000,
+        "height":  1000,
+        "size":  292886
+    }
+]

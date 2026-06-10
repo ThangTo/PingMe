@@ -1,0 +1,135 @@
+﻿[
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "success",
+        "name":  "Success",
+        "fallbackName":  "Success",
+        "tags":  [
+                     "success",
+                     "done",
+                     "ok"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/success-aaVgZ7HEj3",
+        "creatorName":  "Shihab",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/0870dea4-1176-11ee-9970-07d98c886e0d/qTYE6EkzCo.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/success.json",
+        "width":  400,
+        "height":  400,
+        "size":  4438
+    },
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "idea",
+        "name":  "Idea",
+        "fallbackName":  "Idea",
+        "tags":  [
+                     "idea",
+                     "light",
+                     "work"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/idea-2xuoUIZh6Z",
+        "creatorName":  "TheSub",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/031f9a1e-1188-11ee-b7d2-3f385b310604/lSWX5WBrTl.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/idea.json",
+        "width":  512,
+        "height":  512,
+        "size":  32284
+    },
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "frustration",
+        "name":  "Frustration Sticker",
+        "fallbackName":  "Frustration sticker",
+        "tags":  [
+                     "frustration",
+                     "angry",
+                     "stress"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/frustration-sticker-aTcVAl23XL",
+        "creatorName":  "Restful",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/bd2babe0-230d-11ef-87ac-bfe1d0bffa38/f5z0gp1lTn.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/frustration.json",
+        "width":  1000,
+        "height":  1000,
+        "size":  22015
+    },
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "checkmark-green",
+        "name":  "checkmark-green-transparent",
+        "fallbackName":  "Checkmark green",
+        "tags":  [
+                     "check",
+                     "done",
+                     "ok"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/checkmark-green-transparent-Vakhxlp92G",
+        "creatorName":  "Nazuri Harun",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/71ac41e2-1162-11ee-be2b-8f2f0c77c8e9/Hs2WyQhOsm.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/checkmark-green.json",
+        "width":  200,
+        "height":  200,
+        "size":  2836
+    },
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "buying-success",
+        "name":  "Buying something successfully from app",
+        "fallbackName":  "Buying successfully",
+        "tags":  [
+                     "buy",
+                     "success",
+                     "done"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/buying-something-successfully-from-app-75A1iO3z8J",
+        "creatorName":  "Abdul Latif",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/e35b680c-117d-11ee-ba44-179ab46ac952/pl0OGmuFTc.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/buying-success.json",
+        "width":  1080,
+        "height":  1080,
+        "size":  154375
+    },
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "star",
+        "name":  "star",
+        "fallbackName":  "Star",
+        "tags":  [
+                     "star",
+                     "favorite",
+                     "sparkle"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/star-YYFe7koQtA",
+        "creatorName":  "idea ideas",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/0d867e0c-1154-11ee-92cc-4fa7b2203cbb/yNZTcTsMX3.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/star.json",
+        "width":  44,
+        "height":  44,
+        "size":  32767
+    },
+    {
+        "packId":  "lottiefiles-stickers",
+        "id":  "book",
+        "name":  "Book",
+        "fallbackName":  "Book",
+        "tags":  [
+                     "book",
+                     "read",
+                     "study"
+                 ],
+        "sourceUrl":  "https://lottiefiles.com/free-animation/book-BuSGQCnO0K",
+        "creatorName":  "TheSub",
+        "creatorUrl":  "",
+        "lottieUrl":  "https://assets-v2.lottiefiles.com/a/7b3cd1e8-1187-11ee-9760-e361891f1f92/y9MJT1Q9ZH.lottie",
+        "file":  "/stickers/lottie/lottiefiles-stickers/book.json",
+        "width":  512,
+        "height":  512,
+        "size":  481081
+    }
+]

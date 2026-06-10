@@ -8,6 +8,7 @@ import Session from '../models/Session.js';
 import User from '../models/User.js';
 import { updateMessageLinkPreview } from '../services/linkPreview.service.js';
 import { createNotification } from '../services/notification.service.js';
+import { normalizeStickerForMessage } from '../services/sticker.service.js';
 import {
   sendIncomingCallPushToUser,
   sendMessagePushToUsers,
@@ -132,6 +133,11 @@ const resolveMentionUserIds = async ({ content, memberIds, senderId }) => {
 
 const getMessageNotificationBody = (messagePayload) => {
   if (messagePayload.content) return messagePayload.content;
+  if (messagePayload.messageType === 'sticker' || messagePayload.sticker?.url) {
+    return messagePayload.sticker?.name
+      ? `Nhãn dán: ${messagePayload.sticker.name}`
+      : 'Đã gửi nhãn dán';
+  }
   if (messagePayload.messageType === 'image') return 'Đã gửi ảnh';
   if (messagePayload.messageType === 'audio') return 'Đã gửi tin nhắn thoại';
   if (messagePayload.messageType === 'video') return 'Đã gửi video';
@@ -555,6 +561,8 @@ const formatReplyPreview = (message) => {
     senderId: message.sender?._id?.toString() || message.sender?.toString(),
     senderName: message.sender?.username || '',
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    messageType: message.messageType || 'text',
+    sticker: message.isDeleted ? null : message.sticker || null,
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -574,6 +582,8 @@ const formatPinnedMessage = (message) => {
     senderId: message.sender?._id?.toString() || message.sender?.toString(),
     senderName: message.sender?.username || '',
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    messageType: message.messageType || 'text',
+    sticker: message.isDeleted ? null : message.sticker || null,
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -1299,14 +1309,23 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { tempId, conversationId, recipientId, content, attachment, attachments, replyToId } =
+        const { tempId, conversationId, recipientId, content, attachment, attachments, sticker, replyToId } =
           data;
         const senderId = socket.userId;
         const cleanContent = typeof content === 'string' ? content.trim() : '';
         const normalizedAttachments = normalizeAttachmentList({ attachment, attachments });
         const primaryAttachment = getPrimaryAttachment(attachment, normalizedAttachments);
+        let normalizedSticker = null;
+        if (sticker) {
+          try {
+            normalizedSticker = await normalizeStickerForMessage(sticker);
+          } catch {
+            socket.emit('error', { message: 'Nhãn dán không hợp lệ' });
+            return;
+          }
+        }
 
-        if (!cleanContent && normalizedAttachments.length === 0) {
+        if (!cleanContent && normalizedAttachments.length === 0 && !normalizedSticker) {
           socket.emit('error', { message: 'Nội dung tin nhắn không được rỗng' });
           return;
         }
@@ -1357,7 +1376,8 @@ const socketHandler = (io) => {
           content: cleanContent,
           attachment: primaryAttachment,
           attachments: normalizedAttachments,
-          messageType: getMessageTypeFromAttachments(normalizedAttachments),
+          messageType: normalizedSticker ? 'sticker' : getMessageTypeFromAttachments(normalizedAttachments),
+          sticker: normalizedSticker,
           status: 'sent',
           replyTo: replyToMessage?._id || null,
           mentions: mentionIds,
@@ -1377,6 +1397,7 @@ const socketHandler = (io) => {
           status: newMessage.status,
           content: newMessage.content,
           messageType: newMessage.messageType,
+          sticker: newMessage.sticker || null,
           attachment: newMessage.attachment,
           attachments: newMessage.attachments || [],
           linkPreview: newMessage.linkPreview || null,
@@ -1394,6 +1415,7 @@ const socketHandler = (io) => {
           recipientId: resolvedRecipientId,
           content: newMessage.content,
           messageType: newMessage.messageType,
+          sticker: newMessage.sticker || null,
           attachment: newMessage.attachment,
           attachments: newMessage.attachments || [],
           linkPreview: newMessage.linkPreview || null,
@@ -1844,6 +1866,7 @@ const socketHandler = (io) => {
         message.attachment = null;
         message.attachments = [];
         message.linkPreview = null;
+        message.sticker = null;
         message.messageType = 'text';
         message.reactions = [];
         message.isEdited = false;
@@ -1872,7 +1895,7 @@ const socketHandler = (io) => {
 
         const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
           .sort({ createdAt: -1 })
-          .select('content attachment attachments createdAt isDeleted messageType callDetails')
+          .select('content attachment attachments sticker createdAt isDeleted messageType callDetails')
           .lean();
 
         emitToUsers(io, participantIds, 'message_deleted', {
@@ -1882,6 +1905,7 @@ const socketHandler = (io) => {
           recipientId,
           content: REVOKED_MESSAGE_TEXT,
           attachment: null,
+          sticker: null,
           attachments: [],
           linkPreview: null,
           reactions: [],
@@ -1898,6 +1922,9 @@ const socketHandler = (io) => {
                 attachment: conversationLastMessage.isDeleted
                   ? null
                   : conversationLastMessage.attachment,
+                sticker: conversationLastMessage.isDeleted
+                  ? null
+                  : conversationLastMessage.sticker || null,
                 attachments: conversationLastMessage.isDeleted
                   ? []
                   : normalizeAttachmentList({

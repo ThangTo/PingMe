@@ -40,7 +40,7 @@ const PublicRoute = ({ children }) => {
  */
 const AnimatedRoutes = () => {
   return (
-    <Suspense fallback={<LoadingState fullscreen label="Äang táº£i PingMe..." />}>
+    <Suspense fallback={<LoadingState fullscreen label="Đang tải PingMe..." />}>
       <Routes>
         {/* Public routes wrapped in AuthLayout (Framer Motion 3D Peel) */}
         <Route element={<AuthLayout />}>

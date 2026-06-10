@@ -439,7 +439,7 @@ const Sidebar = ({
           disabled={loading}
           className="h-9 w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-50"
         >
-          {loading ? 'Äang táº£i...' : 'Táº£i thÃªm'}
+          {loading ? 'Đang tải...' : 'Tải thêm'}
         </button>
       </div>
     );

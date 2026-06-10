@@ -21,6 +21,9 @@ const getPinnedPreviewText = (message) => {
 
   const attachments = getMessageAttachments(message);
   if (message.content) return message.content;
+  if (message.messageType === 'sticker' || message.sticker?.url) {
+    return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Đã gửi nhãn dán';
+  }
   if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
@@ -128,7 +131,8 @@ const ChatArea = ({
       const filenames = getMessageAttachments(message)
         .map((attachment) => attachment.filename || '')
         .join(' ');
-      return `${content} ${filenames}`.toLowerCase().includes(query);
+      const stickerName = message.sticker?.name || '';
+      return `${content} ${filenames} ${stickerName}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
   const searchMatchIds = useMemo(() => {
@@ -141,7 +145,8 @@ const ChatArea = ({
         const filenames = getMessageAttachments(message)
           .map((attachment) => attachment.filename || '')
           .join(' ');
-        return `${content} ${filenames}`.toLowerCase().includes(query);
+        const stickerName = message.sticker?.name || '';
+        return `${content} ${filenames} ${stickerName}`.toLowerCase().includes(query);
       })
       .map((message) => message.id)
       .filter(Boolean);

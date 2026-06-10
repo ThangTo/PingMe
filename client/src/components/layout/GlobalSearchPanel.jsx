@@ -20,6 +20,14 @@ const formatResultDate = (value) =>
       })
     : '';
 
+const getResultPreview = (result = {}) => {
+  if (result.content) return result.content;
+  if (result.messageType === 'sticker' || result.sticker?.url) {
+    return result.sticker?.name ? `Nhãn dán: ${result.sticker.name}` : 'Đã gửi nhãn dán';
+  }
+  return 'Tin nhắn';
+};
+
 const MobilePanelNav = ({ onNavigate, connectionRequestCount = 0 }) => (
   <nav className="grid h-[68px] shrink-0 grid-cols-4 border-t border-outline-variant bg-surface md:hidden">
     {[
@@ -100,7 +108,7 @@ const GlobalSearchPanel = ({
     results.forEach((result) => {
       const attachments = result.attachments || (result.attachment ? [result.attachment] : []);
       if (attachments.length > 0) files.push(result);
-      if (result.content) messages.push(result);
+      if (result.content || result.messageType === 'sticker' || result.sticker?.url) messages.push(result);
     });
 
     return { messages, files };
@@ -270,7 +278,7 @@ const GlobalSearchPanel = ({
                           <span className="mt-1 block line-clamp-2 text-[12px] leading-5 text-on-surface-variant">
                             {activeType === 'files'
                               ? `${attachment?.sizeLabel || attachment?.type || 'Tệp'} · ${getConversationName(result)}`
-                              : result.content}
+                              : getResultPreview(result)}
                           </span>
                           <span className="mt-1.5 flex items-center gap-1.5 text-[10px] text-on-surface-variant">
                             <AppIcon name="chat_bubble" className="text-[12px]" />

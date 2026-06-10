@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "assets:brand": "node scripts/optimize-brand-assets.js",
+    "assets:stickers": "node scripts/generate-sticker-assets.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -14,6 +15,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "axios": "^1.13.2",
     "framer-motion": "^12.38.0",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -1,5 +1,5 @@
 const DEFAULT_ICON = '/logo.png';
-const SW_VERSION = 'pingme-pwa-v3';
+const SW_VERSION = 'pingme-pwa-v4';
 const APP_SHELL_CACHE = `${SW_VERSION}-shell`;
 const RUNTIME_CACHE = `${SW_VERSION}-runtime`;
 const APP_SHELL_URLS = [
@@ -44,7 +44,7 @@ const cacheFirst = async (request) => {
 
 const networkFirstNavigation = async (request) => {
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: 'no-store' });
     if (response && response.ok) {
       const cache = await caches.open(APP_SHELL_CACHE);
       cache.put('/index.html', response.clone());

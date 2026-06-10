@@ -59,6 +59,7 @@ const searchController = {
             { content: { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'attachments.filename': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'attachment.filename': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' } },
           ],
         })
           .sort({ createdAt: -1 })
@@ -67,6 +68,24 @@ const searchController = {
           .populate('sender', 'username avatar')
           .populate('conversation', 'type title avatar members')
           .lean();
+      }
+
+      if (messages.length < limit + 1) {
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const stickerMessages = await Message.find({
+          ...baseQuery,
+          'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' },
+          _id: { $nin: messages.map((message) => message._id) },
+        })
+          .sort({ createdAt: -1 })
+          .limit(limit + 1 - messages.length)
+          .populate('sender', 'username avatar')
+          .populate('conversation', 'type title avatar members')
+          .lean();
+
+        messages = [...messages, ...stickerMessages].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+        );
       }
 
       const pagedMessages = messages.slice(0, limit);
@@ -79,6 +98,8 @@ const searchController = {
         senderName: message.sender?.username || '',
         senderAvatar: message.sender?.avatar || '',
         content: message.content || '',
+        messageType: message.messageType || 'text',
+        sticker: message.sticker || null,
         attachment: message.attachment || null,
         attachments: message.attachments || [],
         createdAt: message.createdAt,

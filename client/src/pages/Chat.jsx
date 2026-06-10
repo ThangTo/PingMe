@@ -125,9 +125,13 @@ const getMessagePreview = (
   attachments = [],
   messageType = 'text',
   callDetails = null,
+  sticker = null,
 ) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (messageType === 'call') return getCallPreviewText(callDetails, content);
+  if (messageType === 'sticker' || sticker?.url) {
+    return sticker?.name ? `Nhãn dán: ${sticker.name}` : 'Đã gửi nhãn dán';
+  }
   if (content) return content;
 
   const messageAttachments = getMessageAttachments({ attachment, attachments });
@@ -174,6 +178,7 @@ const showHiddenTabMessageNotification = ({ message, conversationId, conversatio
       attachments,
       message.messageType,
       message.callDetails,
+      message.sticker,
     ),
   );
   const senderName = message.senderName || 'PingMe';
@@ -229,6 +234,8 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     senderId,
     senderName,
     content: isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
+    messageType: message.messageType || 'text',
+    sticker: isDeleted ? null : message.sticker || null,
     attachment: isDeleted ? null : message.attachment || null,
     attachments: isDeleted ? [] : getMessageAttachments(message),
     isDeleted,
@@ -246,6 +253,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   senderAvatar: msg.sender?.avatar || msg.senderAvatar || '',
   content: msg.content,
   messageType: msg.messageType || 'text',
+  sticker: msg.sticker || null,
   callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
@@ -1010,6 +1018,8 @@ const Chat = () => {
   }, [user, fetchFriends]);
 
   useEffect(() => {
+    let isActive = true;
+
     const fetchMessages = async () => {
       if (!selectedConversationId) {
         resetMessageWindow();
@@ -1020,6 +1030,7 @@ const Chat = () => {
       try {
         setIsMessagesLoading(true);
         setMessagesError('');
+        const fetchStartedAt = Date.now();
         const targetMessageId =
           messageTargetRef.current?.conversationId === selectedConversationId
             ? messageTargetRef.current.messageId
@@ -1029,11 +1040,20 @@ const Chat = () => {
             ? { targetMessageId, limit: MESSAGE_PAGE_LIMIT }
             : { limit: MESSAGE_PAGE_LIMIT },
         });
+        if (!isActive) return;
+
         if (response.data.success) {
           const normalizedMessages = response.data.messages.map((msg) =>
             normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
           );
-          resetMessageWindow(normalizedMessages);
+          const messagesCreatedDuringFetch = messagesRef.current.filter((message) => {
+            if (message.conversationId !== selectedConversationId) return false;
+            const messageTimestamp = new Date(message.timestamp).getTime();
+            return message.status === 'sending' || messageTimestamp >= fetchStartedAt;
+          });
+          const nextMessages = mergeMessagesById(normalizedMessages, messagesCreatedDuringFetch);
+
+          resetMessageWindow(nextMessages);
           setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
           if (targetMessageId) {
             messageTargetRef.current = null;
@@ -1041,10 +1061,10 @@ const Chat = () => {
           }
 
           const unreadMessageIds = user?.id
-            ? getUnreadMessageIds(normalizedMessages, user.id)
+            ? getUnreadMessageIds(nextMessages, user.id)
             : [];
           const readThroughMessageId = user?.id
-            ? getReadThroughMessageId(normalizedMessages, user.id)
+            ? getReadThroughMessageId(nextMessages, user.id)
             : null;
 
           if (user && user.id && readThroughMessageId && document.hasFocus()) {
@@ -1069,16 +1089,21 @@ const Chat = () => {
           }
         }
       } catch (error) {
+        if (!isActive) return;
         console.error('Lỗi khi lấy tin nhắn:', error);
         if (messageTargetRef.current?.conversationId === selectedConversationId) {
           messageTargetRef.current = null;
         }
         setMessagesError('Không thể tải lịch sử tin nhắn');
       } finally {
-        setIsMessagesLoading(false);
+        if (isActive) setIsMessagesLoading(false);
       }
     };
     fetchMessages();
+
+    return () => {
+      isActive = false;
+    };
   }, [selectedConversationId, user, currentChatUserName, resetMessageWindow]);
 
   const loadOlderMessages = useCallback(async () => {
@@ -1209,6 +1234,7 @@ const Chat = () => {
       const incomingMessage = {
         ...data,
         messageType: data.messageType || 'text',
+        sticker: data.sticker || null,
         callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
@@ -1238,6 +1264,7 @@ const Chat = () => {
           incomingAttachments,
           data.messageType,
           data.callDetails,
+          data.sticker,
         );
         const shouldShowAppToast = !isCurrentConversation;
 
@@ -1286,6 +1313,7 @@ const Chat = () => {
             incomingAttachments,
             data.messageType,
             data.callDetails,
+            data.sticker,
           ),
           lastMessageAt: data.timestamp,
           unreadCount: isOwnMessage
@@ -1454,6 +1482,7 @@ const Chat = () => {
                 status: data.status,
                 content: data.content || msg.content,
                 messageType: data.messageType || msg.messageType || 'text',
+                sticker: data.sticker || msg.sticker || null,
                 callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
@@ -1630,6 +1659,8 @@ const Chat = () => {
             return {
               ...msg,
               content: data.content || REVOKED_MESSAGE_TEXT,
+              messageType: 'text',
+              sticker: null,
               attachment: null,
               attachments: [],
               linkPreview: null,
@@ -1647,6 +1678,8 @@ const Chat = () => {
               replyTo: {
                 ...msg.replyTo,
                 content: REVOKED_MESSAGE_TEXT,
+                messageType: 'text',
+                sticker: null,
                 attachment: null,
                 attachments: [],
                 isDeleted: true,
@@ -1664,6 +1697,7 @@ const Chat = () => {
           ? {
               ...prev,
               content: REVOKED_MESSAGE_TEXT,
+              sticker: null,
               attachment: null,
               attachments: [],
               isDeleted: true,
@@ -1684,6 +1718,7 @@ const Chat = () => {
                       lastMessage.attachments,
                       lastMessage.messageType,
                       lastMessage.callDetails,
+                      lastMessage.sticker,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -1792,15 +1827,16 @@ const Chat = () => {
     }
   };
 
-  const handleSendMessage = (content, attachment, replyTo = replyingMessage, attachments = []) => {
+  const handleSendMessage = (content, attachment, replyTo = replyingMessage, attachments = [], options = {}) => {
     if (!selectedConversationId || !user) return;
     const tempId = crypto.randomUUID();
     const replyPreview = normalizeReplyPreview(replyTo, user, currentChatUser);
     const cleanContent = typeof content === 'string' ? content.trim() : '';
     const messageAttachments = getMessageAttachments({ attachment, attachments });
     const primaryAttachment = attachment || messageAttachments[0] || null;
+    const sticker = options?.sticker || null;
 
-    if (!cleanContent && messageAttachments.length === 0) return;
+    if (!cleanContent && messageAttachments.length === 0 && !sticker?.url) return;
 
     const messageData = {
       tempId,
@@ -1809,6 +1845,7 @@ const Chat = () => {
       content: cleanContent,
       attachment: primaryAttachment,
       attachments: messageAttachments,
+      sticker,
       replyToId: replyPreview?.id || null,
     };
     socket.emit('send_message', messageData);
@@ -1820,9 +1857,12 @@ const Chat = () => {
       senderName: user.username || 'Bạn',
       senderAvatar: user.avatar || '',
       content: cleanContent,
-      messageType: getMessageAttachments({ attachment: primaryAttachment, attachments: messageAttachments }).length
-        ? 'file'
-        : 'text',
+      messageType: sticker?.url
+        ? 'sticker'
+        : getMessageAttachments({ attachment: primaryAttachment, attachments: messageAttachments }).length
+          ? 'file'
+          : 'text',
+      sticker,
       callDetails: null,
       timestamp: new Date().toISOString(),
       status: 'sending',
@@ -1839,7 +1879,15 @@ const Chat = () => {
       if (!targetConv) return prev;
       const updatedTarget = {
         ...targetConv,
-        lastMessage: getMessagePreview(cleanContent, primaryAttachment, false, messageAttachments),
+        lastMessage: getMessagePreview(
+          cleanContent,
+          primaryAttachment,
+          false,
+          messageAttachments,
+          sticker?.url ? 'sticker' : undefined,
+          null,
+          sticker,
+        ),
         lastMessageAt: newMessage.timestamp,
       };
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);

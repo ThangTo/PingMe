@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import EmojiPicker from './EmojiPicker';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
+import StickerArtwork from '../ui/StickerArtwork';
 
 const MESSAGE_URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[),.!?:;]+$/;
@@ -23,6 +24,9 @@ const getReplyPreviewText = (replyTo) => {
 
   const attachments = getMessageAttachments(replyTo);
   if (replyTo.content) return replyTo.content;
+  if (replyTo.messageType === 'sticker' || replyTo.sticker?.url) {
+    return replyTo.sticker?.name ? `Nhãn dán: ${replyTo.sticker.name}` : 'Đã gửi nhãn dán';
+  }
   if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
@@ -358,6 +362,8 @@ const MessageBubble = ({
 
   const isRevoked = Boolean(message.isDeleted);
   const isCallMessage = message.messageType === 'call';
+  const isStickerMessage =
+    !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
   const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
   const attachments = getMessageAttachments(message);
   const imageAttachments = attachments.filter((attachment) => attachment.type === 'image');
@@ -366,6 +372,7 @@ const MessageBubble = ({
     (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
   );
   const hasAttachments = attachments.length > 0;
+  const shouldRenderTextBubble = Boolean(message.content) || (!hasAttachments && !isStickerMessage);
   const linkPreview = !isRevoked ? message.linkPreview : null;
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
@@ -831,6 +838,17 @@ const MessageBubble = ({
                 className={`relative flex min-w-0 max-w-[min(350px,76vw)] flex-col gap-1 md:max-w-[min(560px,70vw)] ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
+                {isStickerMessage && (
+                  <div className={`relative ${isOwn ? 'self-end' : 'self-start'}`}>
+                    <StickerArtwork
+                      sticker={message.sticker}
+                      className="h-32 w-32 object-contain drop-shadow-sm md:h-40 md:w-40"
+                    />
+                    {message.sticker.name && (
+                      <span className="sr-only">{message.sticker.name}</span>
+                    )}
+                  </div>
+                )}
                 {imageAttachments.length > 0 && (
                   <>
                     <div className="md:hidden">
@@ -1041,7 +1059,7 @@ const MessageBubble = ({
                   </div>
                 )}
 
-                {message.content || !hasAttachments ? (
+                {shouldRenderTextBubble ? (
                   <div
                     className={`min-w-0 max-w-[min(320px,64vw)] rounded-[12px] px-3.5 py-2.5 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere] md:max-w-[min(520px,68vw)] ${
                       isOwn

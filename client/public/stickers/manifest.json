@@ -1,0 +1,282 @@
+[
+  {
+    "id": "pingme-cute",
+    "name": "PingMe Cute",
+    "description": "Nhãn dán dễ thương cho cuộc trò chuyện hằng ngày.",
+    "thumbnail": "/stickers/pingme-cute/happy-bun.svg",
+    "stickers": [
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "happy-bun",
+        "name": "Vui quá",
+        "url": "/stickers/pingme-cute/happy-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/happy-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "heart-bun",
+        "name": "Thả tim",
+        "url": "/stickers/pingme-cute/heart-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/heart-bun.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "laugh-bun",
+        "name": "Cười xỉu",
+        "url": "/stickers/pingme-cute/laugh-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/laugh-bun.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "cry-bun",
+        "name": "Khóc nhè",
+        "url": "/stickers/pingme-cute/cry-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/cry-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "shy-bun",
+        "name": "Ngại quá",
+        "url": "/stickers/pingme-cute/shy-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/shy-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "ok-bun",
+        "name": "Ok luôn",
+        "url": "/stickers/pingme-cute/ok-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/ok-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "thanks-bun",
+        "name": "Cảm ơn nha",
+        "url": "/stickers/pingme-cute/thanks-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/thanks-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "hug-bun",
+        "name": "Ôm một cái",
+        "url": "/stickers/pingme-cute/hug-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/hug-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "wave-bun",
+        "name": "Xin chào",
+        "url": "/stickers/pingme-cute/wave-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/wave-bun.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "wow-bun",
+        "name": "Bất ngờ",
+        "url": "/stickers/pingme-cute/wow-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/wow-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "angry-bun",
+        "name": "Dỗi rồi",
+        "url": "/stickers/pingme-cute/angry-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/angry-bun.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "pingme-cute",
+        "stickerId": "sparkle-bun",
+        "name": "Lấp lánh",
+        "url": "/stickers/pingme-cute/sparkle-bun.svg",
+        "previewUrl": "/stickers/pingme-cute/sparkle-bun.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      }
+    ]
+  },
+  {
+    "id": "moods",
+    "name": "Moods",
+    "description": "Cảm xúc nhanh cho công việc, nhóm và bạn bè.",
+    "thumbnail": "/stickers/moods/sleepy-mood.svg",
+    "stickers": [
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "sleepy-mood",
+        "name": "Buồn ngủ",
+        "url": "/stickers/moods/sleepy-mood.svg",
+        "previewUrl": "/stickers/moods/sleepy-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "work-mood",
+        "name": "Đang làm đây",
+        "url": "/stickers/moods/work-mood.svg",
+        "previewUrl": "/stickers/moods/work-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "done-mood",
+        "name": "Xong rồi",
+        "url": "/stickers/moods/done-mood.svg",
+        "previewUrl": "/stickers/moods/done-mood.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "stress-mood",
+        "name": "Bất lực",
+        "url": "/stickers/moods/stress-mood.svg",
+        "previewUrl": "/stickers/moods/stress-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "party-mood",
+        "name": "Ăn mừng",
+        "url": "/stickers/moods/party-mood.svg",
+        "previewUrl": "/stickers/moods/party-mood.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "coffee-mood",
+        "name": "Cà phê đã",
+        "url": "/stickers/moods/coffee-mood.svg",
+        "previewUrl": "/stickers/moods/coffee-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "idea-mood",
+        "name": "Có ý tưởng",
+        "url": "/stickers/moods/idea-mood.svg",
+        "previewUrl": "/stickers/moods/idea-mood.svg",
+        "animated": true,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "sorry-mood",
+        "name": "Xin lỗi nha",
+        "url": "/stickers/moods/sorry-mood.svg",
+        "previewUrl": "/stickers/moods/sorry-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "agree-mood",
+        "name": "Đồng ý",
+        "url": "/stickers/moods/agree-mood.svg",
+        "previewUrl": "/stickers/moods/agree-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "nope-mood",
+        "name": "Không nha",
+        "url": "/stickers/moods/nope-mood.svg",
+        "previewUrl": "/stickers/moods/nope-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "later-mood",
+        "name": "Để lát nữa",
+        "url": "/stickers/moods/later-mood.svg",
+        "previewUrl": "/stickers/moods/later-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      },
+      {
+        "source": "builtin",
+        "packId": "moods",
+        "stickerId": "focus-mood",
+        "name": "Tập trung",
+        "url": "/stickers/moods/focus-mood.svg",
+        "previewUrl": "/stickers/moods/focus-mood.svg",
+        "animated": false,
+        "width": 320,
+        "height": 320
+      }
+    ]
+  }
+]

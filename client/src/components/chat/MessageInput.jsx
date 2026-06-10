@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
+
+const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const MAX_ATTACHMENTS = 5;
 const TYPING_IDLE_TIMEOUT_MS = 1500;
 const TYPING_KEEPALIVE_MS = 2500;
+const RECENT_EMOJIS_STORAGE_KEY = 'pingme_recent_emojis';
 const ACCEPTED_FILE_TYPES =
   'image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.csv,.json,.js,.jsx,.ts,.tsx,.html,.css,.md';
 const AUDIO_MIME_TYPES = [
@@ -15,6 +18,15 @@ const AUDIO_MIME_TYPES = [
   'audio/mp4',
   'audio/ogg;codecs=opus',
 ];
+
+const loadRecentEmojis = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(RECENT_EMOJIS_STORAGE_KEY) || '[]');
+    return Array.isArray(stored) ? stored.slice(0, 16) : [];
+  } catch {
+    return [];
+  }
+};
 
 const getMessageAttachments = (message = {}) => {
   if (Array.isArray(message.attachments) && message.attachments.length > 0) {
@@ -29,6 +41,11 @@ const getReplyPreviewText = (replyingMessage) => {
 
   const attachments = getMessageAttachments(replyingMessage);
   if (replyingMessage.content) return replyingMessage.content;
+  if (replyingMessage.messageType === 'sticker' || replyingMessage.sticker?.url) {
+    return replyingMessage.sticker?.name
+      ? `Nhãn dán: ${replyingMessage.sticker.name}`
+      : 'Đã gửi nhãn dán';
+  }
   if (attachments.length === 1 && attachments[0].type === 'audio') return 'Tin nhắn thoại';
   if (attachments.length === 1) return attachments[0].filename || 'Tệp đính kèm';
   if (attachments.length > 1 && attachments.every((item) => item.type === 'image')) {
@@ -235,8 +252,13 @@ const MessageInput = ({
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const [voiceDuration, setVoiceDuration] = useState(0);
   const [voiceError, setVoiceError] = useState('');
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [activePickerTab, setActivePickerTab] = useState('emoji');
+  const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
+  const pickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
   const wasEditingRef = useRef(false);
   const isTypingRef = useRef(false);
   const lastTypingEmitAtRef = useRef(0);
@@ -281,6 +303,27 @@ const MessageInput = ({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!isPickerOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (pickerRef.current?.contains(event.target)) return;
+      if (emojiButtonRef.current?.contains(event.target)) return;
+      setIsPickerOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsPickerOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPickerOpen]);
 
   const clearPreviews = () => {
     setPreviews((current) => {
@@ -352,14 +395,13 @@ const MessageInput = ({
     lastTypingEmitAtRef.current = 0;
   };
 
-  const handleTextChange = (e) => {
-    const nextMessage = e.target.value;
-    setMessage(nextMessage);
-
-    const el = e.target;
+  const resizeInput = (el = inputRef.current) => {
+    if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
 
+  const updateTypingState = (nextMessage) => {
     if (!nextMessage.trim()) {
       stopTypingNow();
       return;
@@ -378,6 +420,67 @@ const MessageInput = ({
     typingTimeoutRef.current = setTimeout(() => {
       stopTypingNow();
     }, TYPING_IDLE_TIMEOUT_MS);
+  };
+
+  const handleTextChange = (e) => {
+    const nextMessage = e.target.value;
+    setMessage(nextMessage);
+    resizeInput(e.target);
+    updateTypingState(nextMessage);
+  };
+
+  const rememberEmoji = (emoji) => {
+    setRecentEmojis((current) => {
+      const next = [emoji, ...current.filter((item) => item !== emoji)].slice(0, 16);
+      try {
+        localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage failures in private browsing modes.
+      }
+      return next;
+    });
+  };
+
+  const handleEmojiSelect = (emoji) => {
+    const input = inputRef.current;
+    const selectionStart = input?.selectionStart ?? message.length;
+    const selectionEnd = input?.selectionEnd ?? message.length;
+    const nextMessage = `${message.slice(0, selectionStart)}${emoji}${message.slice(selectionEnd)}`;
+
+    setMessage(nextMessage);
+    rememberEmoji(emoji);
+    updateTypingState(nextMessage);
+
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(selectionStart + emoji.length, selectionStart + emoji.length);
+      resizeInput();
+    });
+  };
+
+  const handleStickerSelect = (sticker) => {
+    if (
+      disabled ||
+      editingMessage ||
+      hasPreviews ||
+      hasVoicePreview ||
+      isRecordingVoice ||
+      isUploading ||
+      isUploadingVoice
+    ) {
+      return;
+    }
+
+    onSendMessage('', null, replyingMessage, [], { sticker });
+    setIsPickerOpen(false);
+
+    if (!message.trim()) {
+      stopTypingNow();
+    }
+
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
   };
 
   const handleKeyDown = (e) => {
@@ -746,6 +849,14 @@ const MessageInput = ({
     !hasVoicePreview &&
     !isUploading &&
     !isUploadingVoice;
+  const canSendSticker =
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice;
 
   return (
     <footer className="shrink-0 border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
@@ -1041,10 +1152,11 @@ const MessageInput = ({
         className="hidden"
       />
 
-      <form
-        onSubmit={handleSubmit}
-        className="flex min-h-[48px] w-full items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
-      >
+      <div className="relative">
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-[48px] w-full items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
+        >
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -1077,12 +1189,17 @@ const MessageInput = ({
         />
 
         <button
+          ref={emojiButtonRef}
           type="button"
-          disabled={isRecordingVoice}
+          onClick={() => {
+            setActivePickerTab('emoji');
+            setIsPickerOpen((current) => !current);
+          }}
+          disabled={disabled || isRecordingVoice}
           className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
           title="Cảm xúc"
         >
-          <AppIcon name="sentiment_satisfied" className="text-[20px]" />
+          <AppIcon name="emoji_picker" className="text-[20px]" />
         </button>
 
         {!canSend && (
@@ -1111,7 +1228,30 @@ const MessageInput = ({
         >
           <AppIcon name={editingMessage ? 'check' : 'send'} className="text-[18px]" />
         </button>
-      </form>
+        </form>
+
+        {isPickerOpen && (
+          <div ref={pickerRef}>
+            <Suspense
+              fallback={
+                <div className="fixed inset-x-3 bottom-[74px] z-[120] h-56 rounded-[18px] border border-outline-variant bg-surface-container-lowest p-3 shadow-xl md:absolute md:inset-x-auto md:bottom-[calc(100%+10px)] md:right-0 md:w-[390px]">
+                  <div className="h-full animate-pulse rounded-[14px] bg-surface-container-low" />
+                </div>
+              }
+            >
+              <EmojiStickerPicker
+                activeTab={activePickerTab}
+                onTabChange={setActivePickerTab}
+                recentEmojis={recentEmojis}
+                onEmojiSelect={handleEmojiSelect}
+                onStickerSelect={handleStickerSelect}
+                onClose={() => setIsPickerOpen(false)}
+                disableStickers={!canSendSticker}
+              />
+            </Suspense>
+          </div>
+        )}
+      </div>
     </footer>
   );
 };

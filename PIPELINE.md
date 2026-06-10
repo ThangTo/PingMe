@@ -195,9 +195,9 @@ Mục tiêu: tìm nhanh người, conversation, message và media.
 | 7.1 Search friends/users | DONE | Search user trong sidebar |
 | 7.2 Search conversations | DONE | Filter local conversations |
 | 7.3 Search messages in current chat | DONE | Text/file-name search trong conversation hiện tại |
-| 7.4 Global message search | READY_TO_TEST | Search text/tên tệp trong các conversation user được phép xem |
+| 7.4 Global message search | DONE | Search text/tên tệp, mở đúng conversation và jump/highlight target đã UAT 2026-06-10 |
 | 7.5 Media/file search | DONE | Lọc media, file, link trong detail panel |
-| 7.6 Jump to message | READY_TO_TEST | Search/notification click -> tải window, scroll và highlight message |
+| 7.6 Jump to message | DONE | Search/notification click -> tải window, scroll và highlight message; đã UAT 2026-06-10 |
 
 Backend notes:
 
@@ -362,8 +362,8 @@ Mục tiêu: sản phẩm chịu dữ liệu lớn hơn demo.
 
 | Stage | Status | Output |
 |---|---|---|
-| A8.1 Pagination messages | READY_TO_TEST | Cursor pagination, load older messages, keep scroll position |
-| A8.2 Virtualized message list | READY_TO_TEST | `react-virtuoso`, auto-load older, giữ vị trí khi prepend |
+| A8.1 Pagination messages | DONE | Cursor pagination, load older, không trùng ID và giữ scroll; đã UAT desktop/mobile 2026-06-10 |
+| A8.2 Virtualized message list | DONE | `react-virtuoso`, auto-load older, giữ vị trí khi prepend; đã UAT desktop/mobile 2026-06-10 |
 | A8.3 Redis adapter for Socket.IO | PLANNED | Scale multi-server |
 | A8.4 Redis presence store | PLANNED | Online state not only in memory |
 | A8.5 Queue for heavy jobs | PLANNED | Upload processing, notifications |

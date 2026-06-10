@@ -17,6 +17,44 @@ const attachmentSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const stickerSchema = new mongoose.Schema(
+  {
+    source: {
+      type: String,
+      enum: ['builtin', 'giphy', 'lottie'],
+      required: true,
+    },
+    assetType: {
+      type: String,
+      enum: ['image', 'lottie'],
+      default: 'image',
+    },
+    packId: String,
+    stickerId: {
+      type: String,
+      required: true,
+    },
+    name: String,
+    url: {
+      type: String,
+      required: true,
+    },
+    previewUrl: String,
+    animated: {
+      type: Boolean,
+      default: false,
+    },
+    width: Number,
+    height: Number,
+    sourceUrl: String,
+    creatorName: String,
+    creatorUrl: String,
+    licenseName: String,
+    licenseUrl: String,
+  },
+  { _id: false },
+);
+
 const linkPreviewSchema = new mongoose.Schema(
   {
     url: String,
@@ -88,7 +126,7 @@ const messageSchema = new mongoose.Schema(
     // Loại tin nhắn: text, image, file, audio, video
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio', 'video', 'call'],
+      enum: ['text', 'image', 'file', 'audio', 'video', 'call', 'sticker'],
       default: 'text',
     },
 
@@ -103,6 +141,11 @@ const messageSchema = new mongoose.Schema(
 
     linkPreview: {
       type: linkPreviewSchema,
+      default: null,
+    },
+
+    sticker: {
+      type: stickerSchema,
       default: null,
     },
 
@@ -187,6 +230,7 @@ messageSchema.index({ conversation: 1, createdAt: -1 });
 messageSchema.index({ conversation: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ conversation: 1, recipient: 1, status: 1 });
 messageSchema.index({ roomId: 1 });
+messageSchema.index({ 'sticker.name': 1 });
 messageSchema.index({ createdAt: -1 }); // Sắp xếp theo thời gian mới nhất
 
 // Static method: Lấy tin nhắn giữa 2 users
@@ -212,7 +256,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sender isDeleted',
+      select: 'content attachment attachments sticker messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -226,7 +270,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sender isDeleted',
+      select: 'content attachment attachments sticker messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -241,7 +285,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sender isDeleted',
+      select: 'content attachment attachments sticker messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

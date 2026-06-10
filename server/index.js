@@ -19,6 +19,7 @@ import notificationRoutes from './routers/notification.routes.js';
 import pushRoutes from './routers/push.routes.js';
 import searchRoutes from './routers/search.routes.js';
 import socialRoutes from './routers/social.routes.js';
+import stickerRoutes from './routers/sticker.routes.js';
 import userRoutes from './routers/user.routes.js';
 import { startEmailQueueWorker } from './services/emailQueue.service.js';
 import { requestTimingMiddleware } from './middlewares/performance.middleware.js';
@@ -80,6 +81,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/social', socialRoutes);
+app.use('/api/stickers', stickerRoutes);
 app.use('/api/users', userRoutes);
 
 if (process.env.ENABLE_LEGACY_UPLOADS_STATIC === 'true') {
