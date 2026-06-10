@@ -1,4 +1,5 @@
-import wordmarkSrc from '../../assets/images/pingme_trans.png';
+const wordmarkWebpSrc = '/brand/pingme-wordmark.webp';
+const wordmarkPngSrc = '/brand/pingme-wordmark.png';
 
 const sizeClasses = {
   sm: 'h-8 w-[104px]',
@@ -11,12 +12,16 @@ const PingMeWordmark = ({ size = 'md', className = '' }) => (
     className={`block shrink-0 overflow-hidden ${sizeClasses[size] || sizeClasses.md} ${className}`}
     aria-label="PingMe"
   >
-    <img
-      src={wordmarkSrc}
-      alt=""
-      className="h-full w-full object-cover object-[center_47%]"
-      draggable="false"
-    />
+    <picture className="block h-full w-full">
+      <source srcSet={wordmarkWebpSrc} type="image/webp" />
+      <img
+        src={wordmarkPngSrc}
+        alt=""
+        className="h-full w-full object-cover object-[center_47%]"
+        draggable="false"
+        decoding="async"
+      />
+    </picture>
   </span>
 );
 

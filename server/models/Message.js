@@ -190,6 +190,15 @@ messageSchema.index({ roomId: 1 });
 messageSchema.index({ createdAt: -1 }); // Sắp xếp theo thời gian mới nhất
 
 // Static method: Lấy tin nhắn giữa 2 users
+messageSchema.index(
+  {
+    content: 'text',
+    'attachments.filename': 'text',
+    'attachment.filename': 'text',
+  },
+  { name: 'message_text_search' },
+);
+
 messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) {
   return this.find({
     $or: [

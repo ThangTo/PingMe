@@ -15,6 +15,8 @@ const inboxTabs = [
   { key: 'group', label: 'Nhóm' },
 ];
 
+const DIRECTORY_PAGE_SIZE = 20;
+
 const formatConversationTime = (value) => {
   if (!value) return '';
 
@@ -58,8 +60,20 @@ const Sidebar = ({
   const [friendRequests, setFriendRequests] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [directoryUsers, setDirectoryUsers] = useState([]);
+  const [directoryPagination, setDirectoryPagination] = useState({
+    page: 1,
+    hasMore: false,
+    nextPage: null,
+  });
   const [isDirectoryLoading, setIsDirectoryLoading] = useState(false);
+  const [isDirectoryLoadingMore, setIsDirectoryLoadingMore] = useState(false);
   const [directoryError, setDirectoryError] = useState('');
+  const [searchPagination, setSearchPagination] = useState({
+    page: 1,
+    hasMore: false,
+    nextPage: null,
+  });
+  const [isSearchLoadingMore, setIsSearchLoadingMore] = useState(false);
   const [selectedConnectionUserId, setSelectedConnectionUserId] = useState('');
   const [isGroupComposerOpen, setIsGroupComposerOpen] = useState(false);
   const [groupTitle, setGroupTitle] = useState('');
@@ -72,19 +86,44 @@ const Sidebar = ({
   const isDirectoryMode =
     activeTab === 'search' || activeTab === 'discover' || activeTab === 'requests';
 
-  const fetchDirectoryUsers = useCallback(async () => {
+  const fetchDirectoryUsers = useCallback(async ({ page = 1, append = false } = {}) => {
     try {
-      setIsDirectoryLoading(true);
+      if (append) {
+        setIsDirectoryLoadingMore(true);
+      } else {
+        setIsDirectoryLoading(true);
+      }
       setDirectoryError('');
-      const response = await api.get('/users');
-      setDirectoryUsers(response.data.users || []);
+      const response = await api.get('/users', {
+        params: { page, limit: DIRECTORY_PAGE_SIZE },
+      });
+      const nextUsers = response.data.users || [];
+      setDirectoryUsers((prev) => {
+        if (!append) return nextUsers;
+        const existingIds = new Set(prev.map((user) => user._id));
+        return [...prev, ...nextUsers.filter((user) => !existingIds.has(user._id))];
+      });
+      setDirectoryPagination(response.data.pagination || {
+        page,
+        hasMore: false,
+        nextPage: null,
+      });
     } catch (error) {
       console.error('Không thể lấy danh sách người dùng:', error);
       setDirectoryError('Không thể tải danh sách kết nối.');
     } finally {
       setIsDirectoryLoading(false);
+      setIsDirectoryLoadingMore(false);
     }
   }, []);
+
+  const loadMoreDirectoryUsers = useCallback(() => {
+    if (!directoryPagination.hasMore || isDirectoryLoadingMore) return;
+    fetchDirectoryUsers({
+      page: directoryPagination.nextPage || directoryPagination.page + 1,
+      append: true,
+    });
+  }, [directoryPagination, fetchDirectoryUsers, isDirectoryLoadingMore]);
 
   useEffect(() => {
     if (viewMode === 'contacts') {
@@ -197,18 +236,56 @@ const Sidebar = ({
     const delayDebounceFn = setTimeout(async () => {
       if ((activeTab === 'search' || activeTab === 'discover') && searchQuery.trim().length > 1) {
         try {
-          const res = await api.get(`/users/search?q=${encodeURIComponent(searchQuery)}`);
+          const res = await api.get('/users/search', {
+            params: { q: searchQuery, page: 1, limit: DIRECTORY_PAGE_SIZE },
+          });
           setSearchResults(res.data.users || []);
+          setSearchPagination(res.data.pagination || {
+            page: 1,
+            hasMore: false,
+            nextPage: null,
+          });
         } catch (err) {
           console.error(err);
         }
       } else if (activeTab === 'search' || activeTab === 'discover') {
         setSearchResults([]);
+        setSearchPagination({ page: 1, hasMore: false, nextPage: null });
       }
     }, 400);
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, activeTab]);
+
+  const loadMoreSearchResults = useCallback(async () => {
+    const normalizedQuery = searchQuery.trim();
+    if (normalizedQuery.length < 2 || !searchPagination.hasMore || isSearchLoadingMore) return;
+
+    try {
+      setIsSearchLoadingMore(true);
+      const response = await api.get('/users/search', {
+        params: {
+          q: normalizedQuery,
+          page: searchPagination.nextPage || searchPagination.page + 1,
+          limit: DIRECTORY_PAGE_SIZE,
+        },
+      });
+      const nextUsers = response.data.users || [];
+      setSearchResults((prev) => {
+        const existingIds = new Set(prev.map((user) => user._id));
+        return [...prev, ...nextUsers.filter((user) => !existingIds.has(user._id))];
+      });
+      setSearchPagination(response.data.pagination || {
+        page: searchPagination.page,
+        hasMore: false,
+        nextPage: null,
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSearchLoadingMore(false);
+    }
+  }, [isSearchLoadingMore, searchPagination, searchQuery]);
 
   const handleAddFriend = async (userId) => {
     try {
@@ -314,8 +391,7 @@ const Sidebar = ({
     () =>
       directoryUsers
         .filter((user) => user.status === 'none' && (user.mutualFriendCount || 0) > 0)
-        .sort((a, b) => (b.mutualFriendCount || 0) - (a.mutualFriendCount || 0))
-        .slice(0, 12),
+        .sort((a, b) => (b.mutualFriendCount || 0) - (a.mutualFriendCount || 0)),
     [directoryUsers],
   );
   const sentRequestUsers = useMemo(
@@ -351,6 +427,22 @@ const Sidebar = ({
     if (count === 1) return `Bạn chung với ${names[0]}`;
     if (count <= names.length) return `Bạn chung với ${names.join(', ')}`;
     return `Bạn chung với ${names.join(', ')} và ${count - names.length} người khác`;
+  };
+
+  const renderLoadMoreButton = ({ visible, loading, onClick }) => {
+    if (!visible) return null;
+    return (
+      <div className="px-5 py-4">
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={loading}
+          className="h-9 w-full rounded-[8px] border border-outline-variant bg-surface-container-lowest text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-50"
+        >
+          {loading ? 'Äang táº£i...' : 'Táº£i thÃªm'}
+        </button>
+      </div>
+    );
   };
 
   const renderConnectionActions = (user, compact = false) => {
@@ -792,7 +884,14 @@ const Sidebar = ({
                 Không tìm thấy người dùng.
               </p>
             ) : (
-              searchResults.map((user) => renderDirectoryUserRow(user))
+              <>
+                {searchResults.map((user) => renderDirectoryUserRow(user))}
+                {renderLoadMoreButton({
+                  visible: searchPagination.hasMore,
+                  loading: isSearchLoadingMore,
+                  onClick: loadMoreSearchResults,
+                })}
+              </>
             )}
           </div>
         ) : activeTab === 'discover' ? (
@@ -820,6 +919,17 @@ const Sidebar = ({
                   </h2>
                 </div>
                 {discoverList.map((user) => renderDirectoryUserRow(user))}
+                {renderLoadMoreButton({
+                  visible: searchQuery.trim().length > 1
+                    ? searchPagination.hasMore
+                    : directoryPagination.hasMore,
+                  loading: searchQuery.trim().length > 1
+                    ? isSearchLoadingMore
+                    : isDirectoryLoadingMore,
+                  onClick: searchQuery.trim().length > 1
+                    ? loadMoreSearchResults
+                    : loadMoreDirectoryUsers,
+                })}
               </>
             )}
           </div>

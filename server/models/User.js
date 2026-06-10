@@ -189,6 +189,10 @@ const userSchema = new mongoose.Schema(
 
 // Index để tìm kiếm nhanh
 userSchema.index({ username: 1 });
+userSchema.index({ friends: 1 });
+userSchema.index({ friendRequests: 1 });
+userSchema.index({ blockedUsers: 1 });
+userSchema.index({ isOnline: 1, lastSeen: -1 });
 userSchema.index({ 'pushSubscriptions.endpoint': 1 });
 
 // Virtual field: URL ảnh đại diện đầy đủ (nếu cần)

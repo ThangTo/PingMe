@@ -6,6 +6,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
+import compression from 'compression';
 
 // Import các module tự tạo
 import connectDB from './config/db.js';
@@ -20,6 +21,9 @@ import searchRoutes from './routers/search.routes.js';
 import socialRoutes from './routers/social.routes.js';
 import userRoutes from './routers/user.routes.js';
 import { startEmailQueueWorker } from './services/emailQueue.service.js';
+import { requestTimingMiddleware } from './middlewares/performance.middleware.js';
+import { configureRealtimeAdapter } from './integrations/realtime/realtimeAdapter.js';
+import { initializeErrorReporter, reportError } from './integrations/observability/errorReporter.js';
 
 // Load biến môi trường từ file .env
 dotenv.config();
@@ -35,6 +39,7 @@ app.use((req, res, next) => {
   res.set('x-request-id', req.id);
   next();
 });
+app.use(requestTimingMiddleware);
 
 // Middleware: CORS - Cho phép frontend gọi API
 app.use(
@@ -43,6 +48,7 @@ app.use(
     credentials: true,
   }),
 );
+app.use(compression());
 
 const databaseReady = connectDB();
 
@@ -104,6 +110,12 @@ app.use((req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  reportError(err, {
+    requestId: req.id,
+    method: req.method,
+    path: req.originalUrl,
+    userId: req.user?.id || null,
+  });
   console.error('Server error', {
     requestId: req.id,
     method: req.method,
@@ -120,6 +132,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 
+void initializeErrorReporter().catch((error) => {
+  console.error('[PingMe] Error reporter failed to initialize:', error);
+});
+
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     console.error(`[PingMe] Port ${PORT} is already in use. Backend may already be running.`);
@@ -132,6 +148,7 @@ server.on('error', (error) => {
 });
 
 let stopEmailQueueWorker = null;
+let stopRealtimeAdapter = null;
 
 databaseReady.then(() => {
   const runEmbeddedEmailWorker =
@@ -141,6 +158,15 @@ databaseReady.then(() => {
   if (runEmbeddedEmailWorker) {
     stopEmailQueueWorker = startEmailQueueWorker();
   }
+
+  void configureRealtimeAdapter(io)
+    .then((stopAdapter) => {
+      stopRealtimeAdapter = stopAdapter;
+    })
+    .catch((error) => {
+      console.error('[PingMe] Realtime adapter failed:', error);
+      process.exit(1);
+    });
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
@@ -152,6 +178,7 @@ databaseReady.then(() => {
 // Xử lý graceful shutdown
 process.on('SIGTERM', () => {
   stopEmailQueueWorker?.();
+  stopRealtimeAdapter?.();
   console.log('👋 SIGTERM received. Closing server...');
   server.close(() => {
     console.log('✅ Server closed');
@@ -161,6 +188,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   stopEmailQueueWorker?.();
+  stopRealtimeAdapter?.();
   server.close(() => process.exit(0));
 });
 

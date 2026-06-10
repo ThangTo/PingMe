@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import {
-  attachLegacyDirectMessages,
   getConversationMember,
   getMemberReadCutoff,
   getOrCreateDirectConversation,
@@ -279,7 +278,6 @@ const messageController = {
         return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này' });
       }
 
-      await attachLegacyDirectMessages(conversation);
       let messages;
       let pagination;
       if (targetMessageId) {
@@ -357,8 +355,6 @@ const messageController = {
         return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này' });
       }
 
-      await attachLegacyDirectMessages(conversation);
-
       const messages = await Message.find({
         conversation: conversation._id,
         isDeleted: false,
@@ -407,7 +403,6 @@ const messageController = {
       }
 
       const conversation = await getOrCreateDirectConversation(currentUserId, userId);
-      await attachLegacyDirectMessages(conversation);
       const messages = await Message.getConversationById(conversation._id);
 
       res.status(200).json({

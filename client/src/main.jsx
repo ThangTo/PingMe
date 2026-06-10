@@ -4,9 +4,7 @@ import './index.css';
 import App from './App.jsx';
 
 // Import Providers
-import { SocketProvider } from './context/SocketContext.jsx';
 import AuthProvider from './context/AuthContext.jsx';
-import { CallProvider } from './context/CallContext.jsx';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog.jsx';
 import { ToastProvider } from './components/ui/ToastProvider.jsx';
 import { registerPingMeServiceWorker } from './services/pwaRegistration.js';
@@ -23,15 +21,11 @@ import { registerPingMeServiceWorker } from './services/pwaRegistration.js';
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
-      <SocketProvider>
-        <CallProvider>
-          <ToastProvider>
-            <ConfirmDialogProvider>
-              <App />
-            </ConfirmDialogProvider>
-          </ToastProvider>
-        </CallProvider>
-      </SocketProvider>
+      <ToastProvider>
+        <ConfirmDialogProvider>
+          <App />
+        </ConfirmDialogProvider>
+      </ToastProvider>
     </AuthProvider>
   </StrictMode>,
 );

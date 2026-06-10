@@ -180,9 +180,7 @@ const queueMessageNotifications = ({
 };
 
 const emitToUser = (io, userId, eventName, payload) => {
-  getOnlineSocketIds(userId).forEach((socketId) => {
-    io.to(socketId).emit(eventName, payload);
-  });
+  io.to(getUserRoomId(userId)).emit(eventName, payload);
 };
 
 const emitToUsers = (io, userIds, eventName, payload) => {

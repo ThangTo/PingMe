@@ -3,13 +3,11 @@ import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
-  attachLegacyDirectMessages,
   getConversationMemberIds,
   getConversationMember,
   getConversationRoomId,
   getUserRoomId,
   getMemberReadCutoff,
-  getOrCreateDirectConversation,
   getPeerMember,
   toIdString,
 } from '../services/conversation.service.js';
@@ -595,15 +593,10 @@ const conversationController = {
       const currentUserId = req.user.id;
       const currentUserObjectId = new mongoose.Types.ObjectId(currentUserId);
 
-      const user = await User.findById(currentUserId).select('friends').lean();
+      const user = await User.findById(currentUserId).select('_id').lean();
       if (!user) {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
       }
-
-      const directConversations = await Promise.all(
-        user.friends.map((friendId) => getOrCreateDirectConversation(currentUserId, friendId)),
-      );
-      await Promise.all(directConversations.map((conversation) => attachLegacyDirectMessages(conversation)));
 
       const conversations = await Conversation.find({ 'members.user': currentUserObjectId })
         .populate('members.user', 'username pingId email avatar isOnline lastSeen friends privacySettings')
@@ -637,32 +630,32 @@ const conversationController = {
         unreadCounts.map((item) => [item._id.toString(), item.count]),
       );
 
-      const groupUnreadCounts = await Promise.all(
-        conversations
-          .filter((conversation) => conversation.type === 'group')
-          .map(async (conversation) => {
-            const currentMember = getConversationMember(conversation, currentUserId);
-            if (!currentMember) return [conversation._id.toString(), 0];
+      const groupUnreadBranches = conversations
+        .filter((conversation) => conversation.type === 'group')
+        .map((conversation) => {
+          const currentMember = getConversationMember(conversation, currentUserId);
+          if (!currentMember) return null;
 
-            const readCutoff = getMemberReadCutoff(currentMember);
-            const unreadQuery = {
-              conversation: conversation._id,
-              sender: { $ne: currentUserObjectId },
-              isDeleted: false,
-            };
+          const readCutoff = getMemberReadCutoff(currentMember);
+          return {
+            conversation: conversation._id,
+            sender: { $ne: currentUserObjectId },
+            isDeleted: false,
+            ...(readCutoff ? { createdAt: { $gt: readCutoff } } : {}),
+          };
+        })
+        .filter(Boolean);
 
-            if (readCutoff) {
-              unreadQuery.createdAt = { $gt: readCutoff };
-            }
+      if (groupUnreadBranches.length > 0) {
+        const groupUnreadCounts = await Message.aggregate([
+          { $match: { $or: groupUnreadBranches } },
+          { $group: { _id: '$conversation', count: { $sum: 1 } } },
+        ]);
 
-            const count = await Message.countDocuments(unreadQuery);
-            return [conversation._id.toString(), count];
-          }),
-      );
-
-      groupUnreadCounts.forEach(([conversationId, count]) => {
-        unreadCountByConversation.set(conversationId, count);
-      });
+        groupUnreadCounts.forEach((item) => {
+          unreadCountByConversation.set(item._id.toString(), item.count);
+        });
+      }
 
       const formattedConversations = conversations
         .map((conversation) =>

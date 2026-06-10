@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
-import { getUserRoomId } from '../services/conversation.service.js';
+import { getOrCreateDirectConversation, getUserRoomId } from '../services/conversation.service.js';
 import { createNotification } from '../services/notification.service.js';
 import {
   PRIVACY_VISIBILITY_VALUES,
@@ -71,6 +71,27 @@ const toIdString = (value) => value?._id?.toString?.() || value?.toString?.() ||
 
 const hasObjectId = (ids = [], targetId) =>
   ids.some((id) => toIdString(id) === toIdString(targetId));
+
+const getPaginationParams = (query = {}) => {
+  const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 50);
+  const page = Math.max(Number(query.page) || 1, 1);
+  return {
+    limit,
+    page,
+    skip: (page - 1) * limit,
+  };
+};
+
+const buildPaginationMeta = ({ total, page, limit }) => {
+  const hasMore = page * limit < total;
+  return {
+    page,
+    limit,
+    total,
+    hasMore,
+    nextPage: hasMore ? page + 1 : null,
+  };
+};
 
 const getMutualFriendInfo = (currentUser, targetUser) => {
   const currentFriendById = new Map(
@@ -366,6 +387,7 @@ const userController = {
   getAllUsers: async (req, res) => {
     try {
       const currentUserId = req.user.id;
+      const { limit, page, skip } = getPaginationParams(req.query);
       const currentUser = await User.findById(currentUserId)
         .populate('friends', 'username pingId avatar')
         .select('friends friendRequests blockedUsers')
@@ -378,16 +400,27 @@ const userController = {
       const blockedUserIds = currentUser.blockedUsers || [];
       const usersWhoBlockedCurrent = await User.find({ blockedUsers: currentUserId }).distinct('_id');
       // Lấy tất cả user có thể hiển thị để dựng màn kết nối mới.
-      const users = await User.find({
+      const baseQuery = {
         _id: {
           $ne: currentUserId,
           $nin: [...blockedUserIds, ...usersWhoBlockedCurrent],
         },
-      }).select('username pingId email avatar isOnline lastSeen friendRequests friends privacySettings');
+      };
+
+      const [users, total] = await Promise.all([
+        User.find(baseQuery)
+          .sort({ createdAt: -1, _id: -1 })
+          .skip(skip)
+          .limit(limit)
+          .select('username pingId email avatar isOnline lastSeen friendRequests friends privacySettings')
+          .lean(),
+        User.countDocuments(baseQuery),
+      ]);
 
       res.status(200).json({
         success: true,
         users: users.map((user) => formatDiscoverableUser(user, currentUser, currentUserId)),
+        pagination: buildPaginationMeta({ total, page, limit }),
       });
     } catch (error) {
       res.status(500).json({ error: 'Không thể lấy danh sách người dùng' });
@@ -496,9 +529,14 @@ const userController = {
     try {
       const query = (req.query.query || req.query.q || '').trim();
       const normalizedPingQuery = query.replace(/^@+/, '').toLowerCase();
+      const { limit, page, skip } = getPaginationParams(req.query);
 
       if (query.length < 2) {
-        return res.status(200).json({ success: true, users: [] });
+        return res.status(200).json({
+          success: true,
+          users: [],
+          pagination: buildPaginationMeta({ total: 0, page, limit }),
+        });
       }
 
       const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -514,7 +552,13 @@ const userController = {
 
       const blockedUserIds = currentUser.blockedUsers || [];
       const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user.id }).distinct('_id');
-      const users = await User.find({
+      const searchClauses = query.startsWith('@')
+        ? [{ pingId: { $regex: `^${escapedPingQuery}` } }]
+        : [
+            { pingId: { $regex: `^${escapedPingQuery}` } },
+            { username: { $regex: `^${escapedQuery}`, $options: 'i' } },
+          ];
+      const baseQuery = {
         $and: [
           {
             _id: {
@@ -522,20 +566,28 @@ const userController = {
               $nin: [...blockedUserIds, ...usersWhoBlockedCurrent],
             },
           },
-          {
-            $or: [
-              { username: { $regex: escapedQuery, $options: 'i' } },
-              { email: { $regex: escapedQuery, $options: 'i' } },
-              { pingId: { $regex: escapedPingQuery, $options: 'i' } },
-            ],
-          },
+          { $or: searchClauses },
         ],
-      }).select('username pingId email avatar isOnline lastSeen friendRequests friends privacySettings');
+      };
+
+      const [users, total] = await Promise.all([
+        User.find(baseQuery)
+          .sort({ pingId: 1, _id: 1 })
+          .skip(skip)
+          .limit(limit)
+          .select('username pingId email avatar isOnline lastSeen friendRequests friends privacySettings')
+          .lean(),
+        User.countDocuments(baseQuery),
+      ]);
 
       // Gắn trạng thái cho từng kết quả để client biết cần hiện nút gì.
       const formattedUsers = users.map((u) => formatDiscoverableUser(u, currentUser, req.user.id));
 
-      res.status(200).json({ success: true, users: formattedUsers });
+      res.status(200).json({
+        success: true,
+        users: formattedUsers,
+        pagination: buildPaginationMeta({ total, page, limit }),
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Lỗi tìm kiếm người dùng' });
@@ -623,6 +675,7 @@ const userController = {
 
       await currentUser.save();
       await requesterUser.save();
+      await getOrCreateDirectConversation(currentUser._id, requesterUser._id);
       emitToUser(req, requesterId, 'friend_request_accepted', {
         friendId: req.user.id,
         friend: formatVisibleUser(currentUser, requesterId),

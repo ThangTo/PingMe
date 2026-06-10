@@ -2,6 +2,7 @@ import { Router } from 'express';
 import userController from '../controllers/user.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 import upload from '../middlewares/upload.middleware.js';
+import { searchLimiter } from '../middlewares/rateLimit.middleware.js';
 
 const router = Router();
 
@@ -14,10 +15,10 @@ const uploadAvatar = (req, res, next) => {
   });
 };
 
-router.get('/', authMiddleware, userController.getAllUsers);
+router.get('/', authMiddleware, searchLimiter, userController.getAllUsers);
 router.get('/me', authMiddleware, userController.getMe);
 router.get('/friends', authMiddleware, userController.getFriends);
-router.get('/search', authMiddleware, userController.searchUsers);
+router.get('/search', authMiddleware, searchLimiter, userController.searchUsers);
 router.get('/requests', authMiddleware, userController.getFriendRequests);
 router.patch('/me', authMiddleware, userController.updateProfile);
 router.patch('/me/notifications', authMiddleware, userController.updateNotificationSettings);

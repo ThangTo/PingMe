@@ -1,4 +1,5 @@
-import logoSrc from '../../assets/images/logo_trans.png';
+const logoWebpSrc = '/brand/logo-trans.webp';
+const logoPngSrc = '/brand/logo-trans.png';
 
 const sizeClasses = {
   sm: 'h-8 w-8 rounded-[9px]',
@@ -7,14 +8,18 @@ const sizeClasses = {
 };
 
 const PingMeLogo = ({ size = 'md', className = '', showShadow = false }) => (
-  <img
-    src={logoSrc}
-    alt="PingMe"
-    className={`${sizeClasses[size] || sizeClasses.md} shrink-0 object-cover ${
-      showShadow ? 'shadow-sm' : ''
-    } ${className}`}
-    draggable="false"
-  />
+  <picture>
+    <source srcSet={logoWebpSrc} type="image/webp" />
+    <img
+      src={logoPngSrc}
+      alt="PingMe"
+      className={`${sizeClasses[size] || sizeClasses.md} shrink-0 object-cover ${
+        showShadow ? 'shadow-sm' : ''
+      } ${className}`}
+      draggable="false"
+      decoding="async"
+    />
+  </picture>
 );
 
 export default PingMeLogo;

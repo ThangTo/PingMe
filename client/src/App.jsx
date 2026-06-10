@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import AuthLayout from './components/layout/AuthLayout';
-import Chat from './pages/Chat';
-import Login from './pages/Login';
-import Register from './pages/Register';
 import LoadingState from './components/ui/LoadingState';
+
+const AuthLayout = lazy(() => import('./components/layout/AuthLayout'));
+const ChatRoute = lazy(() => import('./routes/ChatRoute'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
 
 const THEME_COLORS = {
   light: '#FBFAF7',
@@ -39,20 +40,22 @@ const PublicRoute = ({ children }) => {
  */
 const AnimatedRoutes = () => {
   return (
-    <Routes>
-      {/* Public routes wrapped in AuthLayout (Framer Motion 3D Peel) */}
-      <Route element={<AuthLayout />}>
-        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-      </Route>
+    <Suspense fallback={<LoadingState fullscreen label="Äang táº£i PingMe..." />}>
+      <Routes>
+        {/* Public routes wrapped in AuthLayout (Framer Motion 3D Peel) */}
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        </Route>
 
-      {/* Protected routes */}
-      <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+        {/* Protected routes */}
+        <Route path="/chat" element={<ProtectedRoute><ChatRoute /></ProtectedRoute>} />
 
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/chat" replace />} />
-      <Route path="*" element={<Navigate to="/chat" replace />} />
-    </Routes>
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+        <Route path="*" element={<Navigate to="/chat" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 
