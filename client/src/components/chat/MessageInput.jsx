@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
+import ScheduleMessageModal from './ScheduleMessageModal';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 
@@ -234,6 +235,7 @@ const MessageInput = ({
   conversationId,
   draftContent = '',
   onSendMessage,
+  onScheduleMessage,
   onDraftChange,
   disabled = false,
   onTypingStart,
@@ -256,6 +258,7 @@ const MessageInput = ({
   const [voiceDuration, setVoiceDuration] = useState(0);
   const [voiceError, setVoiceError] = useState('');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
   const fileInputRef = useRef(null);
@@ -906,9 +909,45 @@ const MessageInput = ({
     !isUploading &&
     !isUploadingVoice &&
     !isRecordingVoice;
+  const canSchedule =
+    Boolean(message.trim()) &&
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice &&
+    Boolean(onScheduleMessage);
+
+  const handleScheduleSubmit = async (scheduledAt) => {
+    if (!canSchedule) return;
+
+    await onScheduleMessage?.({
+      content: message.trim(),
+      replyTo: replyingMessage,
+      scheduledAt,
+    });
+
+    setMessage('');
+    notifyDraftChange('');
+    onCancelReplyMessage?.();
+    stopTypingNow();
+
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
+  };
 
   return (
     <footer className="shrink-0 border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
+      <ScheduleMessageModal
+        open={isScheduleOpen}
+        contentPreview={message}
+        onClose={() => setIsScheduleOpen(false)}
+        onSchedule={handleScheduleSubmit}
+      />
+
       {hasPreviews && (
         <div className="mb-2 w-full rounded-[16px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm md:rounded-[12px] md:p-3.5">
           <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-outline md:hidden" />
@@ -1250,6 +1289,17 @@ const MessageInput = ({
         >
           <AppIcon name="emoji_picker" className="text-[20px]" />
         </button>
+
+        {canSchedule && (
+          <button
+            type="button"
+            onClick={() => setIsScheduleOpen(true)}
+            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            title="Hẹn giờ gửi"
+          >
+            <AppIcon name="schedule" className="text-[19px]" />
+          </button>
+        )}
 
         {!canSend && (
           <button

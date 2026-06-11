@@ -382,6 +382,39 @@ const formatDraftsByConversationId = (drafts = []) =>
     };
   }, {});
 
+const normalizeScheduledMessage = (scheduledMessage = {}) => ({
+  id: scheduledMessage.id || scheduledMessage._id || '',
+  conversationId: scheduledMessage.conversationId || getIdString(scheduledMessage.conversation),
+  senderId: scheduledMessage.senderId || getIdString(scheduledMessage.sender),
+  replyToId: scheduledMessage.replyToId || getIdString(scheduledMessage.replyTo) || null,
+  content: scheduledMessage.content || '',
+  scheduledAt: scheduledMessage.scheduledAt || null,
+  status: scheduledMessage.status || 'pending',
+  sentMessageId: scheduledMessage.sentMessageId || getIdString(scheduledMessage.sentMessage) || null,
+  failureReason: scheduledMessage.failureReason || '',
+  createdAt: scheduledMessage.createdAt || null,
+  updatedAt: scheduledMessage.updatedAt || null,
+});
+
+const sortScheduledMessages = (items = []) =>
+  [...items].sort((a, b) => new Date(a.scheduledAt || 0) - new Date(b.scheduledAt || 0));
+
+const formatScheduledMessagesByConversationId = (scheduledMessages = []) =>
+  scheduledMessages.reduce((messagesByConversationId, scheduledMessage) => {
+    const normalized = normalizeScheduledMessage(scheduledMessage);
+    if (!normalized.id || !normalized.conversationId || normalized.status !== 'pending') {
+      return messagesByConversationId;
+    }
+
+    return {
+      ...messagesByConversationId,
+      [normalized.conversationId]: sortScheduledMessages([
+        ...(messagesByConversationId[normalized.conversationId] || []),
+        normalized,
+      ]),
+    };
+  }, {});
+
 const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
   if (!notifications.length) return null;
 
@@ -438,6 +471,7 @@ const Chat = () => {
   const [messageFirstItemIndex, setMessageFirstItemIndex] = useState(MESSAGE_VIRTUAL_INDEX_BASE);
   const [conversations, setConversations] = useState([]);
   const [draftsByConversationId, setDraftsByConversationId] = useState({});
+  const [scheduledMessagesByConversationId, setScheduledMessagesByConversationId] = useState({});
   const [, setOnlineUsers] = useState([]);
   const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
@@ -740,6 +774,9 @@ const Chat = () => {
   const selectedDraftContent = selectedConversationId
     ? draftsByConversationId[selectedConversationId]?.content || ''
     : '';
+  const selectedScheduledMessages = selectedConversationId
+    ? scheduledMessagesByConversationId[selectedConversationId] || []
+    : [];
   const currentChatUserName = currentChatUser?.name;
   const isGlobalNotificationsMuted = Boolean(user?.notificationSettings?.muteAll);
   const applyDraftPayload = useCallback((draft) => {
@@ -828,6 +865,112 @@ const Chat = () => {
     socket.on('draft_updated', applyDraftPayload);
     return () => socket.off('draft_updated', applyDraftPayload);
   }, [applyDraftPayload]);
+
+  const upsertScheduledMessage = useCallback((scheduledMessage) => {
+    const normalized = normalizeScheduledMessage(scheduledMessage);
+    if (!normalized.id || !normalized.conversationId) return;
+
+    setScheduledMessagesByConversationId((current) => {
+      const currentList = current[normalized.conversationId] || [];
+      const withoutExisting = currentList.filter((item) => item.id !== normalized.id);
+
+      if (normalized.status !== 'pending') {
+        if (withoutExisting.length === currentList.length) return current;
+        return {
+          ...current,
+          [normalized.conversationId]: withoutExisting,
+        };
+      }
+
+      return {
+        ...current,
+        [normalized.conversationId]: sortScheduledMessages([...withoutExisting, normalized]),
+      };
+    });
+  }, []);
+
+  const removeScheduledMessage = useCallback((payload = {}) => {
+    const scheduledMessage = payload.scheduledMessage || payload;
+    const scheduledMessageId =
+      payload.scheduledMessageId || scheduledMessage.id || scheduledMessage._id || '';
+    const conversationId =
+      payload.conversationId ||
+      scheduledMessage.conversationId ||
+      getIdString(scheduledMessage.conversation);
+
+    if (!scheduledMessageId || !conversationId) return;
+
+    setScheduledMessagesByConversationId((current) => {
+      const currentList = current[conversationId] || [];
+      const nextList = currentList.filter((item) => item.id !== scheduledMessageId);
+      if (nextList.length === currentList.length) return current;
+
+      return {
+        ...current,
+        [conversationId]: nextList,
+      };
+    });
+  }, []);
+
+  const loadScheduledMessages = useCallback(async (conversationId = null) => {
+    try {
+      const response = await api.get('/messages/scheduled', {
+        params: {
+          status: 'pending',
+          ...(conversationId ? { conversationId } : {}),
+        },
+      });
+
+      if (!response.data.success) return;
+
+      const scheduledMessages = (response.data.scheduledMessages || [])
+        .map(normalizeScheduledMessage)
+        .filter((item) => item.id && item.conversationId && item.status === 'pending');
+
+      if (conversationId) {
+        setScheduledMessagesByConversationId((current) => ({
+          ...current,
+          [conversationId]: sortScheduledMessages(scheduledMessages),
+        }));
+        return;
+      }
+
+      setScheduledMessagesByConversationId(formatScheduledMessagesByConversationId(scheduledMessages));
+    } catch (error) {
+      console.error('Không thể tải tin nhắn hẹn gửi:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleScheduledCreated = (payload) => {
+      upsertScheduledMessage(payload?.scheduledMessage || payload);
+    };
+    const handleScheduledRemoved = (payload) => {
+      removeScheduledMessage(payload);
+    };
+    const handleScheduledFailed = (payload) => {
+      removeScheduledMessage(payload);
+      if (!payload?.conversationId) return;
+
+      showAppNotification({
+        title: 'Hẹn gửi thất bại',
+        body: payload.failureReason || 'Không thể gửi tin nhắn đã hẹn',
+        conversationId: payload.conversationId,
+      });
+    };
+
+    socket.on('scheduled_message_created', handleScheduledCreated);
+    socket.on('scheduled_message_cancelled', handleScheduledRemoved);
+    socket.on('scheduled_message_sent', handleScheduledRemoved);
+    socket.on('scheduled_message_failed', handleScheduledFailed);
+
+    return () => {
+      socket.off('scheduled_message_created', handleScheduledCreated);
+      socket.off('scheduled_message_cancelled', handleScheduledRemoved);
+      socket.off('scheduled_message_sent', handleScheduledRemoved);
+      socket.off('scheduled_message_failed', handleScheduledFailed);
+    };
+  }, [removeScheduledMessage, showAppNotification, upsertScheduledMessage]);
 
   const isConversationMuted = useCallback(
     (conversationId) => {
@@ -1004,6 +1147,7 @@ const Chat = () => {
         } catch (draftError) {
           console.error('Không thể tải bản nháp:', draftError);
         }
+        void loadScheduledMessages();
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách bạn bè:', error);
@@ -1011,7 +1155,7 @@ const Chat = () => {
     } finally {
       setIsFriendsLoading(false);
     }
-  }, [conversations.length]);
+  }, [conversations.length, loadScheduledMessages]);
 
   const upsertConversation = useCallback(
     (conversation, options = {}) => {
@@ -1985,6 +2129,50 @@ const Chat = () => {
     }
   };
 
+  const handleScheduleMessage = async ({ content, replyTo = replyingMessage, scheduledAt }) => {
+    if (!selectedConversationId || !user) return null;
+
+    const replyPreview = normalizeReplyPreview(replyTo, user, currentChatUser);
+    const response = await api.post('/messages/scheduled', {
+      conversationId: selectedConversationId,
+      content,
+      replyToId: replyPreview?.id || null,
+      scheduledAt,
+    });
+
+    const scheduledMessage = response.data?.scheduledMessage;
+    if (scheduledMessage) {
+      upsertScheduledMessage(scheduledMessage);
+    }
+
+    setReplyingMessage(null);
+    clearConversationDraft(selectedConversationId);
+    return scheduledMessage;
+  };
+
+  const handleCancelScheduledMessage = async (scheduledMessage) => {
+    if (!scheduledMessage?.id) return;
+
+    const confirmed = await confirm({
+      title: 'Hủy hẹn gửi?',
+      description: 'Tin nhắn này sẽ không được gửi theo lịch đã chọn.',
+      confirmText: 'Hủy hẹn',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/messages/scheduled/${scheduledMessage.id}`);
+      removeScheduledMessage({
+        scheduledMessageId: scheduledMessage.id,
+        conversationId: scheduledMessage.conversationId,
+      });
+    } catch (error) {
+      console.error('Không thể hủy tin nhắn hẹn gửi:', error);
+      alert(error?.response?.data?.error || 'Không thể hủy tin nhắn hẹn gửi');
+    }
+  };
+
   const handleSendMessage = (content, attachment, replyTo = replyingMessage, attachments = [], options = {}) => {
     if (!selectedConversationId || !user) return;
     const tempId = crypto.randomUUID();
@@ -2130,10 +2318,11 @@ const Chat = () => {
     setShowDetails(false);
     setActiveRailItem('messages');
     socket.emit('join_conversation', { conversationId });
+    void loadScheduledMessages(conversationId);
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
-  }, [resetMessageWindow, selectedConversationId]);
+  }, [loadScheduledMessages, resetMessageWindow, selectedConversationId]);
 
   const handleOpenMessageTarget = async ({ conversationId, messageId, type }) => {
     if (!conversationId) {
@@ -2373,6 +2562,9 @@ const Chat = () => {
                     currentUserId={user?.id || 'current'}
                     reactionUsersById={reactionUsersById}
                     onSendMessage={handleSendMessage}
+                    onScheduleMessage={handleScheduleMessage}
+                    scheduledMessages={selectedScheduledMessages}
+                    onCancelScheduledMessage={handleCancelScheduledMessage}
                     draftContent={selectedDraftContent}
                     onDraftChange={handleDraftChange}
                     typingUsers={typingUsers}

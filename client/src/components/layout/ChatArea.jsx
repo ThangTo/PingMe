@@ -40,6 +40,92 @@ const PinGlyph = ({ className = '' }) => (
   <AppIcon name="push_pin" className={`-rotate-45 ${className}`} />
 );
 
+const formatScheduledTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getScheduledPreviewText = (scheduledMessage) => {
+  const content = typeof scheduledMessage?.content === 'string' ? scheduledMessage.content.trim() : '';
+  if (!content) return 'Tin nhắn hẹn gửi';
+  if (content.length <= 90) return content;
+  return `${content.slice(0, 89)}...`;
+};
+
+const ScheduledMessagesStrip = ({ scheduledMessages = [], onCancelScheduledMessage }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const pendingMessages = useMemo(
+    () =>
+      [...scheduledMessages]
+        .filter((item) => item?.status === 'pending')
+        .sort((a, b) => new Date(a.scheduledAt || 0) - new Date(b.scheduledAt || 0)),
+    [scheduledMessages],
+  );
+  const nearestMessage = pendingMessages[0] || null;
+
+  if (!nearestMessage) return null;
+
+  return (
+    <div className="shrink-0 border-t border-outline-variant bg-surface">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className="flex min-h-[44px] w-full items-center gap-2.5 px-4 text-left transition-colors hover:bg-surface-container-low md:px-5"
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-on-surface-variant">
+          <AppIcon name="schedule" className="text-[18px]" />
+        </span>
+        <span className="min-w-0 flex-1 text-[13px]">
+          <span className="font-semibold text-on-surface">{pendingMessages.length} hẹn gửi</span>
+          <span className="text-on-surface-variant">
+            {' '}
+            · {formatScheduledTime(nearestMessage.scheduledAt)} · {getScheduledPreviewText(nearestMessage)}
+          </span>
+        </span>
+        <AppIcon
+          name={isOpen ? 'expand_less' : 'chevron_right'}
+          className="shrink-0 text-[20px] text-on-surface-variant"
+        />
+      </button>
+
+      {isOpen && (
+        <div className="max-h-[220px] overflow-y-auto border-t border-outline-variant px-4 py-2 md:px-5">
+          <div className="space-y-1">
+            {pendingMessages.map((scheduledMessage) => (
+              <div
+                key={scheduledMessage.id}
+                className="flex min-w-0 items-center gap-3 rounded-[8px] px-2 py-2 transition-colors hover:bg-surface-container-low"
+              >
+                <span className="min-w-[72px] shrink-0 text-xs font-semibold text-on-surface-variant">
+                  {formatScheduledTime(scheduledMessage.scheduledAt)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-on-surface">
+                  {getScheduledPreviewText(scheduledMessage)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onCancelScheduledMessage?.(scheduledMessage)}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-on-surface-variant transition hover:bg-error-container hover:text-error"
+                  title="Hủy hẹn gửi"
+                >
+                  <AppIcon name="close" className="text-[17px]" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChatArea = ({
   currentUser,
   conversationId,
@@ -47,6 +133,9 @@ const ChatArea = ({
   currentUserId,
   reactionUsersById,
   onSendMessage,
+  onScheduleMessage,
+  scheduledMessages = [],
+  onCancelScheduledMessage,
   draftContent = '',
   onDraftChange,
   typingUsers = [],
@@ -414,10 +503,16 @@ const ChatArea = ({
         />
       </div>
 
+      <ScheduledMessagesStrip
+        scheduledMessages={scheduledMessages}
+        onCancelScheduledMessage={onCancelScheduledMessage}
+      />
+
       <MessageInput
         conversationId={conversationId}
         draftContent={draftContent}
         onSendMessage={onSendMessage}
+        onScheduleMessage={onScheduleMessage}
         onDraftChange={onDraftChange}
         onTypingStart={onTypingStart}
         onTypingStop={onTypingStop}

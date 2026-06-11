@@ -106,6 +106,95 @@ const deleteDraftResponse = await fetch(`${apiBaseUrl}/conversations/${directCon
 });
 if (!deleteDraftResponse.ok) throw new Error(`Delete draft smoke failed: ${deleteDraftResponse.status}`);
 
+const scheduledContent = `PingMe scheduled smoke ${Date.now()}`;
+const scheduledAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+const scheduledResponse = await fetch(`${apiBaseUrl}/messages/scheduled`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    content: scheduledContent,
+    scheduledAt,
+  }),
+});
+if (!scheduledResponse.ok) {
+  throw new Error(`Create scheduled message smoke failed: ${scheduledResponse.status}`);
+}
+const scheduledPayload = await scheduledResponse.json();
+const scheduledMessageId = scheduledPayload.scheduledMessage?.id;
+if (!scheduledMessageId) throw new Error('Scheduled message smoke did not return an id.');
+
+const scheduledListResponse = await fetch(
+  `${apiBaseUrl}/messages/scheduled?conversationId=${directConversationId}&status=pending`,
+  {
+    headers: { cookie: cookies },
+  },
+);
+if (!scheduledListResponse.ok) {
+  throw new Error(`List scheduled messages smoke failed: ${scheduledListResponse.status}`);
+}
+const scheduledListPayload = await scheduledListResponse.json();
+const scheduledInList = (scheduledListPayload.scheduledMessages || []).find(
+  (scheduledMessage) =>
+    scheduledMessage.id === scheduledMessageId && scheduledMessage.content === scheduledContent,
+);
+if (!scheduledInList) throw new Error('Không tìm thấy tin nhắn hẹn gửi vừa tạo trong danh sách.');
+
+const emptyScheduledResponse = await fetch(`${apiBaseUrl}/messages/scheduled`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    content: '   ',
+    scheduledAt,
+  }),
+});
+if (emptyScheduledResponse.ok) throw new Error('Scheduled empty content smoke should fail.');
+
+const tooLongScheduledResponse = await fetch(`${apiBaseUrl}/messages/scheduled`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    content: 'x'.repeat(5001),
+    scheduledAt,
+  }),
+});
+if (tooLongScheduledResponse.ok) throw new Error('Scheduled max length smoke should fail.');
+
+const pastScheduledResponse = await fetch(`${apiBaseUrl}/messages/scheduled`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    content: 'should fail',
+    scheduledAt: new Date(Date.now() - 60 * 1000).toISOString(),
+  }),
+});
+if (pastScheduledResponse.ok) throw new Error('Scheduled past time smoke should fail.');
+
+const tooFarScheduledResponse = await fetch(`${apiBaseUrl}/messages/scheduled`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    content: 'should fail',
+    scheduledAt: new Date(Date.now() + 366 * 24 * 60 * 60 * 1000).toISOString(),
+  }),
+});
+if (tooFarScheduledResponse.ok) throw new Error('Scheduled too-far future smoke should fail.');
+
+const cancelScheduledResponse = await fetch(
+  `${apiBaseUrl}/messages/scheduled/${scheduledMessageId}`,
+  {
+    method: 'DELETE',
+    headers: { cookie: cookies },
+  },
+);
+if (!cancelScheduledResponse.ok) {
+  throw new Error(`Cancel scheduled message smoke failed: ${cancelScheduledResponse.status}`);
+}
+
 for (const path of [
   '/auth/sessions',
   '/notifications?limit=1',

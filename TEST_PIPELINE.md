@@ -530,3 +530,35 @@ Mục tiêu: cùng một account đăng nhập nhiều tab/thiết bị phải �
 - Typing indicator vẫn hiện/dừng như cũ trong direct và group.
 - Saved Messages vẫn đứng đầu sidebar và draft preview không đổi thứ tự conversation.
 - Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy `npm run smoke` khi server local đang mở.
+
+## Stage 23 - Advanced A6.5 Scheduled Messages
+
+### Create, List And Cancel
+
+- Đăng nhập account A, mở direct conversation, nhập text và bấm icon hẹn giờ.
+- Chọn thời điểm hợp lệ từ `now + 1 minute` đến `now + 365 days`, submit phải clear input, clear draft và hiện pending strip phía trên input.
+- Mở lại conversation hoặc reload app, pending scheduled message vẫn còn.
+- Bấm hủy trên pending strip, item phải biến mất và reload lại không quay lại.
+- Thử schedule content rỗng, trên 5000 ký tự, thời gian quá khứ hoặc quá 365 ngày; API/UI phải báo lỗi và không tạo pending item.
+
+### Worker Delivery
+
+- Schedule một tin trong direct chat tới thời điểm gần nhất hợp lệ, chờ worker gửi.
+- Trước thời điểm gửi, recipient không thấy nội dung pending.
+- Khi đến giờ, scheduled item của sender biến mất, message thật append qua `receive_message`, sidebar preview/time cập nhật như gửi thường.
+- Lặp lại trong group và `Tin nhắn đã lưu`.
+- Nếu sender bị remove khỏi group hoặc direct chat bị block trước giờ gửi, item chuyển failed và không tạo message thật.
+
+### Multi-Device Realtime
+
+- Đăng nhập account A ở hai tab A1/A2.
+- A1 tạo scheduled message, A2 phải thấy pending strip sync.
+- A2 hủy scheduled message, A1 phải remove pending item.
+- A1/A2 cùng mở conversation khi worker gửi, cả hai tab nhận message thật nhưng không duplicate.
+
+### Regression
+
+- Gửi text thường, media/file/audio, sticker, reply và edit message vẫn hoạt động.
+- Draft Sync vẫn clear khi schedule thành công và không bị edit mode ghi đè.
+- Typing indicator vẫn hoạt động khi gõ text nhưng không bị pending scheduled message ảnh hưởng.
+- Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy `npm run smoke` khi server local đang mở.

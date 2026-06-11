@@ -22,6 +22,13 @@ router.get(
   authMiddleware,
   messageController.getConversationGallery,
 );
+router.post('/scheduled', authMiddleware, messageController.createScheduledMessage);
+router.get('/scheduled', authMiddleware, messageController.getScheduledMessages);
+router.delete(
+  '/scheduled/:scheduledMessageId',
+  authMiddleware,
+  messageController.cancelScheduledMessage,
+);
 router.get('/conversation/:conversationId', authMiddleware, messageController.getConversationMessages);
 router.get('/:userId', authMiddleware, messageController.getMessages);
 router.post('/upload', authMiddleware, uploadMessageFiles, messageController.uploadFile);

@@ -340,7 +340,7 @@ Mục tiêu: tin nhắn giàu hơn text/file cơ bản.
 | A6.2 Stickers | PLANNED | Sticker packs |
 | A6.3 GIF search/send | PLANNED | GIF provider or local library |
 | A6.4 Polls | PLANNED | Poll message type |
-| A6.5 Scheduled messages | PLANNED | Send later |
+| A6.5 Scheduled messages | READY_TO_TEST | Text-only send later qua REST + queue worker, pending strip, cancel và sync user room |
 | A6.6 Saved messages | READY_TO_TEST | Conversation cá nhân một-mình, `POST /api/conversations/saved`, tự sync realtime giữa tab/device |
 | A6.7 Message translation | OPTIONAL | Later AI/translation |
 
@@ -393,7 +393,7 @@ Nên làm theo thứ tự gần nhất:
 3. User acceptance test Pipeline A8.1/A8.2 với conversation dài.
 4. User acceptance test Pipeline A4.2: Privacy settings, presence visibility, avatar upload.
 5. Pipeline A6.1: Hoàn thiện test link preview nhiều domain.
-6. Pipeline A1.4: Draft sync theo conversation.
+6. Pipeline A6.5: Scheduled messages UAT direct/group/Saved, cancel và worker due-job.
 
 Nếu bị rối, quay lại nguyên tắc này:
 

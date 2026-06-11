@@ -8,6 +8,11 @@ import {
   isConversationMember,
   toIdString,
 } from '../services/conversation.service.js';
+import {
+  cancelScheduledMessage,
+  enqueueScheduledMessage,
+  listScheduledMessages,
+} from '../services/scheduledMessage.service.js';
 import { uploadFileToStorage } from '../services/storage.service.js';
 
 const populateMessageQuery = (query) =>
@@ -250,6 +255,72 @@ const serializeMessagesForReader = (messages, conversation, currentUserId) => {
 };
 
 const messageController = {
+  createScheduledMessage: async (req, res) => {
+    try {
+      const scheduledMessage = await enqueueScheduledMessage({
+        io: req.app.get('io'),
+        senderId: req.user?.id,
+        conversationId: req.body?.conversationId,
+        content: req.body?.content,
+        replyToId: req.body?.replyToId || null,
+        scheduledAt: req.body?.scheduledAt,
+      });
+
+      return res.status(201).json({
+        success: true,
+        scheduledMessage,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Lỗi hẹn gửi tin nhắn:', error);
+      return res.status(500).json({ error: 'Không thể hẹn gửi tin nhắn' });
+    }
+  },
+
+  getScheduledMessages: async (req, res) => {
+    try {
+      const scheduledMessages = await listScheduledMessages({
+        userId: req.user?.id,
+        conversationId: req.query?.conversationId || null,
+        status: req.query?.status || 'pending',
+      });
+
+      return res.status(200).json({
+        success: true,
+        scheduledMessages,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Lỗi lấy tin nhắn hẹn gửi:', error);
+      return res.status(500).json({ error: 'Không thể lấy tin nhắn hẹn gửi' });
+    }
+  },
+
+  cancelScheduledMessage: async (req, res) => {
+    try {
+      const scheduledMessage = await cancelScheduledMessage({
+        io: req.app.get('io'),
+        userId: req.user?.id,
+        scheduledMessageId: req.params?.scheduledMessageId,
+      });
+
+      return res.status(200).json({
+        success: true,
+        scheduledMessage,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Lỗi hủy tin nhắn hẹn gửi:', error);
+      return res.status(500).json({ error: 'Không thể hủy tin nhắn hẹn gửi' });
+    }
+  },
+
   // Lấy lịch sử tin nhắn theo conversationId
   getConversationMessages: async (req, res) => {
     try {

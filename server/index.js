@@ -22,6 +22,7 @@ import socialRoutes from './routers/social.routes.js';
 import stickerRoutes from './routers/sticker.routes.js';
 import userRoutes from './routers/user.routes.js';
 import { startEmailQueueWorker } from './services/emailQueue.service.js';
+import { startScheduledMessageWorker } from './services/scheduledMessage.service.js';
 import { requestTimingMiddleware } from './middlewares/performance.middleware.js';
 import { configureRealtimeAdapter } from './integrations/realtime/realtimeAdapter.js';
 import { initializeErrorReporter, reportError } from './integrations/observability/errorReporter.js';
@@ -150,6 +151,7 @@ server.on('error', (error) => {
 });
 
 let stopEmailQueueWorker = null;
+let stopScheduledMessageWorker = null;
 let stopRealtimeAdapter = null;
 
 databaseReady.then(() => {
@@ -159,6 +161,14 @@ databaseReady.then(() => {
 
   if (runEmbeddedEmailWorker) {
     stopEmailQueueWorker = startEmailQueueWorker();
+  }
+
+  const runEmbeddedScheduledMessageWorker =
+    process.env.SCHEDULED_MESSAGE_WORKER_ENABLED === 'true' ||
+    (!process.env.SCHEDULED_MESSAGE_WORKER_ENABLED && process.env.NODE_ENV !== 'production');
+
+  if (runEmbeddedScheduledMessageWorker) {
+    stopScheduledMessageWorker = startScheduledMessageWorker({ io });
   }
 
   void configureRealtimeAdapter(io)
@@ -180,6 +190,7 @@ databaseReady.then(() => {
 // Xử lý graceful shutdown
 process.on('SIGTERM', () => {
   stopEmailQueueWorker?.();
+  stopScheduledMessageWorker?.();
   stopRealtimeAdapter?.();
   console.log('👋 SIGTERM received. Closing server...');
   server.close(() => {
@@ -190,6 +201,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   stopEmailQueueWorker?.();
+  stopScheduledMessageWorker?.();
   stopRealtimeAdapter?.();
   server.close(() => process.exit(0));
 });
