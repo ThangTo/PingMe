@@ -146,7 +146,7 @@ Mục tiêu: làm PingMe trở thành nơi người dùng muốn mở mỗi ngà
 | Stage | Status | Priority | Tags | Scope | Output / Gate |
 |---|---|---|---|---|---|
 | 1.1 Saved Messages | READY_TO_TEST | P1 | `#retention #core #realtime` | Chat với chính mình để lưu note, link, file, ảnh, voice | Conversation cá nhân tự tạo, pin trên danh sách, sync tab/device, search/media gallery hoạt động như chat thường |
-| 1.2 Draft Sync | NEXT | P1 | `#retention #realtime #sync` | Lưu draft theo conversation, sync giữa tab/device | Gõ dở ở tab A, mở tab B thấy draft; cleanup listener đầy đủ |
+| 1.2 Draft Sync | READY_TO_TEST | P1 | `#retention #realtime #sync` | Lưu text draft theo conversation, sync giữa tab/device | Gõ dở ở tab A, mở tab B thấy draft; clear/send xóa draft ở mọi tab |
 | 1.3 Scheduled Messages | NEXT | P1 | `#retention #notification #queue` | Gửi sau theo thời điểm user chọn | Job gửi đúng giờ, trạng thái pending/sent/failed rõ |
 | 1.4 Recurring Reminders | PLANNED | P1 | `#retention #notification` | Nhắc định kỳ trong Saved Messages hoặc conversation | Reminder daily/weekly/monthly, có snooze/dismiss |
 | 1.5 QR/Profile Sharing | PLANNED | P1 | `#growth #mobile` | Share PingMe ID bằng QR/link, mở ra profile hoặc add friend | Người mới join từ link có flow rõ, không bị rơi vào màn hình trống |

@@ -42,10 +42,13 @@ const PinGlyph = ({ className = '' }) => (
 
 const ChatArea = ({
   currentUser,
+  conversationId,
   messages = [],
   currentUserId,
   reactionUsersById,
   onSendMessage,
+  draftContent = '',
+  onDraftChange,
   typingUsers = [],
   onTypingStart,
   onTypingStop,
@@ -412,7 +415,10 @@ const ChatArea = ({
       </div>
 
       <MessageInput
+        conversationId={conversationId}
+        draftContent={draftContent}
         onSendMessage={onSendMessage}
+        onDraftChange={onDraftChange}
         onTypingStart={onTypingStart}
         onTypingStop={onTypingStop}
         onFocus={onFocusInput}

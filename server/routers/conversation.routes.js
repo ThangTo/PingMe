@@ -5,8 +5,11 @@ import { authMiddleware } from '../middlewares/auth.middleware.js';
 const router = Router();
 
 router.get('/', authMiddleware, conversationController.getConversations);
+router.get('/drafts', authMiddleware, conversationController.getDrafts);
 router.post('/saved', authMiddleware, conversationController.ensureSavedConversation);
 router.post('/groups', authMiddleware, conversationController.createGroup);
+router.put('/:conversationId/draft', authMiddleware, conversationController.updateDraft);
+router.delete('/:conversationId/draft', authMiddleware, conversationController.deleteDraft);
 router.patch(
   '/:conversationId/notifications',
   authMiddleware,

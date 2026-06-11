@@ -27,6 +27,7 @@ const SAVED_CONVERSATION_EMPTY_PREVIEW = 'Lưu note, link, file tại đây';
 const MESSAGE_PAGE_LIMIT = 40;
 const MESSAGE_VIRTUAL_INDEX_BASE = 100000;
 const TYPING_USER_EXPIRE_MS = 4500;
+const DRAFT_SYNC_DEBOUNCE_MS = 700;
 const EMPTY_MESSAGE_PAGINATION = {
   hasMoreBefore: false,
   nextBefore: null,
@@ -366,6 +367,21 @@ const sortConversations = (items = []) =>
     return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
   });
 
+const hasDraftContent = (content = '') => typeof content === 'string' && content.trim().length > 0;
+
+const formatDraftsByConversationId = (drafts = []) =>
+  drafts.reduce((draftsByConversationId, draft) => {
+    if (!draft?.conversationId || !hasDraftContent(draft.content)) return draftsByConversationId;
+
+    return {
+      ...draftsByConversationId,
+      [draft.conversationId]: {
+        content: draft.content,
+        updatedAt: draft.updatedAt || null,
+      },
+    };
+  }, {});
+
 const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
   if (!notifications.length) return null;
 
@@ -421,6 +437,7 @@ const Chat = () => {
   const [messagePagination, setMessagePagination] = useState(EMPTY_MESSAGE_PAGINATION);
   const [messageFirstItemIndex, setMessageFirstItemIndex] = useState(MESSAGE_VIRTUAL_INDEX_BASE);
   const [conversations, setConversations] = useState([]);
+  const [draftsByConversationId, setDraftsByConversationId] = useState({});
   const [, setOnlineUsers] = useState([]);
   const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
@@ -447,6 +464,16 @@ const Chat = () => {
   const messageTargetRef = useRef(null);
   const appNotificationTimersRef = useRef(new Map());
   const typingExpiryTimersRef = useRef(new Map());
+  const draftPersistTimersRef = useRef(new Map());
+
+  useEffect(() => {
+    const draftPersistTimers = draftPersistTimersRef.current;
+
+    return () => {
+      draftPersistTimers.forEach((timer) => clearTimeout(timer));
+      draftPersistTimers.clear();
+    };
+  }, []);
 
   const resetMessageWindow = useCallback((nextMessages = []) => {
     messagesRef.current = nextMessages;
@@ -696,8 +723,112 @@ const Chat = () => {
   }, [messages, pendingJumpMessageId]);
 
   const currentChatUser = conversations.find((c) => c.id === selectedConversationId);
+  const displayedConversations = useMemo(
+    () =>
+      conversations.map((conversation) => {
+        const draft = draftsByConversationId[conversation.id];
+        if (!draft) return conversation;
+
+        return {
+          ...conversation,
+          draftContent: draft.content,
+          draftUpdatedAt: draft.updatedAt,
+        };
+      }),
+    [conversations, draftsByConversationId],
+  );
+  const selectedDraftContent = selectedConversationId
+    ? draftsByConversationId[selectedConversationId]?.content || ''
+    : '';
   const currentChatUserName = currentChatUser?.name;
   const isGlobalNotificationsMuted = Boolean(user?.notificationSettings?.muteAll);
+  const applyDraftPayload = useCallback((draft) => {
+    if (!draft?.conversationId) return;
+
+    setDraftsByConversationId((current) => {
+      const shouldClear = draft.isCleared || !hasDraftContent(draft.content);
+
+      if (shouldClear) {
+        if (!current[draft.conversationId]) return current;
+        const next = { ...current };
+        delete next[draft.conversationId];
+        return next;
+      }
+
+      return {
+        ...current,
+        [draft.conversationId]: {
+          content: draft.content,
+          updatedAt: draft.updatedAt || new Date().toISOString(),
+        },
+      };
+    });
+  }, []);
+  const persistDraftNow = useCallback(
+    async (conversationId, content) => {
+      if (!conversationId) return;
+
+      try {
+        const response = hasDraftContent(content)
+          ? await api.put(`/conversations/${conversationId}/draft`, { content })
+          : await api.delete(`/conversations/${conversationId}/draft`);
+
+        if (response.data?.draft) applyDraftPayload(response.data.draft);
+      } catch (error) {
+        console.error('Không thể đồng bộ bản nháp:', error);
+      }
+    },
+    [applyDraftPayload],
+  );
+  const clearConversationDraft = useCallback(
+    (conversationId) => {
+      if (!conversationId) return;
+
+      const existingTimer = draftPersistTimersRef.current.get(conversationId);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+        draftPersistTimersRef.current.delete(conversationId);
+      }
+
+      applyDraftPayload({
+        conversationId,
+        content: '',
+        updatedAt: new Date().toISOString(),
+        isCleared: true,
+      });
+      void persistDraftNow(conversationId, '');
+    },
+    [applyDraftPayload, persistDraftNow],
+  );
+  const handleDraftChange = useCallback(
+    (conversationId, content) => {
+      if (!conversationId) return;
+      const nextContent = typeof content === 'string' ? content : '';
+
+      applyDraftPayload({
+        conversationId,
+        content: nextContent,
+        updatedAt: new Date().toISOString(),
+        isCleared: !hasDraftContent(nextContent),
+      });
+
+      const existingTimer = draftPersistTimersRef.current.get(conversationId);
+      if (existingTimer) clearTimeout(existingTimer);
+
+      const timer = setTimeout(() => {
+        draftPersistTimersRef.current.delete(conversationId);
+        void persistDraftNow(conversationId, nextContent);
+      }, DRAFT_SYNC_DEBOUNCE_MS);
+      draftPersistTimersRef.current.set(conversationId, timer);
+    },
+    [applyDraftPayload, persistDraftNow],
+  );
+
+  useEffect(() => {
+    socket.on('draft_updated', applyDraftPayload);
+    return () => socket.off('draft_updated', applyDraftPayload);
+  }, [applyDraftPayload]);
+
   const isConversationMuted = useCallback(
     (conversationId) => {
       if (!conversationId) return false;
@@ -864,6 +995,15 @@ const Chat = () => {
           };
         });
         setConversations(sortConversations(formattedFriends));
+
+        try {
+          const draftsResponse = await api.get('/conversations/drafts');
+          if (draftsResponse.data.success) {
+            setDraftsByConversationId(formatDraftsByConversationId(draftsResponse.data.drafts));
+          }
+        } catch (draftError) {
+          console.error('Không thể tải bản nháp:', draftError);
+        }
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách bạn bè:', error);
@@ -1891,6 +2031,7 @@ const Chat = () => {
     };
     setMessages((prev) => [...prev, newMessage]);
     setReplyingMessage(null);
+    clearConversationDraft(selectedConversationId);
 
     setConversations((prev) => {
       const targetConv = prev.find((c) => c.id === selectedConversationId);
@@ -2195,7 +2336,7 @@ const Chat = () => {
           ) : (
             <>
               <Sidebar
-                conversations={conversations}
+                conversations={displayedConversations}
                 viewMode={activeRailItem}
                 onSelectConversation={handleSelectConversation}
                 selectedConversationId={selectedConversationId}
@@ -2227,10 +2368,13 @@ const Chat = () => {
                 <>
                   <ChatArea
                     currentUser={currentChatUser}
+                    conversationId={selectedConversationId}
                     messages={messages}
                     currentUserId={user?.id || 'current'}
                     reactionUsersById={reactionUsersById}
                     onSendMessage={handleSendMessage}
+                    draftContent={selectedDraftContent}
+                    onDraftChange={handleDraftChange}
                     typingUsers={typingUsers}
                     onTypingStart={handleTypingStart}
                     onTypingStop={handleTypingStop}

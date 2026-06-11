@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
@@ -231,7 +231,10 @@ const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
 };
 
 const MessageInput = ({
+  conversationId,
+  draftContent = '',
   onSendMessage,
+  onDraftChange,
   disabled = false,
   onTypingStart,
   onTypingStop,
@@ -271,6 +274,9 @@ const MessageInput = ({
   const voiceTimerRef = useRef(null);
   const recordingStartedAtRef = useRef(null);
   const discardVoiceRef = useRef(false);
+  const messageRef = useRef('');
+  const lastDraftConversationIdRef = useRef(conversationId || null);
+  const lastLocalDraftChangeAtRef = useRef(0);
   const hasPreviews = previews.length > 0;
   const hasVoicePreview = Boolean(voicePreview);
   const imagePreviews = previews.filter((preview) => preview.type === 'image');
@@ -283,6 +289,10 @@ const MessageInput = ({
   useEffect(() => {
     voicePreviewRef.current = voicePreview;
   }, [voicePreview]);
+
+  useEffect(() => {
+    messageRef.current = message;
+  }, [message]);
 
   useEffect(
     () => () => {
@@ -358,10 +368,17 @@ const MessageInput = ({
   useEffect(() => {
     if (!editingMessage) {
       if (wasEditingRef.current) {
-        setMessage('');
+        setMessage(draftContent || '');
         clearPreviews();
         clearVoicePreview();
         wasEditingRef.current = false;
+
+        requestAnimationFrame(() => {
+          const input = inputRef.current;
+          if (!input) return;
+          input.style.height = 'auto';
+          input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+        });
       }
 
       return;
@@ -375,7 +392,7 @@ const MessageInput = ({
     requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
-  }, [editingMessage]);
+  }, [draftContent, editingMessage]);
 
   useEffect(() => {
     if (!replyingMessage || editingMessage) return;
@@ -385,7 +402,7 @@ const MessageInput = ({
     });
   }, [replyingMessage, editingMessage]);
 
-  const stopTypingNow = () => {
+  const stopTypingNow = useCallback(() => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
@@ -393,13 +410,35 @@ const MessageInput = ({
     if (isTypingRef.current && onTypingStop) onTypingStop();
     isTypingRef.current = false;
     lastTypingEmitAtRef.current = 0;
-  };
+  }, [onTypingStop]);
 
-  const resizeInput = (el = inputRef.current) => {
+  const resizeInput = useCallback((el = inputRef.current) => {
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  };
+  }, []);
+
+  useEffect(() => {
+    if (editingMessage) return;
+
+    const nextDraft = draftContent || '';
+    const isConversationChange = lastDraftConversationIdRef.current !== (conversationId || null);
+
+    if (isConversationChange) {
+      lastDraftConversationIdRef.current = conversationId || null;
+      setMessage(nextDraft);
+      requestAnimationFrame(() => resizeInput());
+      if (!nextDraft.trim()) stopTypingNow();
+      return;
+    }
+
+    const hasRecentLocalChange = Date.now() - lastLocalDraftChangeAtRef.current < 1000;
+    if (hasRecentLocalChange || messageRef.current === nextDraft) return;
+
+    setMessage(nextDraft);
+    requestAnimationFrame(() => resizeInput());
+    if (!nextDraft.trim()) stopTypingNow();
+  }, [conversationId, draftContent, editingMessage, resizeInput, stopTypingNow]);
 
   const updateTypingState = (nextMessage) => {
     if (!nextMessage.trim()) {
@@ -422,10 +461,18 @@ const MessageInput = ({
     }, TYPING_IDLE_TIMEOUT_MS);
   };
 
+  const notifyDraftChange = (nextMessage) => {
+    if (editingMessage) return;
+
+    lastLocalDraftChangeAtRef.current = Date.now();
+    onDraftChange?.(conversationId, nextMessage);
+  };
+
   const handleTextChange = (e) => {
     const nextMessage = e.target.value;
     setMessage(nextMessage);
     resizeInput(e.target);
+    notifyDraftChange(nextMessage);
     updateTypingState(nextMessage);
   };
 
@@ -449,6 +496,7 @@ const MessageInput = ({
 
     setMessage(nextMessage);
     rememberEmoji(emoji);
+    notifyDraftChange(nextMessage);
     updateTypingState(nextMessage);
 
     requestAnimationFrame(() => {
@@ -472,14 +520,15 @@ const MessageInput = ({
     }
 
     onSendMessage('', null, replyingMessage, [], { sticker });
+    setMessage('');
+    notifyDraftChange('');
     setIsPickerOpen(false);
 
-    if (!message.trim()) {
-      stopTypingNow();
-    }
+    stopTypingNow();
 
     requestAnimationFrame(() => {
       inputRef.current?.focus();
+      resizeInput();
     });
   };
 

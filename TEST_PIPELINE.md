@@ -502,3 +502,31 @@ Mục tiêu: cùng một account đăng nhập nhiều tab/thiết bị phải �
 - Direct chat 1:1 vẫn gửi/nhận realtime bình thường, unread và notification không đổi behavior.
 - Group chat vẫn gửi/nhận, member management và read receipts không bị ảnh hưởng.
 - Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy smoke test khi server local đang mở.
+
+## Stage 22 - Advanced A1.4 Draft Sync
+
+### Text Draft Persistence
+
+- Đăng nhập account A, mở một direct conversation và gõ text nhưng không gửi.
+- Chuyển sang conversation khác rồi quay lại, textarea phải khôi phục đúng draft.
+- Reload app, mở lại conversation, draft vẫn còn.
+- Xóa toàn bộ text trong textarea, chuyển conversation/reload lại, draft không được quay lại.
+
+### Multi-Device Realtime
+
+- Đăng nhập account A ở hai tab hoặc hai trình duyệt A1/A2.
+- A1 mở conversation X và gõ draft, A2 mở cùng conversation X phải thấy draft sync sau debounce ngắn.
+- A2 sửa draft, A1 phải cập nhật theo nội dung mới nếu A1 không đang gõ local.
+- A1 gửi message trong conversation X, A2 phải clear draft và sidebar không còn `Nháp:`.
+
+### Scope Guard
+
+- Chọn file/ảnh hoặc record voice không cần sync preview sang tab khác.
+- Reply context không cần sync; draft chỉ lưu text đang gõ.
+- Edit message không được ghi đè draft cũ; hủy edit phải quay lại draft nếu có.
+
+### Regression
+
+- Typing indicator vẫn hiện/dừng như cũ trong direct và group.
+- Saved Messages vẫn đứng đầu sidebar và draft preview không đổi thứ tự conversation.
+- Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy `npm run smoke` khi server local đang mở.

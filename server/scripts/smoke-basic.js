@@ -63,6 +63,48 @@ const directConversation = (conversationsPayload.conversations || []).find(
   (conversation) => conversation.type === 'direct',
 );
 if (!directConversation) throw new Error('Cần ít nhất một direct conversation để smoke test.');
+const directConversationId = directConversation._id || directConversation.id;
+
+const draftContent = `PingMe draft smoke ${Date.now()}`;
+const draftResponse = await fetch(`${apiBaseUrl}/conversations/${directConversationId}/draft`, {
+  method: 'PUT',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({ content: draftContent }),
+});
+if (!draftResponse.ok) throw new Error(`Create draft smoke failed: ${draftResponse.status}`);
+
+const draftsResponse = await fetch(`${apiBaseUrl}/conversations/drafts`, {
+  headers: { cookie: cookies },
+});
+if (!draftsResponse.ok) throw new Error(`Get drafts smoke failed: ${draftsResponse.status}`);
+const draftsPayload = await draftsResponse.json();
+const draftInList = (draftsPayload.drafts || []).find(
+  (draft) => draft.conversationId === directConversationId && draft.content === draftContent,
+);
+if (!draftInList) throw new Error('Không tìm thấy bản nháp vừa tạo trong danh sách.');
+
+const tooLongDraftResponse = await fetch(`${apiBaseUrl}/conversations/${directConversationId}/draft`, {
+  method: 'PUT',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({ content: 'x'.repeat(5001) }),
+});
+if (tooLongDraftResponse.ok) throw new Error('Draft max length smoke should fail.');
+
+const inaccessibleDraftResponse = await fetch(
+  `${apiBaseUrl}/conversations/000000000000000000000000/draft`,
+  {
+    method: 'PUT',
+    headers: { cookie: cookies, 'content-type': 'application/json' },
+    body: JSON.stringify({ content: 'should fail' }),
+  },
+);
+if (inaccessibleDraftResponse.ok) throw new Error('Draft membership smoke should fail.');
+
+const deleteDraftResponse = await fetch(`${apiBaseUrl}/conversations/${directConversationId}/draft`, {
+  method: 'DELETE',
+  headers: { cookie: cookies },
+});
+if (!deleteDraftResponse.ok) throw new Error(`Delete draft smoke failed: ${deleteDraftResponse.status}`);
 
 for (const path of [
   '/auth/sessions',
@@ -88,7 +130,7 @@ await new Promise((resolve, reject) => {
     socket.emit('register_user');
     socket.emit('send_message', {
       tempId,
-      conversationId: directConversation._id || directConversation.id,
+      conversationId: directConversationId,
       content: `[PingMe smoke test ${new Date().toISOString()}]`,
     });
   });

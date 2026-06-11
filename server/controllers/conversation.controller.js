@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Conversation from '../models/Conversation.js';
+import ConversationDraft from '../models/ConversationDraft.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import {
@@ -16,6 +17,7 @@ import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.servic
 
 const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
 const SAVED_CONVERSATION_EMPTY_PREVIEW = 'Lưu note, link, file tại đây';
+const DRAFT_MAX_LENGTH = 5000;
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -179,6 +181,28 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
   };
 };
 
+const findConversationForMember = (conversationId, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(conversationId)) return null;
+
+  return Conversation.findOne({
+    _id: conversationId,
+    'members.user': userId,
+  }).select('_id');
+};
+
+const formatDraft = (draft) => ({
+  conversationId: toIdString(draft.conversation),
+  content: draft.content || '',
+  updatedAt: draft.updatedAt,
+});
+
+const emitDraftUpdated = (req, payload) => {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  io.to(getUserRoomId(req.user.id)).emit('draft_updated', payload);
+};
+
 const canManageGroupMembers = (role) => ['owner', 'admin'].includes(role);
 
 const canRemoveGroupMember = (actorRole, targetRole) => {
@@ -257,6 +281,121 @@ const conversationController = {
     } catch (error) {
       console.error('Lỗi tạo Tin nhắn đã lưu:', error);
       return res.status(500).json({ error: 'Không thể tạo Tin nhắn đã lưu' });
+    }
+  },
+
+  getDrafts: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const conversations = await Conversation.find({ 'members.user': currentUserId })
+        .select('_id')
+        .lean();
+      const conversationIds = conversations.map((conversation) => conversation._id);
+      const drafts = await ConversationDraft.find({
+        user: currentUserId,
+        conversation: { $in: conversationIds },
+      })
+        .select('conversation content updatedAt')
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        drafts: drafts.map(formatDraft),
+      });
+    } catch (error) {
+      console.error('Lỗi lấy bản nháp:', error);
+      return res.status(500).json({ error: 'Không thể lấy bản nháp' });
+    }
+  },
+
+  updateDraft: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId } = req.params;
+      const content = typeof req.body?.content === 'string' ? req.body.content : '';
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
+      }
+
+      if (content.length > DRAFT_MAX_LENGTH) {
+        return res.status(400).json({ error: 'Bản nháp không được vượt quá 5000 ký tự' });
+      }
+
+      const conversation = await findConversationForMember(conversationId, currentUserId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
+      }
+
+      if (!content.trim()) {
+        await ConversationDraft.findOneAndDelete({
+          user: currentUserId,
+          conversation: conversationId,
+        });
+        const payload = {
+          conversationId,
+          content: '',
+          updatedAt: new Date(),
+          isCleared: true,
+        };
+        emitDraftUpdated(req, payload);
+        return res.status(200).json({ success: true, draft: payload });
+      }
+
+      const draft = await ConversationDraft.findOneAndUpdate(
+        { user: currentUserId, conversation: conversationId },
+        { $set: { content } },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        },
+      ).lean();
+      const payload = {
+        ...formatDraft(draft),
+        isCleared: false,
+      };
+      emitDraftUpdated(req, payload);
+
+      return res.status(200).json({ success: true, draft: payload });
+    } catch (error) {
+      console.error('Lỗi cập nhật bản nháp:', error);
+      return res.status(500).json({ error: 'Không thể cập nhật bản nháp' });
+    }
+  },
+
+  deleteDraft: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
+      }
+
+      const conversation = await findConversationForMember(conversationId, currentUserId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
+      }
+
+      await ConversationDraft.findOneAndDelete({
+        user: currentUserId,
+        conversation: conversationId,
+      });
+      const payload = {
+        conversationId,
+        content: '',
+        updatedAt: new Date(),
+        isCleared: true,
+      };
+      emitDraftUpdated(req, payload);
+
+      return res.status(200).json({ success: true, draft: payload });
+    } catch (error) {
+      console.error('Lỗi xóa bản nháp:', error);
+      return res.status(500).json({ error: 'Không thể xóa bản nháp' });
     }
   },
 

@@ -990,6 +990,7 @@ const Sidebar = ({
             ) : (
               filteredConversations.map((conv) => {
                 const isSelected = selectedConversationId === conv.id;
+                const draftPreview = conv.draftContent?.trim() || '';
 
                 return (
                   <button
@@ -1024,7 +1025,14 @@ const Sidebar = ({
                             : 'text-on-surface-variant group-hover:text-on-surface'
                         }`}
                       >
-                        {conv.lastMessage || 'Bắt đầu trò chuyện'}
+                        {draftPreview ? (
+                          <>
+                            <span className="font-medium text-secondary">Nháp: </span>
+                            {draftPreview}
+                          </>
+                        ) : (
+                          conv.lastMessage || 'Bắt đầu trò chuyện'
+                        )}
                       </p>
                     </div>
 

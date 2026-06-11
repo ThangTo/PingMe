@@ -269,7 +269,7 @@ Mục tiêu: nhiều thiết bị của cùng user đồng bộ tin nhắn, read
 | A1.1 Multi-tab socket presence | DONE | `userId -> Set(socketId)` |
 | A1.2 Multi-device session model | DONE | Lưu devices/sessions trong DB, revoke từ Settings |
 | A1.3 Sync read state across devices | READY_TO_TEST | `readThroughMessageId`, read cursor sync tới mọi socket của cùng user và các member |
-| A1.4 Draft sync | PLANNED | Draft theo conversation |
+| A1.4 Draft sync | READY_TO_TEST | Text draft theo conversation, persist REST và sync realtime giữa tab/device |
 | A1.5 Per-device notification settings | PLANNED | Mute device riêng |
 | A1.6 Offline sync queue | PLANNED | Khi reconnect fetch missed events |
 
