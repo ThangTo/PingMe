@@ -18,6 +18,9 @@ const getMessageAttachments = (message = {}) => {
 const getPinnedPreviewText = (message) => {
   if (!message) return '';
   if (message.isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (message.messageType === 'poll') {
+    return `Bình chọn: ${message.poll?.question || message.content || 'Bình chọn'}`;
+  }
 
   const attachments = getMessageAttachments(message);
   if (message.content) return message.content;
@@ -134,6 +137,8 @@ const ChatArea = ({
   reactionUsersById,
   onSendMessage,
   onScheduleMessage,
+  onCreatePoll,
+  onPollVote,
   scheduledMessages = [],
   onCancelScheduledMessage,
   draftContent = '',
@@ -224,7 +229,12 @@ const ChatArea = ({
         .map((attachment) => attachment.filename || '')
         .join(' ');
       const stickerName = message.sticker?.name || '';
-      return `${content} ${filenames} ${stickerName}`.toLowerCase().includes(query);
+      const pollText = message.poll
+        ? `${message.poll.question || ''} ${(message.poll.options || [])
+            .map((option) => option.text || '')
+            .join(' ')}`
+        : '';
+      return `${content} ${filenames} ${stickerName} ${pollText}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
   const searchMatchIds = useMemo(() => {
@@ -238,7 +248,12 @@ const ChatArea = ({
           .map((attachment) => attachment.filename || '')
           .join(' ');
         const stickerName = message.sticker?.name || '';
-        return `${content} ${filenames} ${stickerName}`.toLowerCase().includes(query);
+        const pollText = message.poll
+          ? `${message.poll.question || ''} ${(message.poll.options || [])
+              .map((option) => option.text || '')
+              .join(' ')}`
+          : '';
+        return `${content} ${filenames} ${stickerName} ${pollText}`.toLowerCase().includes(query);
       })
       .map((message) => message.id)
       .filter(Boolean);
@@ -483,6 +498,7 @@ const ChatArea = ({
           currentUserId={currentUserId}
           reactionUsersById={reactionUsersById}
           onReaction={onReaction}
+          onPollVote={onPollVote}
           isLoading={isLoading}
           isLoadingOlderMessages={isLoadingOlderMessages}
           hasOlderMessages={hasOlderMessages}
@@ -513,6 +529,8 @@ const ChatArea = ({
         draftContent={draftContent}
         onSendMessage={onSendMessage}
         onScheduleMessage={onScheduleMessage}
+        onCreatePoll={onCreatePoll}
+        canCreatePoll={Boolean(currentUser?.isGroup)}
         onDraftChange={onDraftChange}
         onTypingStart={onTypingStart}
         onTypingStop={onTypingStop}

@@ -92,6 +92,59 @@ const callDetailsSchema = new mongoose.Schema(
 /**
  * Message Schema - Định nghĩa cấu trúc tin nhắn
  */
+const pollOptionSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [80, 'Poll option cannot exceed 80 characters'],
+    },
+    voterIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+      ],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const pollSchema = new mongoose.Schema(
+  {
+    question: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [160, 'Poll question cannot exceed 160 characters'],
+    },
+    options: {
+      type: [pollOptionSchema],
+      default: [],
+      validate: {
+        validator: (options) => Array.isArray(options) && options.length >= 2 && options.length <= 10,
+        message: 'Poll must have between 2 and 10 options',
+      },
+    },
+    allowMultiple: {
+      type: Boolean,
+      default: false,
+    },
+    closesAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
 const messageSchema = new mongoose.Schema(
   {
     // Người gửi
@@ -126,7 +179,7 @@ const messageSchema = new mongoose.Schema(
     // Loại tin nhắn: text, image, file, audio, video
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio', 'video', 'call', 'sticker'],
+      enum: ['text', 'image', 'file', 'audio', 'video', 'call', 'sticker', 'poll'],
       default: 'text',
     },
 
@@ -151,6 +204,11 @@ const messageSchema = new mongoose.Schema(
 
     callDetails: {
       type: callDetailsSchema,
+      default: null,
+    },
+
+    poll: {
+      type: pollSchema,
       default: null,
     },
 
@@ -239,6 +297,8 @@ messageSchema.index(
     content: 'text',
     'attachments.filename': 'text',
     'attachment.filename': 'text',
+    'poll.question': 'text',
+    'poll.options.text': 'text',
   },
   { name: 'message_text_search' },
 );
@@ -256,7 +316,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -270,7 +330,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -285,7 +345,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

@@ -339,7 +339,7 @@ Mục tiêu: tin nhắn giàu hơn text/file cơ bản.
 | A6.1 Link preview | IN_PROGRESS | Async server unfurl, lưu `linkPreview`, emit `message_preview_updated`; cần test nhiều domain |
 | A6.2 Stickers | PLANNED | Sticker packs |
 | A6.3 GIF search/send | PLANNED | GIF provider or local library |
-| A6.4 Polls | PLANNED | Poll message type |
+| A6.4 Polls | READY_TO_TEST | Group-only poll message type, single-choice vote changing, realtime result sync và voter list |
 | A6.5 Scheduled messages | READY_TO_TEST | Text-only send later qua REST + queue worker, pending strip, cancel và sync user room |
 | A6.6 Saved messages | READY_TO_TEST | Conversation cá nhân một-mình, `POST /api/conversations/saved`, tự sync realtime giữa tab/device |
 | A6.7 Message translation | OPTIONAL | Later AI/translation |

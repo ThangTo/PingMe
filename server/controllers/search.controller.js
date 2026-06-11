@@ -60,6 +60,8 @@ const searchController = {
             { 'attachments.filename': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'attachment.filename': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'poll.question': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'poll.options.text': { $regex: `^${escapedQuery}`, $options: 'i' } },
           ],
         })
           .sort({ createdAt: -1 })
@@ -74,7 +76,11 @@ const searchController = {
         const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const stickerMessages = await Message.find({
           ...baseQuery,
-          'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' },
+          $or: [
+            { 'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'poll.question': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'poll.options.text': { $regex: `^${escapedQuery}`, $options: 'i' } },
+          ],
           _id: { $nin: messages.map((message) => message._id) },
         })
           .sort({ createdAt: -1 })
@@ -104,6 +110,7 @@ const searchController = {
         content: message.content || '',
         messageType: message.messageType || 'text',
         sticker: message.sticker || null,
+        poll: message.poll || null,
         attachment: message.attachment || null,
         attachments: message.attachments || [],
         createdAt: message.createdAt,

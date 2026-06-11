@@ -48,6 +48,37 @@ const normalizeReactions = (reactions = []) =>
     userName: reaction.userId?.username || reaction.userName || '',
   }));
 
+const normalizePoll = (poll) => {
+  if (!poll?.question) return null;
+
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  const normalizedOptions = options.map((option, index) => {
+    const voterIds = Array.isArray(option.voterIds)
+      ? option.voterIds.map(getIdString).filter(Boolean)
+      : [];
+
+    return {
+      id: option.id || `option-${index}`,
+      text: option.text || '',
+      voteCount: Number.isFinite(option.voteCount) ? option.voteCount : voterIds.length,
+      voterIds,
+    };
+  });
+  const totalVotes = Number.isFinite(poll.totalVotes)
+    ? poll.totalVotes
+    : normalizedOptions.reduce((total, option) => total + option.voteCount, 0);
+  const closesAt = poll.closesAt || null;
+
+  return {
+    question: poll.question,
+    allowMultiple: false,
+    closesAt,
+    isClosed: Boolean(poll.isClosed || (closesAt && new Date(closesAt).getTime() <= Date.now())),
+    totalVotes,
+    options: normalizedOptions,
+  };
+};
+
 const normalizeReadStates = (readStates = []) =>
   readStates
     .map((readState) => {
@@ -129,9 +160,13 @@ const getMessagePreview = (
   messageType = 'text',
   callDetails = null,
   sticker = null,
+  poll = null,
 ) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (messageType === 'call') return getCallPreviewText(callDetails, content);
+  if (messageType === 'poll') {
+    return `Bình chọn: ${poll?.question || content || 'Bình chọn'}`;
+  }
   if (messageType === 'sticker' || sticker?.url) {
     return sticker?.name ? `Nhãn dán: ${sticker.name}` : 'Đã gửi nhãn dán';
   }
@@ -182,6 +217,7 @@ const showHiddenTabMessageNotification = ({ message, conversationId, conversatio
       message.messageType,
       message.callDetails,
       message.sticker,
+      message.poll,
     ),
   );
   const senderName = message.senderName || 'PingMe';
@@ -239,6 +275,7 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     content: isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     messageType: message.messageType || 'text',
     sticker: isDeleted ? null : message.sticker || null,
+    poll: isDeleted ? null : normalizePoll(message.poll),
     attachment: isDeleted ? null : message.attachment || null,
     attachments: isDeleted ? [] : getMessageAttachments(message),
     isDeleted,
@@ -257,6 +294,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   content: msg.content,
   messageType: msg.messageType || 'text',
   sticker: msg.sticker || null,
+  poll: normalizePoll(msg.poll),
   callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
@@ -499,6 +537,7 @@ const Chat = () => {
   const appNotificationTimersRef = useRef(new Map());
   const typingExpiryTimersRef = useRef(new Map());
   const draftPersistTimersRef = useRef(new Map());
+  const pollCreateResolversRef = useRef(new Map());
 
   useEffect(() => {
     const draftPersistTimers = draftPersistTimersRef.current;
@@ -506,6 +545,15 @@ const Chat = () => {
     return () => {
       draftPersistTimers.forEach((timer) => clearTimeout(timer));
       draftPersistTimers.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const pollCreateResolvers = pollCreateResolversRef.current;
+
+    return () => {
+      pollCreateResolvers.forEach(({ timeoutId }) => clearTimeout(timeoutId));
+      pollCreateResolvers.clear();
     };
   }, []);
 
@@ -1532,10 +1580,12 @@ const Chat = () => {
       const canNotifyConversation = shouldNotifyConversation(eventConversationId);
       const shouldMarkRead = !isOwnMessage && isCurrentConversation && document.hasFocus();
       const incomingAttachments = getMessageAttachments(data);
+      const incomingPoll = normalizePoll(data.poll);
       const incomingMessage = {
         ...data,
         messageType: data.messageType || 'text',
         sticker: data.sticker || null,
+        poll: incomingPoll,
         callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
@@ -1566,6 +1616,7 @@ const Chat = () => {
           data.messageType,
           data.callDetails,
           data.sticker,
+          incomingPoll,
         );
         const shouldShowAppToast = !isCurrentConversation;
 
@@ -1615,6 +1666,7 @@ const Chat = () => {
             data.messageType,
             data.callDetails,
             data.sticker,
+            incomingPoll,
           ),
           hasLastMessage: true,
           lastMessageAt: data.timestamp,
@@ -1774,6 +1826,7 @@ const Chat = () => {
 
     const handleMessageSent = (data) => {
       const savedAttachments = getMessageAttachments(data);
+      const savedPoll = normalizePoll(data.poll);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.tempId
@@ -1785,6 +1838,7 @@ const Chat = () => {
                 content: data.content || msg.content,
                 messageType: data.messageType || msg.messageType || 'text',
                 sticker: data.sticker || msg.sticker || null,
+                poll: savedPoll || msg.poll || null,
                 callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
@@ -1796,9 +1850,81 @@ const Chat = () => {
             : msg,
         ),
       );
+
+      const pendingPollCreate = pollCreateResolversRef.current.get(data.tempId);
+      if (pendingPollCreate) {
+        clearTimeout(pendingPollCreate.timeoutId);
+        pollCreateResolversRef.current.delete(data.tempId);
+        pendingPollCreate.resolve(data);
+      }
     };
 
     socket.on('message_sent', handleMessageSent);
+
+    const handlePollCreateFailed = (data) => {
+      if (data?.tempId) {
+        setMessages((prev) => prev.filter((message) => message.id !== data.tempId));
+        void fetchFriends();
+      }
+
+      const pendingPollCreate = pollCreateResolversRef.current.get(data?.tempId);
+      if (pendingPollCreate) {
+        clearTimeout(pendingPollCreate.timeoutId);
+        pollCreateResolversRef.current.delete(data.tempId);
+        pendingPollCreate.reject(new Error(data.error || 'Không thể tạo bình chọn'));
+        return;
+      }
+
+      showAppNotification({
+        title: 'Bình chọn thất bại',
+        body: data?.error || 'Không thể tạo bình chọn',
+        conversationId: selectedConversationId,
+      });
+    };
+
+    const handlePollVoteUpdated = (data) => {
+      const nextPoll = normalizePoll(data?.poll);
+      if (!data?.messageId || !nextPoll) return;
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === data.messageId ? { ...message, poll: nextPoll } : message,
+        ),
+      );
+
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id !== data.conversationId) return conv;
+
+          const pinnedMessages = (conv.pinnedMessages || []).map((pinnedMessage) =>
+            pinnedMessage.id === data.messageId ? { ...pinnedMessage, poll: nextPoll } : pinnedMessage,
+          );
+          const latestPinnedMessage =
+            conv.latestPinnedMessage?.id === data.messageId
+              ? { ...conv.latestPinnedMessage, poll: nextPoll }
+              : conv.latestPinnedMessage || pinnedMessages[0] || null;
+
+          return {
+            ...conv,
+            pinnedMessages,
+            latestPinnedMessage,
+            pinnedMessage: latestPinnedMessage,
+          };
+        }),
+      );
+    };
+
+    const handlePollVoteFailed = (data) => {
+      showAppNotification({
+        title: 'Không thể vote',
+        body: data?.error || 'Không thể cập nhật bình chọn',
+        conversationId: selectedConversationId,
+      });
+    };
+
+    socket.on('poll_create_failed', handlePollCreateFailed);
+    socket.on('poll_vote_updated', handlePollVoteUpdated);
+    socket.on('poll_vote_failed', handlePollVoteFailed);
 
     const handleMessageWasDelivered = (data) => {
       setMessages((prev) =>
@@ -1963,6 +2089,7 @@ const Chat = () => {
               content: data.content || REVOKED_MESSAGE_TEXT,
               messageType: 'text',
               sticker: null,
+              poll: null,
               attachment: null,
               attachments: [],
               linkPreview: null,
@@ -1982,6 +2109,7 @@ const Chat = () => {
                 content: REVOKED_MESSAGE_TEXT,
                 messageType: 'text',
                 sticker: null,
+                poll: null,
                 attachment: null,
                 attachments: [],
                 isDeleted: true,
@@ -2000,6 +2128,7 @@ const Chat = () => {
               ...prev,
               content: REVOKED_MESSAGE_TEXT,
               sticker: null,
+              poll: null,
               attachment: null,
               attachments: [],
               isDeleted: true,
@@ -2021,6 +2150,7 @@ const Chat = () => {
                       lastMessage.messageType,
                       lastMessage.callDetails,
                       lastMessage.sticker,
+                      lastMessage.poll,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -2074,6 +2204,9 @@ const Chat = () => {
       socket.off('reaction_added', handleAddReaction);
       socket.off('reaction_removed', handleRemoveReaction);
       socket.off('message_sent', handleMessageSent);
+      socket.off('poll_create_failed', handlePollCreateFailed);
+      socket.off('poll_vote_updated', handlePollVoteUpdated);
+      socket.off('poll_vote_failed', handlePollVoteFailed);
       socket.off('message_was_delivered', handleMessageWasDelivered);
       socket.off('pinned_messages_updated', handlePinnedMessagesUpdated);
       socket.off('message_pinned', handleMessagePinned);
@@ -2240,6 +2373,112 @@ const Chat = () => {
       };
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
       return sortConversations([updatedTarget, ...otherConvs]);
+    });
+  };
+
+  const handleCreatePoll = ({ question, options, closesAt = null }) => {
+    if (!selectedConversationId || !user) {
+      return Promise.reject(new Error('Chưa chọn cuộc trò chuyện'));
+    }
+
+    if (!currentChatUser?.isGroup) {
+      return Promise.reject(new Error('Bình chọn chỉ hỗ trợ trong nhóm'));
+    }
+
+    const cleanQuestion = typeof question === 'string' ? question.trim() : '';
+    const cleanOptions = Array.isArray(options)
+      ? options.map((option) => (typeof option === 'string' ? option.trim() : '')).filter(Boolean)
+      : [];
+
+    if (!cleanQuestion || cleanOptions.length < 2) {
+      return Promise.reject(new Error('Bình chọn cần câu hỏi và ít nhất 2 lựa chọn'));
+    }
+
+    const tempId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+    const optimisticPoll = normalizePoll({
+      question: cleanQuestion,
+      allowMultiple: false,
+      closesAt,
+      totalVotes: 0,
+      options: cleanOptions.map((text, index) => ({
+        id: `temp-${tempId}-${index}`,
+        text,
+        voteCount: 0,
+        voterIds: [],
+      })),
+    });
+
+    const newMessage = {
+      id: tempId,
+      conversationId: selectedConversationId,
+      senderId: user.id,
+      senderName: user.username || 'Bạn',
+      senderAvatar: user.avatar || '',
+      content: cleanQuestion,
+      messageType: 'poll',
+      poll: optimisticPoll,
+      sticker: null,
+      callDetails: null,
+      timestamp,
+      status: 'sending',
+      attachment: null,
+      attachments: [],
+      linkPreview: null,
+      replyTo: null,
+      reactions: [],
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+    setReplyingMessage(null);
+
+    setConversations((prev) => {
+      const targetConv = prev.find((c) => c.id === selectedConversationId);
+      if (!targetConv) return prev;
+      const updatedTarget = {
+        ...targetConv,
+        lastMessage: getMessagePreview(
+          cleanQuestion,
+          null,
+          false,
+          [],
+          'poll',
+          null,
+          null,
+          optimisticPoll,
+        ),
+        hasLastMessage: true,
+        lastMessageAt: timestamp,
+      };
+      const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
+      return sortConversations([updatedTarget, ...otherConvs]);
+    });
+
+    return new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        pollCreateResolversRef.current.delete(tempId);
+        setMessages((prev) => prev.filter((message) => message.id !== tempId));
+        void fetchFriends();
+        reject(new Error('Không nhận được xác nhận tạo bình chọn'));
+      }, 15000);
+
+      pollCreateResolversRef.current.set(tempId, { resolve, reject, timeoutId });
+      socket.emit('create_poll', {
+        tempId,
+        conversationId: selectedConversationId,
+        question: cleanQuestion,
+        options: cleanOptions,
+        closesAt,
+      });
+    });
+  };
+
+  const handlePollVote = (messageId, optionId) => {
+    if (!messageId || !optionId) return;
+
+    socket.emit('vote_poll', {
+      messageId,
+      optionId,
     });
   };
 
@@ -2434,7 +2673,15 @@ const Chat = () => {
 
   //Edit message
   const handleStartEditMessage = (message) => {
-    if (!message || message.isDeleted || message.senderId !== user?.id || message.status === 'sending') return;
+    if (
+      !message ||
+      message.isDeleted ||
+      message.messageType === 'poll' ||
+      message.senderId !== user?.id ||
+      message.status === 'sending'
+    ) {
+      return;
+    }
     setReplyingMessage(null);
     setEditingMessage(message);
   };
@@ -2563,6 +2810,8 @@ const Chat = () => {
                     reactionUsersById={reactionUsersById}
                     onSendMessage={handleSendMessage}
                     onScheduleMessage={handleScheduleMessage}
+                    onCreatePoll={handleCreatePoll}
+                    onPollVote={handlePollVote}
                     scheduledMessages={selectedScheduledMessages}
                     onCancelScheduledMessage={handleCancelScheduledMessage}
                     draftContent={selectedDraftContent}

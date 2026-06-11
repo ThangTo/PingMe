@@ -29,9 +29,37 @@ const getMessageAttachments = (message) => {
   return message.attachment ? [message.attachment] : [];
 };
 
+const formatPollPayload = (poll) => {
+  if (!poll?.question) return null;
+
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  const formattedOptions = options.map((option) => {
+    const voterIds = (option.voterIds || []).map((voterId) => toIdString(voterId)).filter(Boolean);
+
+    return {
+      id: option.id,
+      text: option.text || '',
+      voteCount: voterIds.length,
+      voterIds,
+    };
+  });
+
+  return {
+    question: poll.question,
+    allowMultiple: false,
+    closesAt: poll.closesAt || null,
+    isClosed: Boolean(poll.closesAt && new Date(poll.closesAt).getTime() <= Date.now()),
+    totalVotes: formattedOptions.reduce((total, option) => total + option.voteCount, 0),
+    options: formattedOptions,
+  };
+};
+
 const getMessagePreview = (message) => {
   if (!message) return 'Bắt đầu trò chuyện';
   if (message.isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (message.messageType === 'poll') {
+    return `Bình chọn: ${message.poll?.question || message.content || 'Bình chọn'}`;
+  }
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Đã gửi nhãn dán';
   }
@@ -58,6 +86,7 @@ const formatPinnedMessage = (message) => {
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
+    poll: message.isDeleted ? null : formatPollPayload(message.poll),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: getMessageAttachments(message),
     isDeleted: Boolean(message.isDeleted),

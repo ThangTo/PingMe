@@ -41,6 +41,12 @@ const activeCallsByUser = new Map();
 const activeCallSessions = new Map();
 const CALL_RING_TIMEOUT_MS = 45_000;
 const CALL_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const POLL_QUESTION_MAX_LENGTH = 160;
+const POLL_OPTION_MAX_LENGTH = 80;
+const POLL_MIN_OPTIONS = 2;
+const POLL_MAX_OPTIONS = 10;
+const POLL_MIN_DELAY_MS = 60 * 1000;
+const POLL_MAX_AHEAD_MS = 365 * 24 * 60 * 60 * 1000;
 
 const parseCookieHeader = (cookieHeader = '') =>
   cookieHeader.split(';').reduce((cookies, pair) => {
@@ -132,6 +138,9 @@ const resolveMentionUserIds = async ({ content, memberIds, senderId }) => {
 };
 
 const getMessageNotificationBody = (messagePayload) => {
+  if (messagePayload.messageType === 'poll') {
+    return `Bình chọn: ${messagePayload.poll?.question || messagePayload.content || 'Bình chọn'}`;
+  }
   if (messagePayload.content) return messagePayload.content;
   if (messagePayload.messageType === 'sticker' || messagePayload.sticker?.url) {
     return messagePayload.sticker?.name
@@ -553,6 +562,103 @@ const getMessageTypeFromAttachments = (attachments) => {
   return 'file';
 };
 
+const normalizePollText = (value) => (typeof value === 'string' ? value.trim() : '');
+
+const normalizePollOptions = (options) => {
+  if (!Array.isArray(options)) {
+    throw new Error('Cần ít nhất 2 lựa chọn bình chọn');
+  }
+
+  if (options.length < POLL_MIN_OPTIONS || options.length > POLL_MAX_OPTIONS) {
+    throw new Error('Bình chọn cần từ 2 đến 10 lựa chọn');
+  }
+
+  const seenOptions = new Set();
+  return options.map((option) => {
+    const text = normalizePollText(typeof option === 'string' ? option : option?.text);
+
+    if (!text) {
+      throw new Error('Lựa chọn không được rỗng');
+    }
+
+    if (text.length > POLL_OPTION_MAX_LENGTH) {
+      throw new Error('Mỗi lựa chọn tối đa 80 ký tự');
+    }
+
+    const normalizedText = text.toLocaleLowerCase('vi');
+    if (seenOptions.has(normalizedText)) {
+      throw new Error('Các lựa chọn không được trùng nhau');
+    }
+
+    seenOptions.add(normalizedText);
+    return text;
+  });
+};
+
+const parsePollClosesAt = (value) => {
+  if (!value) return null;
+
+  const closesAt = new Date(value);
+  if (Number.isNaN(closesAt.getTime())) {
+    throw new Error('Thời hạn bình chọn không hợp lệ');
+  }
+
+  const now = Date.now();
+  if (closesAt.getTime() < now + POLL_MIN_DELAY_MS) {
+    throw new Error('Thời hạn bình chọn phải sau hiện tại ít nhất 1 phút');
+  }
+
+  if (closesAt.getTime() > now + POLL_MAX_AHEAD_MS) {
+    throw new Error('Chỉ có thể đặt thời hạn bình chọn trong vòng 365 ngày');
+  }
+
+  return closesAt;
+};
+
+const validatePollCreatePayload = ({ question, options, closesAt }) => {
+  const cleanQuestion = normalizePollText(question);
+
+  if (!cleanQuestion) {
+    throw new Error('Câu hỏi bình chọn không được rỗng');
+  }
+
+  if (cleanQuestion.length > POLL_QUESTION_MAX_LENGTH) {
+    throw new Error('Câu hỏi bình chọn tối đa 160 ký tự');
+  }
+
+  return {
+    question: cleanQuestion,
+    options: normalizePollOptions(options),
+    closesAt: parsePollClosesAt(closesAt),
+  };
+};
+
+const formatPollPayload = (poll) => {
+  if (!poll?.question) return null;
+
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  const formattedOptions = options.map((option) => {
+    const voterIds = (option.voterIds || []).map((voterId) => toIdString(voterId)).filter(Boolean);
+
+    return {
+      id: option.id,
+      text: option.text || '',
+      voteCount: voterIds.length,
+      voterIds,
+    };
+  });
+  const closesAt = poll.closesAt || null;
+
+  return {
+    question: poll.question,
+    allowMultiple: false,
+    closesAt,
+    isClosed: Boolean(closesAt && new Date(closesAt).getTime() <= Date.now()),
+    totalVotes: formattedOptions.reduce((total, option) => total + option.voteCount, 0),
+    options: formattedOptions,
+  };
+};
+
 const formatReplyPreview = (message) => {
   if (!message) return null;
 
@@ -563,6 +669,7 @@ const formatReplyPreview = (message) => {
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
+    poll: message.isDeleted ? null : formatPollPayload(message.poll),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -584,6 +691,7 @@ const formatPinnedMessage = (message) => {
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
+    poll: message.isDeleted ? null : formatPollPayload(message.poll),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -1476,6 +1584,120 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on('create_poll', async (data = {}) => {
+      const { tempId, conversationId } = data || {};
+
+      try {
+        const senderId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+          throw new Error('conversationId không hợp lệ');
+        }
+
+        const pollInput = validatePollCreatePayload(data);
+        const conversation = await Conversation.findById(conversationId);
+
+        if (!conversation) {
+          throw new Error('Cuộc trò chuyện không tồn tại');
+        }
+
+        if (conversation.type !== 'group') {
+          throw new Error('Bình chọn chỉ hỗ trợ trong nhóm');
+        }
+
+        if (!isConversationMember(conversation, senderId)) {
+          throw new Error('Bạn không thuộc cuộc trò chuyện này');
+        }
+
+        const memberIds = getConversationMemberIds(conversation);
+        const senderUser = await User.findById(senderId).select('username avatar').lean();
+        const options = pollInput.options.map((text) => ({
+          id: randomUUID(),
+          text,
+          voterIds: [],
+        }));
+
+        const newMessage = await Message.create({
+          sender: senderId,
+          recipient: null,
+          conversation: conversation._id,
+          content: pollInput.question,
+          messageType: 'poll',
+          poll: {
+            question: pollInput.question,
+            options,
+            allowMultiple: false,
+            closesAt: pollInput.closesAt,
+          },
+          status: 'sent',
+          mentions: [],
+        });
+
+        conversation.lastMessage = newMessage._id;
+        await conversation.save();
+
+        const resolvedConversationId = conversation._id.toString();
+        const pollPayload = formatPollPayload(newMessage.poll);
+        const baseMessagePayload = {
+          id: newMessage.id,
+          conversationId: resolvedConversationId,
+          recipientId: null,
+          senderName: senderUser?.username || socket.username || '',
+          senderAvatar: senderUser?.avatar || '',
+          timestamp: newMessage.createdAt,
+          status: newMessage.status,
+          content: newMessage.content,
+          messageType: 'poll',
+          poll: pollPayload,
+          sticker: null,
+          attachment: null,
+          attachments: [],
+          linkPreview: null,
+          callDetails: null,
+          replyTo: null,
+          mentions: [],
+          isSaved: false,
+        };
+
+        socket.emit('message_sent', {
+          tempId,
+          ...baseMessagePayload,
+        });
+
+        const messagePayload = {
+          ...baseMessagePayload,
+          senderId,
+          isGroup: true,
+        };
+
+        queueMessagePushNotification({
+          memberIds,
+          senderId,
+          messagePayload,
+          conversation,
+          senderUser,
+        });
+        queueMessageNotifications({
+          io,
+          memberIds,
+          senderId,
+          messagePayload,
+          conversation,
+          senderUser,
+          mentionIds: [],
+        });
+
+        const roomId = joinOnlineUsersToConversation(io, memberIds, resolvedConversationId);
+        socket.to(roomId).emit('receive_message', messagePayload);
+      } catch (error) {
+        console.warn('Không thể tạo bình chọn:', error.message || error);
+        socket.emit('poll_create_failed', {
+          tempId,
+          error: error.message || 'Không thể tạo bình chọn',
+        });
+      }
+    });
+
     /**
      * Event: typing
      * Xử lý khi User A đang gõ tin nhắn cho User B
@@ -1770,6 +1992,77 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on('vote_poll', async (data = {}) => {
+      const { messageId, optionId } = data || {};
+
+      try {
+        const voterId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          throw new Error('messageId không hợp lệ');
+        }
+
+        if (!optionId || typeof optionId !== 'string') {
+          throw new Error('optionId không hợp lệ');
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message || message.isDeleted || message.messageType !== 'poll') {
+          throw new Error('Bình chọn không tồn tại');
+        }
+
+        const conversation = await Conversation.findById(message.conversation).select('type members');
+        if (!conversation || conversation.type !== 'group') {
+          throw new Error('Bình chọn chỉ hỗ trợ trong nhóm');
+        }
+
+        if (!isConversationMember(conversation, voterId)) {
+          throw new Error('Bạn không thuộc cuộc trò chuyện này');
+        }
+
+        if (message.poll?.closesAt && new Date(message.poll.closesAt).getTime() <= Date.now()) {
+          throw new Error('Bình chọn đã hết hạn');
+        }
+
+        const selectedOption = message.poll?.options?.find((option) => option.id === optionId);
+        if (!selectedOption) {
+          throw new Error('Lựa chọn không tồn tại');
+        }
+
+        const normalizedVoterId = voterId.toString();
+        const alreadySelected = (selectedOption.voterIds || []).some(
+          (existingVoterId) => toIdString(existingVoterId) === normalizedVoterId,
+        );
+
+        if (!alreadySelected) {
+          message.poll.options.forEach((option) => {
+            option.voterIds = (option.voterIds || []).filter(
+              (existingVoterId) => toIdString(existingVoterId) !== normalizedVoterId,
+            );
+          });
+          selectedOption.voterIds = [
+            ...(selectedOption.voterIds || []),
+            new mongoose.Types.ObjectId(normalizedVoterId),
+          ];
+          message.markModified('poll.options');
+          await message.save();
+        }
+
+        emitToUsers(io, getConversationMemberIds(conversation), 'poll_vote_updated', {
+          conversationId: toIdString(conversation),
+          messageId: message.id,
+          poll: formatPollPayload(message.poll),
+        });
+      } catch (error) {
+        console.warn('Không thể vote bình chọn:', error.message || error);
+        socket.emit('poll_vote_failed', {
+          messageId,
+          optionId,
+          error: error.message || 'Không thể vote bình chọn',
+        });
+      }
+    });
+
     socket.on('edit_message', async (data) => {
       try {
         const { messageId, content } = data;
@@ -1794,6 +2087,14 @@ const socketHandler = (io) => {
         const message = await Message.findById(messageId);
         if (!message || message.isDeleted) {
           socket.emit('message_edit_failed', { messageId, error: 'Tin nhắn không tồn tại' });
+          return;
+        }
+
+        if (message.messageType === 'poll') {
+          socket.emit('message_edit_failed', {
+            messageId,
+            error: 'Bình chọn không hỗ trợ chỉnh sửa trong V1',
+          });
           return;
         }
 
@@ -1903,7 +2204,7 @@ const socketHandler = (io) => {
 
         const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
           .sort({ createdAt: -1 })
-          .select('content attachment attachments sticker createdAt isDeleted messageType callDetails')
+          .select('content attachment attachments sticker poll createdAt isDeleted messageType callDetails')
           .lean();
 
         emitToUsers(io, participantIds, 'message_deleted', {
@@ -1933,6 +2234,9 @@ const socketHandler = (io) => {
                 sticker: conversationLastMessage.isDeleted
                   ? null
                   : conversationLastMessage.sticker || null,
+                poll: conversationLastMessage.isDeleted
+                  ? null
+                  : formatPollPayload(conversationLastMessage.poll),
                 attachments: conversationLastMessage.isDeleted
                   ? []
                   : normalizeAttachmentList({

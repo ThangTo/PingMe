@@ -562,3 +562,40 @@ Mục tiêu: cùng một account đăng nhập nhiều tab/thiết bị phải �
 - Draft Sync vẫn clear khi schedule thành công và không bị edit mode ghi đè.
 - Typing indicator vẫn hoạt động khi gõ text nhưng không bị pending scheduled message ảnh hưởng.
 - Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy `npm run smoke` khi server local đang mở.
+
+## Stage 24 - Advanced A6.4 Poll MVP
+
+### Create Poll
+
+- Đăng nhập account A, mở một group conversation và bấm icon bình chọn trong composer.
+- Tạo poll với câu hỏi hợp lệ, 2-10 lựa chọn, không trùng option; message optimistic phải xuất hiện trong list và sidebar preview là `Bình chọn: {question}`.
+- Reload app, poll vẫn là message thật trong lịch sử chat, có câu hỏi, option và count đúng.
+- Thử tạo poll trong direct chat hoặc `Tin nhắn đã lưu`; UI không hiện nút poll và server vẫn phải reject nếu client cũ emit event.
+
+### Validation
+
+- Thử câu hỏi rỗng, trên 160 ký tự, ít hơn 2 option, hơn 10 option, option rỗng, option trùng, option trên 80 ký tự.
+- Thử deadline quá khứ, nhỏ hơn `now + 1 minute`, hoặc quá `now + 365 days`; modal/server phải báo lỗi và không tạo message.
+
+### Realtime Vote
+
+- Mở cùng group bằng account A và B.
+- A tạo poll, B phải thấy poll qua realtime mà không cần reload.
+- B vote một option, A phải thấy count/percent và selected voter list cập nhật ngay.
+- B đổi sang option khác, option cũ giảm count và option mới tăng count; click lại cùng option không unvote.
+- Bấm voter count, danh sách voter phải hiện tên/avatar của current user và group members.
+- Đặt poll hết hạn hoặc dùng poll đã expired; vote mới phải bị disable ở client và server reject nếu emit thủ công.
+
+### Search, Reply And Actions
+
+- Tìm trong conversation bằng câu hỏi poll và text option, kết quả phải highlight/jump đúng poll message.
+- Reply vào poll phải hiển thị preview `Bình chọn: ...`.
+- Poll message không được vào edit mode; reply, reaction, pin/unpin và revoke vẫn hoạt động.
+
+### Regression
+
+- Gửi text thường, media/file/audio, sticker, reply, edit text message vẫn hoạt động.
+- Draft Sync không bị mất khi mở/đóng poll modal; gửi text vẫn clear draft như cũ.
+- Scheduled Messages pending strip, create/cancel/sent realtime vẫn hoạt động.
+- Group membership update không làm poll rendering hoặc voter list crash.
+- Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy `npm run smoke` khi server local đang mở.

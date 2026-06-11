@@ -174,7 +174,7 @@ Mục tiêu: biến message thành hành động. Người dùng không chỉ n�
 
 | Stage | Status | Priority | Tags | Scope | Output / Gate |
 |---|---|---|---|---|---|
-| 2.1 Poll MVP | NEXT | P1 | `#group #realtime #retention` | Poll message type, vote một/nhiều lựa chọn, deadline optional | Vote realtime, refresh vẫn đúng, quyền xem kết quả rõ |
+| 2.1 Poll MVP | READY_TO_TEST | P1 | `#group #realtime #retention` | Group-only poll message type, single-choice vote changing, deadline optional | Vote realtime, refresh vẫn đúng, kết quả có count/percent và voter list |
 | 2.2 Event In Chat | PLANNED | P1 | `#retention #notification` | Tạo lịch hẹn từ conversation, RSVP đơn giản | Event card, reminder, danh sách người tham gia |
 | 2.3 Collaborative Checklist | PLANNED | P1 | `#group #realtime #wow` | Checklist chung, assign member, mark done | Update realtime, audit nhỏ: ai tick, lúc nào |
 | 2.4 Message Evolution | PLANNED | P2 | `#wow #core` | Convert message thành task, poll, event, checklist item | Object mới giữ link tới message gốc và jump được |

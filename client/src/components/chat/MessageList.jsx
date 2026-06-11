@@ -93,6 +93,7 @@ const MessageList = ({
   currentUserId,
   reactionUsersById = {},
   onReaction,
+  onPollVote,
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
@@ -407,9 +408,11 @@ const MessageList = ({
               message={message}
               isOwn={isOwn}
               showAvatar={showAvatar}
+              currentUserId={currentUserId}
               reactionUsersById={reactionUsersById}
               readReceipts={readReceipts}
               onReaction={onReaction}
+              onPollVote={onPollVote}
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
@@ -437,6 +440,7 @@ const MessageList = ({
       onDeleteMessage,
       onEditMessage,
       onPinMessage,
+      onPollVote,
       onReaction,
       onReplyMessage,
       openActionMenu,

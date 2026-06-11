@@ -3,6 +3,7 @@ import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import ScheduleMessageModal from './ScheduleMessageModal';
+import CreatePollModal from './CreatePollModal';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 
@@ -39,6 +40,9 @@ const getMessageAttachments = (message = {}) => {
 const getReplyPreviewText = (replyingMessage) => {
   if (!replyingMessage) return '';
   if (replyingMessage.isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (replyingMessage.messageType === 'poll') {
+    return `Bình chọn: ${replyingMessage.poll?.question || replyingMessage.content || 'Bình chọn'}`;
+  }
 
   const attachments = getMessageAttachments(replyingMessage);
   if (replyingMessage.content) return replyingMessage.content;
@@ -236,6 +240,8 @@ const MessageInput = ({
   draftContent = '',
   onSendMessage,
   onScheduleMessage,
+  onCreatePoll,
+  canCreatePoll = false,
   onDraftChange,
   disabled = false,
   onTypingStart,
@@ -259,6 +265,7 @@ const MessageInput = ({
   const [voiceError, setVoiceError] = useState('');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [isPollOpen, setIsPollOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
   const fileInputRef = useRef(null);
@@ -919,6 +926,20 @@ const MessageInput = ({
     !isUploadingVoice &&
     !isRecordingVoice &&
     Boolean(onScheduleMessage);
+  const canOpenPoll =
+    canCreatePoll &&
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice &&
+    Boolean(onCreatePoll);
+
+  useEffect(() => {
+    if (!canOpenPoll) setIsPollOpen(false);
+  }, [canOpenPoll]);
 
   const handleScheduleSubmit = async (scheduledAt) => {
     if (!canSchedule) return;
@@ -946,6 +967,11 @@ const MessageInput = ({
         contentPreview={message}
         onClose={() => setIsScheduleOpen(false)}
         onSchedule={handleScheduleSubmit}
+      />
+      <CreatePollModal
+        open={isPollOpen}
+        onClose={() => setIsPollOpen(false)}
+        onCreatePoll={onCreatePoll}
       />
 
       {hasPreviews && (
@@ -1254,6 +1280,17 @@ const MessageInput = ({
         >
           <AppIcon name="attach_file" className="text-[20px]" />
         </button>
+
+        {canOpenPoll && (
+          <button
+            type="button"
+            onClick={() => setIsPollOpen(true)}
+            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            title="Tạo bình chọn"
+          >
+            <AppIcon name="poll" className="text-[19px]" />
+          </button>
+        )}
 
         <textarea
           ref={inputRef}

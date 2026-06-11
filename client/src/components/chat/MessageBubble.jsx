@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import EmojiPicker from './EmojiPicker';
+import PollMessageCard from './PollMessageCard';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import StickerArtwork from '../ui/StickerArtwork';
@@ -21,6 +22,9 @@ const getMessageAttachments = (message = {}) => {
 const getReplyPreviewText = (replyTo) => {
   if (!replyTo) return '';
   if (replyTo.isDeleted) return REVOKED_MESSAGE_TEXT;
+  if (replyTo.messageType === 'poll') {
+    return `Bình chọn: ${replyTo.poll?.question || replyTo.content || 'Bình chọn'}`;
+  }
 
   const attachments = getMessageAttachments(replyTo);
   if (replyTo.content) return replyTo.content;
@@ -335,7 +339,9 @@ const MessageBubble = ({
   isOwn = false,
   showAvatar = true,
   readReceipts = [],
+  currentUserId = '',
   onReaction,
+  onPollVote,
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
@@ -362,6 +368,7 @@ const MessageBubble = ({
 
   const isRevoked = Boolean(message.isDeleted);
   const isCallMessage = message.messageType === 'call';
+  const isPollMessage = !isRevoked && message.messageType === 'poll' && message.poll;
   const isStickerMessage =
     !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
   const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
@@ -372,7 +379,8 @@ const MessageBubble = ({
     (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
   );
   const hasAttachments = attachments.length > 0;
-  const shouldRenderTextBubble = Boolean(message.content) || (!hasAttachments && !isStickerMessage);
+  const shouldRenderTextBubble =
+    !isPollMessage && (Boolean(message.content) || (!hasAttachments && !isStickerMessage));
   const linkPreview = !isRevoked ? message.linkPreview : null;
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
@@ -638,6 +646,10 @@ const MessageBubble = ({
     { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
   ];
 
+  const visibleActionItems = isPollMessage
+    ? actionItems.filter((item) => item.key !== 'edit')
+    : actionItems;
+
   const avatarName = encodeURIComponent(message.senderName || 'User');
   const avatarSrc =
     message.senderAvatar ||
@@ -838,6 +850,17 @@ const MessageBubble = ({
                 className={`relative flex min-w-0 max-w-[min(350px,76vw)] flex-col gap-1 md:max-w-[min(560px,70vw)] ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
+                {isPollMessage && (
+                  <PollMessageCard
+                    poll={message.poll}
+                    messageId={message.id}
+                    currentUserId={currentUserId}
+                    reactionUsersById={reactionUsersById}
+                    disabled={message.status === 'sending'}
+                    onVote={onPollVote}
+                    isOwn={isOwn}
+                  />
+                )}
                 {isStickerMessage && (
                   <div className={`relative ${isOwn ? 'self-end' : 'self-start'}`}>
                     <StickerArtwork
@@ -1109,7 +1132,7 @@ const MessageBubble = ({
                 }`}
                 onContextMenu={(event) => event.preventDefault()}
               >
-                {actionItems.map((item) => (
+                {visibleActionItems.map((item) => (
                   <button
                     key={item.key}
                     type="button"
@@ -1228,7 +1251,7 @@ const MessageBubble = ({
               <EmojiPicker emojis={QUICK_EMOJIS} onSelect={handleEmojiSelect} />
             </div>
             <div className="overflow-hidden rounded-[16px] border border-outline-variant bg-surface-container-lowest shadow-sm">
-              {actionItems.map((item) => (
+              {visibleActionItems.map((item) => (
                 <button
                   key={item.key}
                   type="button"
