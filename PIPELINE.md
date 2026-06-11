@@ -1,6 +1,6 @@
 # PingMe Product Pipeline
 
-Cập nhật: 2026-06-07
+Cập nhật: 2026-06-11
 
 Mục tiêu sản phẩm: xây PingMe theo hướng chat app tương tự Telegram: nhanh, ổn định, hỗ trợ nhiều thiết bị, có chat 1-1, nhóm, media, gọi thoại/video, thông báo, tìm kiếm, quyền riêng tư và các tính năng nâng cao. Làm theo thứ tự: hoàn thành tính năng cơ bản trước, sau đó mới mở rộng sang phần nâng cao.
 
@@ -341,7 +341,7 @@ Mục tiêu: tin nhắn giàu hơn text/file cơ bản.
 | A6.3 GIF search/send | PLANNED | GIF provider or local library |
 | A6.4 Polls | PLANNED | Poll message type |
 | A6.5 Scheduled messages | PLANNED | Send later |
-| A6.6 Saved messages | PLANNED | Chat with yourself |
+| A6.6 Saved messages | READY_TO_TEST | Conversation cá nhân một-mình, `POST /api/conversations/saved`, tự sync realtime giữa tab/device |
 | A6.7 Message translation | OPTIONAL | Later AI/translation |
 
 ## Pipeline A7 - Stories / Status

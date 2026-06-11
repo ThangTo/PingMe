@@ -93,7 +93,11 @@ const searchController = {
         id: toIdString(message),
         conversationId: toIdString(message.conversation),
         conversationName:
-          message.conversation?.type === 'group' ? message.conversation.title : '',
+          message.conversation?.type === 'saved'
+            ? 'Tin nhắn đã lưu'
+            : message.conversation?.type === 'group'
+              ? message.conversation.title
+              : '',
         senderId: toIdString(message.sender),
         senderName: message.sender?.username || '',
         senderAvatar: message.sender?.avatar || '',

@@ -42,6 +42,35 @@ export const getOrCreateDirectConversation = async (userA, userB) => {
   }
 };
 
+export const getOrCreateSavedConversation = async (userId) => {
+  const savedOwnerId = toIdString(userId);
+
+  if (!savedOwnerId) {
+    throw new Error('Saved conversation needs an owner');
+  }
+
+  const existingConversation = await Conversation.findOne({
+    type: 'saved',
+    savedOwner: savedOwnerId,
+  });
+  if (existingConversation) return existingConversation;
+
+  try {
+    return await Conversation.create({
+      type: 'saved',
+      title: 'Tin nhắn đã lưu',
+      savedOwner: savedOwnerId,
+      members: [{ user: savedOwnerId, role: 'owner' }],
+      createdBy: savedOwnerId,
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return Conversation.findOne({ type: 'saved', savedOwner: savedOwnerId });
+    }
+    throw error;
+  }
+};
+
 export const getConversationMemberIds = (conversation) =>
   (conversation?.members || []).map((member) => toIdString(member.user)).filter(Boolean);
 

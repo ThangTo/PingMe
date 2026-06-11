@@ -22,6 +22,8 @@ import { showClientNotification } from '../services/pushNotifications';
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
 const OPEN_CONVERSATION_EVENT = 'pingme:open-conversation';
+const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
+const SAVED_CONVERSATION_EMPTY_PREVIEW = 'Lưu note, link, file tại đây';
 const MESSAGE_PAGE_LIMIT = 40;
 const MESSAGE_VIRTUAL_INDEX_BASE = 100000;
 const TYPING_USER_EXPIRE_MS = 4500;
@@ -325,25 +327,29 @@ const formatConversationSummary = (conversation) => {
   const latestPinnedMessage =
     conversation.latestPinnedMessage || conversation.pinnedMessage || pinnedMessages[0] || null;
   const isGroup = conversation.type === 'group';
+  const isSaved = Boolean(conversation.isSaved || conversation.type === 'saved');
+  const isDirect = conversation.type === 'direct';
 
   return {
     id: conversation._id || conversation.id,
     peerId: conversation.peerId || null,
     pingId: conversation.pingId || conversation.peerPingId || '',
     type: conversation.type || 'direct',
-    name: conversation.name,
+    name: isSaved ? SAVED_CONVERSATION_NAME : conversation.name,
     avatar: conversation.avatar,
-    isOnline: !isGroup ? Boolean(conversation.isOnline) : false,
-    lastSeen: !isGroup ? conversation.lastSeen || null : null,
-    canViewPresence: !isGroup ? conversation.canViewPresence ?? true : false,
+    isOnline: isDirect ? Boolean(conversation.isOnline) : false,
+    lastSeen: isDirect ? conversation.lastSeen || null : null,
+    canViewPresence: isDirect ? conversation.canViewPresence ?? true : false,
     isGroup,
+    isSaved,
     members: normalizeMembers(conversation.members),
     memberCount: conversation.memberCount || conversation.members?.length || 0,
-    lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
+    hasLastMessage: Boolean(conversation.hasLastMessage),
+    lastMessage: conversation.lastMessage || (isSaved ? SAVED_CONVERSATION_EMPTY_PREVIEW : 'Bắt đầu trò chuyện'),
     lastMessageAt: conversation.lastMessageAt || null,
-    unreadCount: conversation.unreadCount || 0,
+    unreadCount: isSaved ? 0 : conversation.unreadCount || 0,
     mutedUntil: conversation.mutedUntil || null,
-    notificationsMuted: Boolean(conversation.notificationsMuted),
+    notificationsMuted: !isSaved && Boolean(conversation.notificationsMuted),
     readState: conversation.readState || null,
     readStates: normalizeReadStates(conversation.readStates),
     pinnedMessages,
@@ -352,6 +358,13 @@ const formatConversationSummary = (conversation) => {
     pinnedMessage: latestPinnedMessage,
   };
 };
+
+const sortConversations = (items = []) =>
+  [...items].sort((a, b) => {
+    if (a.isSaved && !b.isSaved) return -1;
+    if (!a.isSaved && b.isSaved) return 1;
+    return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
+  });
 
 const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
   if (!notifications.length) return null;
@@ -814,30 +827,34 @@ const Chat = () => {
     try {
       if (conversations.length === 0) setIsFriendsLoading(true);
       setFriendsError('');
+      await api.post('/conversations/saved');
       const response = await api.get('/conversations');
       if (response.data.success) {
         const formattedFriends = response.data.conversations.map((conversation) => {
           const pinnedMessages = conversation.pinnedMessages || [];
           const latestPinnedMessage =
             conversation.latestPinnedMessage || conversation.pinnedMessage || pinnedMessages[0] || null;
+          const isSaved = Boolean(conversation.isSaved || conversation.type === 'saved');
+          const isDirect = conversation.type === 'direct';
 
           return {
             id: conversation._id,
             peerId: conversation.peerId || null,
             pingId: conversation.pingId || conversation.peerPingId || '',
             type: conversation.type || 'direct',
-            name: conversation.name,
+            name: isSaved ? SAVED_CONVERSATION_NAME : conversation.name,
             avatar: conversation.avatar,
-            isOnline: conversation.type === 'group' ? false : Boolean(conversation.isOnline),
-            lastSeen: conversation.type === 'group' ? null : conversation.lastSeen || null,
-            canViewPresence:
-              conversation.type === 'group' ? false : conversation.canViewPresence ?? true,
+            isOnline: isDirect ? Boolean(conversation.isOnline) : false,
+            lastSeen: isDirect ? conversation.lastSeen || null : null,
+            canViewPresence: isDirect ? conversation.canViewPresence ?? true : false,
             isGroup: conversation.type === 'group',
+            isSaved,
             members: normalizeMembers(conversation.members),
             memberCount: conversation.memberCount || conversation.members?.length || 0,
-            lastMessage: conversation.lastMessage || 'Bắt đầu trò chuyện',
+            hasLastMessage: Boolean(conversation.hasLastMessage),
+            lastMessage: conversation.lastMessage || (isSaved ? SAVED_CONVERSATION_EMPTY_PREVIEW : 'Bắt đầu trò chuyện'),
             lastMessageAt: conversation.lastMessageAt || null,
-            unreadCount: conversation.unreadCount || 0,
+            unreadCount: isSaved ? 0 : conversation.unreadCount || 0,
             readState: conversation.readState || null,
             readStates: normalizeReadStates(conversation.readStates),
             pinnedMessages,
@@ -846,7 +863,7 @@ const Chat = () => {
             pinnedMessage: latestPinnedMessage,
           };
         });
-        setConversations(formattedFriends);
+        setConversations(sortConversations(formattedFriends));
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách bạn bè:', error);
@@ -867,7 +884,7 @@ const Chat = () => {
           ? { ...existing, ...formattedConversation }
           : formattedConversation;
         const otherConversations = prev.filter((item) => item.id !== formattedConversation.id);
-        return [mergedConversation, ...otherConversations];
+        return sortConversations([mergedConversation, ...otherConversations]);
       });
 
       socket.emit('join_conversation', { conversationId: formattedConversation.id });
@@ -1315,6 +1332,7 @@ const Chat = () => {
             data.callDetails,
             data.sticker,
           ),
+          hasLastMessage: true,
           lastMessageAt: data.timestamp,
           unreadCount: isOwnMessage
             ? targetConv.unreadCount || 0
@@ -1323,7 +1341,7 @@ const Chat = () => {
               : (targetConv.unreadCount || 0) + 1,
         };
         const otherConvs = prev.filter((c) => c.id !== eventConversationId);
-        return [updatedTarget, ...otherConvs];
+        return sortConversations([updatedTarget, ...otherConvs]);
       });
     };
 
@@ -1888,10 +1906,11 @@ const Chat = () => {
           null,
           sticker,
         ),
+        hasLastMessage: true,
         lastMessageAt: newMessage.timestamp,
       };
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
-      return [updatedTarget, ...otherConvs];
+      return sortConversations([updatedTarget, ...otherConvs]);
     });
   };
 

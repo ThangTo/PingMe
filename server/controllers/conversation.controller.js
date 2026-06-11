@@ -8,10 +8,14 @@ import {
   getConversationRoomId,
   getUserRoomId,
   getMemberReadCutoff,
+  getOrCreateSavedConversation,
   getPeerMember,
   toIdString,
 } from '../services/conversation.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
+
+const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
+const SAVED_CONVERSATION_EMPTY_PREVIEW = 'Lưu note, link, file tại đây';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -129,6 +133,7 @@ const formatReadStates = (conversation, currentUserId) =>
   });
 
 const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
+  const isSaved = conversation.type === 'saved';
   const currentMember = getConversationMember(conversation, currentUserId);
   const peerMember = getPeerMember(conversation, currentUserId);
   const peer = peerMember?.user;
@@ -141,18 +146,28 @@ const formatConversation = (conversation, currentUserId, unreadCountByConversati
   return {
     _id: conversation._id,
     type: conversation.type,
+    isSaved,
     peerId: conversation.type === 'direct' ? toIdString(peer) : null,
     pingId: conversation.type === 'direct' ? peer?.pingId || '' : '',
-    name: conversation.type === 'direct' ? peer?.username || 'Người dùng' : conversation.title,
+    name: isSaved
+      ? SAVED_CONVERSATION_NAME
+      : conversation.type === 'direct'
+        ? peer?.username || 'Người dùng'
+        : conversation.title,
     avatar: conversation.type === 'direct' ? getVisibleAvatar(currentUserId, peer) : conversation.avatar,
     ...(conversation.type === 'direct'
       ? getVisiblePresence(currentUserId, peer)
       : { isOnline: false, lastSeen: null, canViewPresence: false }),
     members,
     memberCount: members.length,
-    lastMessage: getMessagePreview(lastMessage),
+    hasLastMessage: Boolean(lastMessage),
+    lastMessage: lastMessage
+      ? getMessagePreview(lastMessage)
+      : isSaved
+        ? SAVED_CONVERSATION_EMPTY_PREVIEW
+        : getMessagePreview(lastMessage),
     lastMessageAt: lastMessage?.createdAt || conversation.updatedAt || conversation.createdAt,
-    unreadCount: unreadCountByConversation.get(conversationId) || 0,
+    unreadCount: isSaved ? 0 : unreadCountByConversation.get(conversationId) || 0,
     mutedUntil: currentMember?.mutedUntil || null,
     notificationsMuted: isActiveMute(currentMember?.mutedUntil),
     readState: formatReadState(conversation, currentUserId),
@@ -229,6 +244,22 @@ const emitConversationMembersUpdated = ({ req, conversation, payload, addedMembe
 };
 
 const conversationController = {
+  ensureSavedConversation: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const conversation = await getOrCreateSavedConversation(currentUserId);
+      const populatedConversation = await populateConversationSummary(conversation._id);
+
+      return res.status(200).json({
+        success: true,
+        conversation: formatConversation(populatedConversation, currentUserId, new Map()),
+      });
+    } catch (error) {
+      console.error('Lỗi tạo Tin nhắn đã lưu:', error);
+      return res.status(500).json({ error: 'Không thể tạo Tin nhắn đã lưu' });
+    }
+  },
+
   createGroup: async (req, res) => {
     try {
       const currentUserId = req.user.id;
@@ -666,7 +697,11 @@ const conversationController = {
         .map((conversation) =>
           formatConversation(conversation, currentUserId, unreadCountByConversation),
         )
-        .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
+        .sort((a, b) => {
+          if (a.isSaved && !b.isSaved) return -1;
+          if (!a.isSaved && b.isSaved) return 1;
+          return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
+        });
 
       res.status(200).json({ success: true, conversations: formattedConversations });
     } catch (error) {

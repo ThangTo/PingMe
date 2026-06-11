@@ -23,6 +23,30 @@ const loginResponse = await fetch(`${apiBaseUrl}/auth/login`, {
 if (!loginResponse.ok) throw new Error(`Login smoke failed: ${loginResponse.status}`);
 const cookies = readCookies(loginResponse.headers);
 
+const createSavedConversation = async () => {
+  const response = await fetch(`${apiBaseUrl}/conversations/saved`, {
+    method: 'POST',
+    headers: { cookie: cookies },
+  });
+  if (!response.ok) throw new Error(`Saved conversation smoke failed: ${response.status}`);
+
+  const payload = await response.json();
+  const conversation = payload.conversation;
+  if (!conversation?.isSaved || conversation.type !== 'saved') {
+    throw new Error('Saved conversation smoke returned invalid payload.');
+  }
+
+  return conversation;
+};
+
+const savedConversation = await createSavedConversation();
+const savedConversationAgain = await createSavedConversation();
+const savedConversationId = savedConversation._id || savedConversation.id;
+const savedConversationAgainId = savedConversationAgain._id || savedConversationAgain.id;
+if (!savedConversationId || savedConversationId !== savedConversationAgainId) {
+  throw new Error('Saved conversation smoke created duplicate conversations.');
+}
+
 const conversationsResponse = await fetch(`${apiBaseUrl}/conversations`, {
   headers: { cookie: cookies },
 });
@@ -30,6 +54,11 @@ if (!conversationsResponse.ok) {
   throw new Error(`Get conversations smoke failed: ${conversationsResponse.status}`);
 }
 const conversationsPayload = await conversationsResponse.json();
+const savedConversationInList = (conversationsPayload.conversations || []).find(
+  (conversation) => conversation.isSaved || conversation.type === 'saved',
+);
+if (!savedConversationInList) throw new Error('Không tìm thấy Tin nhắn đã lưu trong danh sách.');
+
 const directConversation = (conversationsPayload.conversations || []).find(
   (conversation) => conversation.type === 'direct',
 );
@@ -66,7 +95,7 @@ await new Promise((resolve, reject) => {
   socket.on('message_sent', (message) => {
     if (message.tempId !== tempId) return;
     clearTimeout(timeout);
-    console.log(`Smoke OK: login, conversations, socket send_message -> ${message.id}`);
+    console.log(`Smoke OK: login, saved conversation, conversations, socket send_message -> ${message.id}`);
     resolve();
   });
   socket.on('error', (error) => {

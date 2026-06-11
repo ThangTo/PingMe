@@ -61,7 +61,7 @@ const conversationSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['direct', 'group'],
+      enum: ['direct', 'group', 'saved'],
       default: 'direct',
       index: true,
     },
@@ -103,6 +103,11 @@ const conversationSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    savedOwner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true },
 );
@@ -110,6 +115,16 @@ const conversationSchema = new mongoose.Schema(
 conversationSchema.index(
   { directKey: 1 },
   { unique: true, partialFilterExpression: { directKey: { $type: 'string' } } },
+);
+conversationSchema.index(
+  { savedOwner: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: 'saved',
+      savedOwner: { $type: 'objectId' },
+    },
+  },
 );
 conversationSchema.index({ 'members.user': 1, updatedAt: -1 });
 conversationSchema.index({ 'pinnedMessages.message': 1 });

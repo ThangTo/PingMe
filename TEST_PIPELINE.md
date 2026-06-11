@@ -1,6 +1,6 @@
 # PingMe Test Pipeline
 
-Cập nhật: 2026-06-06
+Cập nhật: 2026-06-11
 
 Mục tiêu: test các flow cơ bản sau mỗi mốc implement để biết app đang ổn trước khi chuyển sang feature realtime tiếp theo.
 
@@ -473,3 +473,32 @@ Mục tiêu: cùng một account đăng nhập nhiều tab/thiết bị phải �
 - Gửi tin nhắn realtime 1:1 và group vẫn append bình thường.
 - Call incoming vẫn hiện đúng tên người gọi.
 - Presence socket không emit duplicate khiến online badge nhấp nháy bất thường.
+
+## Stage 21 - Advanced A6.6 Saved Messages
+
+### Entry And Idempotency
+
+- Đăng nhập account A, mở app và kiểm tra sidebar có `Tin nhắn đã lưu` ở đầu danh sách.
+- Reload app nhiều lần, kiểm tra không tạo nhiều hơn một conversation Saved cho cùng user.
+- Nếu Saved chưa có tin, preview phải là `Lưu note, link, file tại đây`, không hiện tick/time giả.
+- Header và detail panel phải hiện đây là `Kho lưu cá nhân`, không có presence, gọi thoại, gọi video, báo cáo hoặc chặn.
+
+### Message, Media And Search
+
+- Trong `Tin nhắn đã lưu`, gửi text, link, ảnh/file và voice message nếu recorder khả dụng.
+- Tin vừa gửi phải hiện như tin của chính mình, sidebar preview/time/tick cập nhật sau khi gửi thành công.
+- Mở detail panel, kiểm tra media/files/audio/links lấy được item từ Saved như conversation thường.
+- Dùng global search tìm nội dung hoặc tên file trong Saved, click kết quả và kiểm tra app nhảy đúng message.
+
+### Multi-Device Realtime
+
+- Đăng nhập account A ở hai tab hoặc hai trình duyệt A1/A2.
+- A1 gửi tin trong Saved, A2 phải nhận realtime mà không tăng unread badge và không tạo notification message mới.
+- A2 edit/revoke/reaction/pin nếu UI hỗ trợ, A1 phải sync đúng qua socket user room.
+- Refresh A1/A2, nội dung Saved vẫn còn và conversation vẫn đứng đầu danh sách.
+
+### Regression
+
+- Direct chat 1:1 vẫn gửi/nhận realtime bình thường, unread và notification không đổi behavior.
+- Group chat vẫn gửi/nhận, member management và read receipts không bị ảnh hưởng.
+- Chạy `npm run check` trong `server/`, `npm run lint` và `npm run build` trong `client/`, sau đó chạy smoke test khi server local đang mở.

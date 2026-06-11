@@ -5,6 +5,7 @@ import { authMiddleware } from '../middlewares/auth.middleware.js';
 const router = Router();
 
 router.get('/', authMiddleware, conversationController.getConversations);
+router.post('/saved', authMiddleware, conversationController.ensureSavedConversation);
 router.post('/groups', authMiddleware, conversationController.createGroup);
 router.patch(
   '/:conversationId/notifications',

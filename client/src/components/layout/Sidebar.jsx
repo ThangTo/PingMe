@@ -1003,7 +1003,13 @@ const Sidebar = ({
                     {isSelected && (
                       <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-secondary" />
                     )}
-                    <Avatar src={conv.avatar} name={conv.name} online={conv.isOnline} size="lg" />
+                    {conv.isSaved ? (
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
+                        <AppIcon name="archive" className="text-[21px]" />
+                      </span>
+                    ) : (
+                      <Avatar src={conv.avatar} name={conv.name} online={conv.isOnline} size="lg" />
+                    )}
 
                     <div className="min-w-0 self-center">
                       <p
@@ -1027,7 +1033,7 @@ const Sidebar = ({
                         {conv.notificationsMuted && (
                           <AppIcon name="notifications_off" className="text-[13px]" />
                         )}
-                        <span>{formatConversationTime(conv.lastMessageAt)}</span>
+                        <span>{conv.hasLastMessage ? formatConversationTime(conv.lastMessageAt) : ''}</span>
                       </span>
                       {conv.unreadCount > 0 ? (
                         <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-semibold text-white">
@@ -1035,7 +1041,7 @@ const Sidebar = ({
                         </span>
                       ) : (
                         <span className="h-5 text-[13px] text-on-surface-variant">
-                          {conv.lastMessageAt ? '✓✓' : ''}
+                          {conv.hasLastMessage ? '✓✓' : ''}
                         </span>
                       )}
                     </div>

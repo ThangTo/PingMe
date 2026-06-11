@@ -17,13 +17,16 @@ const getInitials = (name = '') =>
 const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
   const { callState, initiateCall } = useCall();
   const isGroup = Boolean(user?.isGroup);
-  const canStartCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
-  const presenceText = !isGroup ? getPresenceText(user) : '';
-  const subtitle = isGroup
-    ? `${user?.memberCount || 0} thành viên`
-    : presenceText;
+  const isSaved = Boolean(user?.isSaved);
+  const canStartCall = !isGroup && !isSaved && Boolean(user?.peerId) && callState.status === 'idle';
+  const presenceText = !isGroup && !isSaved ? getPresenceText(user) : '';
+  const subtitle = isSaved
+    ? 'Kho lưu cá nhân'
+    : isGroup
+      ? `${user?.memberCount || 0} thành viên`
+      : presenceText;
 
-  const displaySubtitle = !isGroup && user?.pingId
+  const displaySubtitle = !isGroup && !isSaved && user?.pingId
     ? [user.pingId ? `@${user.pingId}` : '', subtitle].filter(Boolean).join(' - ')
     : subtitle;
 
@@ -53,7 +56,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
       onClick: () => handleStartCall('video'),
     },
     { icon: 'search', label: 'Tìm kiếm', onClick: onToggleSearch },
-  ].filter((item) => !(isGroup && item.directOnly));
+  ].filter((item) => !((isGroup || isSaved) && item.directOnly));
 
   return (
     <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-outline-variant bg-surface px-3 md:px-5">
@@ -68,7 +71,11 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
         </button>
 
         <div className="relative h-10 w-10 shrink-0">
-          {user?.avatar || !isGroup ? (
+          {isSaved ? (
+            <div className="flex h-full w-full items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
+              <AppIcon name="archive" className="text-[21px]" />
+            </div>
+          ) : user?.avatar || !isGroup ? (
             <img
               alt={user?.name || 'User'}
               className="h-full w-full rounded-full border border-outline-variant object-cover"
@@ -79,7 +86,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
               {getInitials(user?.name)}
             </div>
           )}
-          {!isGroup && user?.isOnline && user?.canViewPresence !== false && (
+          {!isGroup && !isSaved && user?.isOnline && user?.canViewPresence !== false && (
             <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
           )}
         </div>
@@ -89,7 +96,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
             {user?.name || 'Cuộc trò chuyện'}
           </h2>
           {displaySubtitle && (
-            <p className={`mt-0.5 truncate text-[13px] ${!isGroup && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
+            <p className={`mt-0.5 truncate text-[13px] ${!isGroup && !isSaved && user?.isOnline ? 'text-secondary' : 'text-on-surface-variant'}`}>
               {displaySubtitle}
             </p>
           )}

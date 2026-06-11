@@ -173,9 +173,10 @@ const ChatDetailsPanel = ({
   const [isReporting, setIsReporting] = useState(false);
   const memberMenuRef = useRef(null);
   const isGroup = Boolean(user?.isGroup);
-  const presenceText = !isGroup ? getPresenceText(user) : '';
+  const isSaved = Boolean(user?.isSaved);
+  const presenceText = !isGroup && !isSaved ? getPresenceText(user) : '';
   const { callState, initiateCall } = useCall();
-  const canStartDirectCall = !isGroup && Boolean(user?.peerId) && callState.status === 'idle';
+  const canStartDirectCall = !isGroup && !isSaved && Boolean(user?.peerId) && callState.status === 'idle';
   const notificationsMuted = Boolean(user?.notificationsMuted);
 
   const handleStartCall = (type) => {
@@ -187,6 +188,25 @@ const ChatDetailsPanel = ({
       conversationId: user.id,
     });
   };
+  const quickActions = [
+    {
+      icon: 'call',
+      label: 'Gọi thoại',
+      directOnly: true,
+      disabled: !canStartDirectCall,
+      onClick: () => handleStartCall('voice'),
+    },
+    {
+      icon: 'videocam',
+      label: 'Gọi video',
+      directOnly: true,
+      disabled: !canStartDirectCall,
+      onClick: () => handleStartCall('video'),
+    },
+    { icon: 'search', label: 'Tìm kiếm', onClick: () => setActiveTab('media') },
+    { icon: 'notifications_off', label: 'Tắt thông báo', hideForSaved: true },
+  ].filter((item) => !((isGroup || isSaved) && item.directOnly) && !(isSaved && item.hideForSaved));
+  const actionGridColumns = isSaved ? 'grid-cols-1' : isGroup ? 'grid-cols-2' : 'grid-cols-4';
 
   const handleToggleConversationNotifications = async () => {
     if (!user?.id) return;
@@ -588,12 +608,18 @@ const ChatDetailsPanel = ({
       <aside className="no-scrollbar fixed inset-0 z-50 flex h-[100dvh] w-full flex-col overflow-y-auto border-l border-outline-variant bg-surface xl:static xl:z-auto xl:h-full xl:w-[390px] xl:shrink-0">
         <div className="flex items-start justify-between px-5 pb-4 pt-5 md:px-6 md:pt-6">
           <div className="flex min-w-0 items-start gap-4">
-            <Avatar
-              src={user?.avatar || (!isGroup ? fallbackAvatar : '')}
-              name={user?.name || 'Cuộc trò chuyện'}
-              online={!isGroup && user?.isOnline}
-              size="xl"
-            />
+            {isSaved ? (
+              <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
+                <AppIcon name="archive" className="text-[26px]" />
+              </div>
+            ) : (
+              <Avatar
+                src={user?.avatar || (!isGroup ? fallbackAvatar : '')}
+                name={user?.name || 'Cuộc trò chuyện'}
+                online={!isGroup && user?.isOnline}
+                size="xl"
+              />
+            )}
             <div className="min-w-0 pt-1">
               {isGroup && (
                 <p className="mb-1 text-[12px] font-semibold text-on-surface-variant">Thông tin nhóm</p>
@@ -601,7 +627,10 @@ const ChatDetailsPanel = ({
               <h2 className="truncate text-[18px] font-medium tracking-tight text-on-surface">
                 {user?.name || 'Cuộc trò chuyện'}
               </h2>
-              {!isGroup && user?.pingId && (
+              {isSaved && (
+                <p className="mt-1 text-[13px] text-on-surface-variant">Kho lưu cá nhân</p>
+              )}
+              {!isGroup && !isSaved && user?.pingId && (
                 <p className="mt-1 truncate text-[13px] font-medium text-secondary">@{user.pingId}</p>
               )}
               {isGroup && (
@@ -609,7 +638,7 @@ const ChatDetailsPanel = ({
                   {user?.memberCount || 0} thành viên
                 </p>
               )}
-              {!isGroup && presenceText && (
+              {!isGroup && !isSaved && presenceText && (
                 <p className="mt-1 text-[13px] text-on-surface-variant">{presenceText}</p>
               )}
             </div>
@@ -625,23 +654,8 @@ const ChatDetailsPanel = ({
           </button>
         </div>
 
-        <div className={`grid gap-2 px-5 md:px-6 ${isGroup ? 'grid-cols-2' : 'grid-cols-4'}`}>
-          {[
-            {
-              icon: 'call',
-              label: 'Gọi thoại',
-              disabled: !canStartDirectCall,
-              onClick: () => handleStartCall('voice'),
-            },
-            {
-              icon: 'videocam',
-              label: 'Gọi video',
-              disabled: !canStartDirectCall,
-              onClick: () => handleStartCall('video'),
-            },
-            { icon: 'search', label: 'Tìm kiếm' },
-            { icon: 'notifications_off', label: 'Tắt thông báo' },
-          ].map((item) => {
+        <div className={`grid gap-2 px-5 md:px-6 ${actionGridColumns}`}>
+          {quickActions.map((item) => {
             const actionItem =
               item.icon === 'notifications_off'
                 ? {
@@ -660,7 +674,7 @@ const ChatDetailsPanel = ({
                 type="button"
                 onClick={actionItem.onClick}
                 disabled={actionItem.disabled}
-                className={`${isGroup && ['call', 'videocam'].includes(actionItem.icon) ? 'hidden' : 'flex'} h-[64px] flex-col items-center justify-center gap-2 rounded-[8px] border border-outline-variant transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                className={`flex h-[64px] flex-col items-center justify-center gap-2 rounded-[8px] border border-outline-variant transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
                   actionItem.active
                     ? 'bg-surface-container-high text-on-surface'
                     : 'bg-surface-container-lowest text-on-surface hover:bg-surface-container-low'
@@ -686,7 +700,7 @@ const ChatDetailsPanel = ({
           </p>
         )}
 
-        {!isGroup && (
+        {!isGroup && !isSaved && (
           <section className="mx-6 mt-5 border-t border-outline-variant pt-5">
             <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-on-surface-variant">An toàn</p>
             <div className="mt-3 grid grid-cols-2 gap-2">

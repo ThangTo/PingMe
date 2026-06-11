@@ -1338,6 +1338,7 @@ const socketHandler = (io) => {
         const resolvedConversationId = conversation._id.toString();
         const resolvedRecipientId = getDirectRecipientId(conversation, senderId, recipientId);
         const memberIds = getConversationMemberIds(conversation);
+        const isSavedConversation = conversation.type === 'saved';
         const senderUser = await User.findById(senderId).select('username avatar').lean();
         const mentionIds =
           conversation.type === 'group'
@@ -1404,6 +1405,7 @@ const socketHandler = (io) => {
           callDetails: newMessage.callDetails || null,
           replyTo: formatReplyPreview(replyToMessage),
           mentions: mentionIds,
+          isSaved: isSavedConversation,
         });
 
         const messagePayload = {
@@ -1424,6 +1426,7 @@ const socketHandler = (io) => {
           status: newMessage.status,
           replyTo: formatReplyPreview(replyToMessage),
           isGroup: conversation.type === 'group',
+          isSaved: isSavedConversation,
           mentions: mentionIds,
         };
 
@@ -1450,6 +1453,11 @@ const socketHandler = (io) => {
           senderUser,
           mentionIds,
         });
+
+        if (isSavedConversation) {
+          socket.to(getUserRoomId(senderId)).emit('receive_message', messagePayload);
+          return;
+        }
 
         if (conversation.type === 'group') {
           const roomId = joinOnlineUsersToConversation(io, memberIds, resolvedConversationId);
