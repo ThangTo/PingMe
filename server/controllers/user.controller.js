@@ -66,6 +66,9 @@ const formatUserProfile = (user) => ({
 
 const PROFILE_SELECT =
   'username pingId email avatar avatarStorageKey bio provider notificationSettings privacySettings createdAt';
+const PUBLIC_PROFILE_SELECT =
+  'username pingId avatar bio friends friendRequests blockedUsers privacySettings isOnline lastSeen createdAt';
+const PING_ID_PATTERN = /^[a-z][a-z0-9_]{4,31}$/;
 
 const formatVisibleUser = (user, viewerId) => ({
   _id: user._id,
@@ -131,6 +134,75 @@ const getRelationshipStatus = (currentUser, targetUser, currentUserId) => {
   return 'none';
 };
 
+const normalizePingIdParam = (value = '') => value.trim().replace(/^@+/, '').toLowerCase();
+
+const isSafePublicAvatarVisible = (viewerId, targetUser) => {
+  const settings = normalizePrivacySettings(targetUser?.privacySettings);
+  const viewerIdString = toIdString(viewerId);
+  const targetId = toIdString(targetUser?._id);
+
+  if (viewerIdString && viewerIdString === targetId) return true;
+  if (settings.avatarVisibility === 'everyone') return true;
+  if (settings.avatarVisibility === 'friends') {
+    return viewerIdString && hasObjectId(targetUser?.friends || [], viewerIdString);
+  }
+  return false;
+};
+
+const getPublicPresence = (viewerId, targetUser) => {
+  const settings = normalizePrivacySettings(targetUser?.privacySettings);
+  const viewerIdString = toIdString(viewerId);
+  const targetId = toIdString(targetUser?._id);
+  const canViewPresence =
+    settings.onlineVisibility === 'everyone' ||
+    (viewerIdString &&
+      (viewerIdString === targetId ||
+        (settings.onlineVisibility === 'friends' && hasObjectId(targetUser?.friends || [], viewerIdString))));
+
+  return {
+    canViewPresence: Boolean(canViewPresence),
+    isOnline: canViewPresence ? Boolean(targetUser?.isOnline) : false,
+    lastSeen: canViewPresence ? targetUser?.lastSeen || null : null,
+  };
+};
+
+const hasBlockedRelationship = (viewerUser, targetUser) => {
+  const viewerId = toIdString(viewerUser?._id);
+  const targetId = toIdString(targetUser?._id);
+  if (!viewerId || !targetId) return false;
+
+  return (
+    hasObjectId(viewerUser.blockedUsers || [], targetId) ||
+    hasObjectId(targetUser.blockedUsers || [], viewerId)
+  );
+};
+
+const formatPublicProfile = (targetUser, viewerUser = null) => {
+  const viewerId = toIdString(viewerUser?._id);
+  const targetId = toIdString(targetUser?._id);
+  const isSelf = Boolean(viewerId && viewerId === targetId);
+  const relationshipStatus = !viewerUser
+    ? 'anonymous'
+    : isSelf
+      ? 'self'
+      : getRelationshipStatus(viewerUser, targetUser, viewerId);
+  const mutualInfo =
+    viewerUser && !isSelf
+      ? getMutualFriendInfo(viewerUser, targetUser)
+      : { mutualFriendCount: 0, mutualFriends: [] };
+
+  return {
+    id: targetId,
+    username: targetUser.username,
+    pingId: targetUser.pingId,
+    avatar: isSafePublicAvatarVisible(viewerId, targetUser) ? targetUser.avatar || '' : '',
+    bio: targetUser.bio || '',
+    ...getPublicPresence(viewerId, targetUser),
+    relationshipStatus,
+    ...mutualInfo,
+  };
+};
+
 const formatDiscoverableUser = (user, currentUser, viewerId) => ({
   ...formatVisibleUser(user, viewerId),
   status: getRelationshipStatus(currentUser, user, viewerId),
@@ -153,6 +225,84 @@ const emitPresenceForPrivacyChange = (req, user) => {
 };
 
 const userController = {
+  getPublicProfile: async (req, res) => {
+    try {
+      const pingId = normalizePingIdParam(req.params.pingId || '');
+
+      if (!PING_ID_PATTERN.test(pingId)) {
+        return res.status(400).json({ error: 'PingMe ID khong hop le' });
+      }
+
+      const [targetUser, viewerUser] = await Promise.all([
+        User.findOne({ pingId })
+          .select(PUBLIC_PROFILE_SELECT)
+          .populate('friends', 'username pingId avatar')
+          .lean(),
+        req.user?.id
+          ? User.findById(req.user.id)
+              .select('friends friendRequests blockedUsers')
+              .populate('friends', 'username pingId avatar')
+              .lean()
+          : null,
+      ]);
+
+      if (!targetUser) {
+        return res.status(404).json({ error: 'Khong tim thay ho so' });
+      }
+
+      if (viewerUser && hasBlockedRelationship(viewerUser, targetUser)) {
+        return res.status(404).json({ error: 'Khong tim thay ho so' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        profile: formatPublicProfile(targetUser, viewerUser),
+      });
+    } catch (error) {
+      console.error('Loi lay public profile:', error);
+      return res.status(500).json({ error: 'Khong the tai ho so' });
+    }
+  },
+
+  getPublicProfileById: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ error: 'userId khong hop le' });
+      }
+
+      const [targetUser, viewerUser] = await Promise.all([
+        User.findById(userId)
+          .select(PUBLIC_PROFILE_SELECT)
+          .populate('friends', 'username pingId avatar')
+          .lean(),
+        req.user?.id
+          ? User.findById(req.user.id)
+              .select('friends friendRequests blockedUsers')
+              .populate('friends', 'username pingId avatar')
+              .lean()
+          : null,
+      ]);
+
+      if (!targetUser) {
+        return res.status(404).json({ error: 'Khong tim thay ho so' });
+      }
+
+      if (viewerUser && hasBlockedRelationship(viewerUser, targetUser)) {
+        return res.status(404).json({ error: 'Khong tim thay ho so' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        profile: formatPublicProfile(targetUser, viewerUser),
+      });
+    } catch (error) {
+      console.error('Loi lay public profile theo userId:', error);
+      return res.status(500).json({ error: 'Khong the tai ho so' });
+    }
+  },
+
   // Lấy profile hiện tại
   getMe: async (req, res) => {
     try {

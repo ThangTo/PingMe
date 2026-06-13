@@ -101,6 +101,7 @@ const MessageList = ({
   onDeleteMessage,
   onReplyMessage,
   onPinMessage,
+  onOpenSenderProfile,
   isLoading = false,
   isLoadingOlderMessages = false,
   hasOlderMessages = false,
@@ -423,6 +424,7 @@ const MessageList = ({
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
               onPinMessage={onPinMessage}
+              onOpenSenderProfile={onOpenSenderProfile}
               isPinned={pinnedMessageIds.includes(message.id)}
               showMeta={showMeta}
               onToggleMeta={toggleMessageMeta}
@@ -449,6 +451,7 @@ const MessageList = ({
       onChecklistToggle,
       onCancelEvent,
       onPinMessage,
+      onOpenSenderProfile,
       onPollVote,
       onReaction,
       onReplyMessage,

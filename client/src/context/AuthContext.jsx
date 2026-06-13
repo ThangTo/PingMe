@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../config/api';
+import { getSafeRedirectPath } from '../utils/authRedirect';
 /**
  * Auth Context - Quản lý authentication state
  * Sử dụng Context API để share user data và auth functions
@@ -164,9 +165,11 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const startGoogleAuth = () => {
+  const startGoogleAuth = (redirectPath = '') => {
     const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/+$/, '');
-    window.location.href = `${apiBaseUrl}/auth/google`;
+    const safeRedirect = getSafeRedirectPath(redirectPath);
+    const redirectQuery = safeRedirect ? `?redirect=${encodeURIComponent(safeRedirect)}` : '';
+    window.location.href = `${apiBaseUrl}/auth/google${redirectQuery}`;
   };
 
   /**

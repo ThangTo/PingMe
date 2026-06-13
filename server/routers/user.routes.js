@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import userController from '../controllers/user.controller.js';
-import { authMiddleware } from '../middlewares/auth.middleware.js';
+import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware.js';
 import upload from '../middlewares/upload.middleware.js';
 import { searchLimiter } from '../middlewares/rateLimit.middleware.js';
 
@@ -15,6 +15,8 @@ const uploadAvatar = (req, res, next) => {
   });
 };
 
+router.get('/public/id/:userId', optionalAuthMiddleware, userController.getPublicProfileById);
+router.get('/public/:pingId', optionalAuthMiddleware, userController.getPublicProfile);
 router.get('/', authMiddleware, searchLimiter, userController.getAllUsers);
 router.get('/me', authMiddleware, userController.getMe);
 router.get('/friends', authMiddleware, userController.getFriends);

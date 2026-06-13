@@ -7,6 +7,7 @@ const AuthLayout = lazy(() => import('./components/layout/AuthLayout'));
 const ChatRoute = lazy(() => import('./routes/ChatRoute'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
+const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage'));
 
 const THEME_COLORS = {
   light: '#FBFAF7',
@@ -50,6 +51,7 @@ const AnimatedRoutes = () => {
 
         {/* Protected routes */}
         <Route path="/chat" element={<ProtectedRoute><ChatRoute /></ProtectedRoute>} />
+        <Route path="/u/:pingId" element={<PublicProfilePage />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/chat" replace />} />

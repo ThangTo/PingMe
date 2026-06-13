@@ -11,6 +11,7 @@ import NotificationPanel from '../components/layout/NotificationPanel';
 import GlobalSearchPanel from '../components/layout/GlobalSearchPanel';
 import IncomingCallModal from '../components/call/IncomingCallModal';
 import CallOverlay from '../components/call/CallOverlay';
+import ProfileViewer from '../components/profile/ProfileViewer';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
@@ -386,6 +387,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
     msg.sender?.username ||
     msg.senderName ||
     (msg.sender?._id === currentUser?.id || msg.sender === currentUser?.id ? 'Bạn' : currentChatUser?.name || ''),
+  senderPingId: msg.sender?.pingId || msg.senderPingId || '',
   senderAvatar: msg.sender?.avatar || msg.senderAvatar || '',
   content: msg.content,
   messageType: msg.messageType || 'text',
@@ -695,6 +697,7 @@ const Chat = () => {
   const [replyingMessage, setReplyingMessage] = useState(null);
   const [jumpToMessageSignal, setJumpToMessageSignal] = useState(null);
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
+  const [profileTarget, setProfileTarget] = useState(null);
   const [appNotifications, setAppNotifications] = useState([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [friendRequestCount, setFriendRequestCount] = useState(0);
@@ -3404,12 +3407,15 @@ const Chat = () => {
       const conversationId = event.detail?.conversationId;
       if (!conversationId) return;
 
+      if (event.detail?.conversation) {
+        upsertConversation(event.detail.conversation);
+      }
       handleSelectConversation(conversationId);
     };
 
     window.addEventListener(OPEN_CONVERSATION_EVENT, handleOpenConversation);
     return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, handleOpenConversation);
-  }, [handleSelectConversation]);
+  }, [handleSelectConversation, upsertConversation]);
 
   useEffect(() => {
     const openConversationFromNotification = (conversationId) => {
@@ -3447,7 +3453,16 @@ const Chat = () => {
 
     navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
 
-    const queryConversationId = new URLSearchParams(window.location.search).get('conversationId');
+    const queryParams = new URLSearchParams(window.location.search);
+    if (queryParams.get('panel') === 'settings') {
+      setActiveRailItem('settings');
+      window.history.replaceState({}, '', window.location.pathname);
+      return () => {
+        navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+      };
+    }
+
+    const queryConversationId = queryParams.get('conversationId');
     openConversationFromNotification(queryConversationId);
 
     return () => {
@@ -3547,6 +3562,51 @@ const Chat = () => {
     });
   };
 
+  const handleOpenSenderProfile = useCallback(
+    (target = {}) => {
+      const targetId = getIdString(target.id || target._id || target.userId);
+      if (!targetId) return;
+
+      const selfId = getIdString(user?.id || user?._id);
+      const member = (currentChatUser?.members || []).find((item) => item.id === targetId);
+      const isSelf = targetId === selfId;
+      const isDirectPeer = currentChatUser?.peerId === targetId;
+
+      setProfileTarget({
+        id: targetId,
+        username:
+          target.username ||
+          target.senderName ||
+          member?.username ||
+          (isSelf ? user?.username : '') ||
+          (isDirectPeer ? currentChatUser?.name : ''),
+        pingId:
+          target.pingId ||
+          target.senderPingId ||
+          member?.pingId ||
+          (isSelf ? user?.pingId : '') ||
+          (isDirectPeer ? currentChatUser?.pingId : ''),
+        avatar:
+          target.avatar ||
+          target.senderAvatar ||
+          member?.avatar ||
+          (isSelf ? user?.avatar : '') ||
+          (isDirectPeer ? currentChatUser?.avatar : ''),
+        relationshipStatus:
+          target.relationshipStatus || (isSelf ? 'self' : isDirectPeer ? 'friend' : 'none'),
+        isOnline:
+          target.isOnline ?? member?.isOnline ?? (isSelf ? user?.isOnline : currentChatUser?.isOnline),
+        lastSeen:
+          target.lastSeen || member?.lastSeen || (isSelf ? user?.lastSeen : currentChatUser?.lastSeen) || null,
+        canViewPresence:
+          target.canViewPresence ??
+          member?.canViewPresence ??
+          (isSelf ? true : currentChatUser?.canViewPresence ?? true),
+      });
+    },
+    [currentChatUser, user],
+  );
+
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-background font-body text-on-surface">
       <IncomingCallModal />
@@ -3556,6 +3616,18 @@ const Chat = () => {
         onOpen={openAppNotification}
         onDismiss={dismissAppNotification}
       />
+      {profileTarget && (
+        <div className="fixed inset-0 z-[9990] flex items-end justify-center bg-[#1f1d1a]/40 px-3 pb-3 backdrop-blur-sm md:items-center md:p-6">
+          <div className="no-scrollbar max-h-[min(86dvh,720px)] w-full overflow-y-auto rounded-[14px] border border-outline bg-surface-container-lowest p-4 shadow-sm md:max-w-[430px]">
+            <ProfileViewer
+              pingId={profileTarget.pingId}
+              userId={profileTarget.id}
+              initialProfile={profileTarget}
+              onClose={() => setProfileTarget(null)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex h-full w-full overflow-hidden bg-surface">
         <AppRail
@@ -3664,6 +3736,7 @@ const Chat = () => {
                     onStartReplyMessage={handleStartReplyMessage}
                     onPinMessage={handlePinMessage}
                     onUnpinMessage={handleUnpinPinnedMessage}
+                    onOpenSenderProfile={handleOpenSenderProfile}
                     onJumpToPinnedMessage={handleJumpToPinnedMessage}
                     jumpToMessageSignal={jumpToMessageSignal}
                     onEditMessage={handleEditMessage}
@@ -3694,6 +3767,7 @@ const Chat = () => {
                       onEventRsvp={handleEventRsvp}
                       onCancelEvent={handleCancelEvent}
                       onChecklistToggle={handleChecklistToggle}
+                      onOpenProfile={handleOpenSenderProfile}
                       onJumpToMessage={handleWorkspaceJumpToMessage}
                       onBlocked={() => {
                         setSelectedConversationId(null);

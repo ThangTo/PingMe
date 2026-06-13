@@ -14,11 +14,12 @@ const getInitials = (name = '') =>
     .join('')
     .toUpperCase() || '?';
 
-const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
+const Header = ({ user, onBack, onToggleDetails, onToggleSearch, onOpenProfile }) => {
   const { callState, initiateCall } = useCall();
   const isGroup = Boolean(user?.isGroup);
   const isSaved = Boolean(user?.isSaved);
   const canStartCall = !isGroup && !isSaved && Boolean(user?.peerId) && callState.status === 'idle';
+  const canOpenProfile = !isGroup && !isSaved && Boolean(user?.peerId);
   const presenceText = !isGroup && !isSaved ? getPresenceText(user) : '';
   const subtitle = isSaved
     ? 'Kho lưu cá nhân'
@@ -37,6 +38,21 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
       name: user.name,
       avatar: user.avatar,
       conversationId: user.id,
+    });
+  };
+
+  const handleOpenProfile = () => {
+    if (!canOpenProfile) return;
+
+    onOpenProfile?.({
+      id: user.peerId,
+      username: user.name || '',
+      pingId: user.pingId || '',
+      avatar: user.avatar || '',
+      relationshipStatus: 'friend',
+      isOnline: user.isOnline,
+      lastSeen: user.lastSeen,
+      canViewPresence: user.canViewPresence,
     });
   };
 
@@ -70,7 +86,13 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
           <AppIcon name="arrow_back" className="text-[22px]" />
         </button>
 
-        <div className="relative h-10 w-10 shrink-0">
+        <button
+          type="button"
+          onClick={handleOpenProfile}
+          disabled={!canOpenProfile}
+          className="relative h-10 w-10 shrink-0 rounded-full text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-secondary/35 disabled:cursor-default disabled:hover:opacity-100"
+          title={canOpenProfile ? 'Xem hồ sơ' : undefined}
+        >
           {isSaved ? (
             <div className="flex h-full w-full items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
               <AppIcon name="archive" className="text-[21px]" />
@@ -89,9 +111,14 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
           {!isGroup && !isSaved && user?.isOnline && user?.canViewPresence !== false && (
             <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface bg-[#10b981]" />
           )}
-        </div>
+        </button>
 
-        <div className="min-w-0">
+        <button
+          type="button"
+          onClick={handleOpenProfile}
+          disabled={!canOpenProfile}
+          className="min-w-0 text-left disabled:cursor-default"
+        >
           <h2 className="truncate text-[17px] font-semibold tracking-tight text-on-surface md:text-[16px]">
             {user?.name || 'Cuộc trò chuyện'}
           </h2>
@@ -100,7 +127,7 @@ const Header = ({ user, onBack, onToggleDetails, onToggleSearch }) => {
               {displaySubtitle}
             </p>
           )}
-        </div>
+        </button>
       </div>
 
       <div className="flex items-center gap-1">

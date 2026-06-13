@@ -4,6 +4,7 @@ import { consumeOtp, requestOtp } from '../services/otp.service.js';
 import {
   clearGoogleStateCookie,
   createGoogleAuthorization,
+  getGoogleRedirectPath,
   getGoogleProfileFromCallback,
   validateGoogleState,
 } from '../services/oauth.service.js';
@@ -166,7 +167,7 @@ const authController = {
 
   googleStart: async (req, res) => {
     try {
-      return res.redirect(createGoogleAuthorization(res));
+      return res.redirect(createGoogleAuthorization(res, req.query.redirect || ''));
     } catch (error) {
       console.error('Google OAuth start error:', error);
       return redirectWithAuthError(res, error.message || 'Không thể bắt đầu đăng nhập Google');
@@ -187,10 +188,11 @@ const authController = {
 
       const profile = await getGoogleProfileFromCallback(req.query.code);
       const { tokens } = await authService.loginWithOAuthProfile(profile, getSessionMetadata(req));
+      const redirectPath = getGoogleRedirectPath(req);
 
       clearGoogleStateCookie(res);
       setAuthCookies(res, tokens);
-      return res.redirect(`${getClientUrl()}/chat`);
+      return res.redirect(`${getClientUrl()}${redirectPath}`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
       clearGoogleStateCookie(res);

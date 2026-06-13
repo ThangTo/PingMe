@@ -360,6 +360,7 @@ const MessageBubble = ({
   onReplyMessage,
   onPinMessage,
   onJumpToMessage,
+  onOpenSenderProfile,
   isPinned = false,
   showMeta = true,
   onToggleMeta,
@@ -672,6 +673,17 @@ const MessageBubble = ({
   const avatarSrc =
     message.senderAvatar ||
     `https://ui-avatars.com/api/?name=${avatarName}&background=d9c8b4&color=2a2520&bold=true`;
+  const openSenderProfile = (event) => {
+    event.stopPropagation();
+    if (!message.senderId) return;
+    onOpenSenderProfile?.({
+      id: message.senderId,
+      username: message.senderName || '',
+      pingId: message.senderPingId || '',
+      avatar: message.senderAvatar || '',
+      relationshipStatus: 'friend',
+    });
+  };
   const deliveryText =
     isOwn && !isRevoked
       ? message.status === 'sending'
@@ -694,17 +706,26 @@ const MessageBubble = ({
       >
         <div className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
-            <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
+            <button
+              type="button"
+              onClick={openSenderProfile}
+              className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant"
+              title="Xem hồ sơ người gọi"
+            >
               <img src={avatarSrc} alt="Người gọi" className="h-full w-full object-cover" />
-            </div>
+            </button>
           )}
         </div>
 
         <div className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}>
           {!isOwn && showAvatar && message.senderName && (
-            <span className="ml-0.5 hidden px-1 text-[11px] font-medium text-on-surface-variant md:inline">
+            <button
+              type="button"
+              onClick={openSenderProfile}
+              className="ml-0.5 hidden px-1 text-left text-[11px] font-medium text-on-surface-variant hover:text-secondary md:inline"
+            >
               {message.senderName}
-            </span>
+            </button>
           )}
 
           <div className="inline-flex max-w-[min(420px,86vw)] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface">
@@ -809,9 +830,14 @@ const MessageBubble = ({
       >
         <div className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}>
           {!isOwn && (
-            <div className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant">
+            <button
+              type="button"
+              onClick={openSenderProfile}
+              className="h-7 w-7 overflow-hidden rounded-full border border-outline-variant"
+              title="Xem hồ sơ người gửi"
+            >
               <img src={avatarSrc} alt="Người gửi" className="h-full w-full object-cover" />
-            </div>
+            </button>
           )}
         </div>
 
@@ -819,9 +845,13 @@ const MessageBubble = ({
           className={`flex min-w-0 max-w-[78%] flex-col gap-1 md:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}
         >
           {!isOwn && showAvatar && message.senderName && (
-            <span className="ml-0.5 hidden px-1 text-[11px] font-medium text-on-surface-variant md:inline">
+            <button
+              type="button"
+              onClick={openSenderProfile}
+              className="ml-0.5 hidden px-1 text-left text-[11px] font-medium text-on-surface-variant hover:text-secondary md:inline"
+            >
               {message.senderName}
-            </span>
+            </button>
           )}
 
           <div

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AuthPreview from '../components/layout/AuthPreview';
 import AppIcon from '../components/ui/AppIcon';
 import PingMeLogo from '../components/ui/PingMeLogo';
 import PingMeWordmark from '../components/ui/PingMeWordmark';
 import { useAuth } from '../context/AuthContext';
+import { getRedirectFromSearch, withRedirectParam } from '../utils/authRedirect';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +24,8 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { register, requestRegisterOtp, startGoogleAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectPath = getRedirectFromSearch(location.search);
 
   const passwordStrength = useMemo(() => {
     const value = formData.password;
@@ -161,7 +164,7 @@ const Register = () => {
       });
 
       if (result?.success) {
-        navigate('/login', {
+        navigate(withRedirectParam('/login', redirectPath), {
           replace: true,
           state: { message: 'Vui lòng đăng nhập để tiếp tục.' },
         });
@@ -188,7 +191,7 @@ const Register = () => {
         <div className="flex items-center justify-center gap-2 font-semibold text-on-surface md:justify-start">
           <button
             type="button"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate(withRedirectParam('/login', redirectPath))}
             className="absolute left-4 grid h-10 w-10 place-items-center rounded-[8px] text-on-surface transition hover:bg-surface-container-high md:hidden"
             aria-label="Quay lại đăng nhập"
           >
@@ -200,7 +203,9 @@ const Register = () => {
 
         <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-7 md:py-4">
           <div className="mb-6">
-            <h1 className="text-[28px] font-semibold text-on-surface md:text-[25px]">Tạo tài khoản</h1>
+            <h1 className="text-[28px] font-semibold text-on-surface md:text-[25px]">
+              Tạo tài khoản
+            </h1>
             <p className="mt-2 max-w-[310px] text-[14px] leading-relaxed text-on-surface-variant">
               Tham gia PingMe để kết nối với bạn bè và đồng nghiệp.
             </p>
@@ -215,7 +220,10 @@ const Register = () => {
             )}
 
             <div>
-              <label htmlFor="register-username" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+              <label
+                htmlFor="register-username"
+                className="mb-1.5 block text-[11px] font-medium text-on-surface"
+              >
                 Tên hiển thị
               </label>
               <div className="relative">
@@ -232,14 +240,22 @@ const Register = () => {
                   placeholder="Tên của bạn"
                 />
                 {formData.username && !errors.username && (
-                  <AppIcon name="check" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary" />
+                  <AppIcon
+                    name="check"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary"
+                  />
                 )}
               </div>
-              {errors.username && <p className="mt-1 text-[10px] font-medium text-error">{errors.username}</p>}
+              {errors.username && (
+                <p className="mt-1 text-[10px] font-medium text-error">{errors.username}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="register-ping-id" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+              <label
+                htmlFor="register-ping-id"
+                className="mb-1.5 block text-[11px] font-medium text-on-surface"
+              >
                 PingMe ID
               </label>
               <div className="relative">
@@ -256,20 +272,28 @@ const Register = () => {
                   autoComplete="username"
                   disabled={isSubmitting}
                   className={`${inputClass(errors.pingId)} pl-8 pr-11`}
-                  placeholder="thangto"
+                  placeholder="abc123"
                 />
                 {formData.pingId && !errors.pingId && (
-                  <AppIcon name="check" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary" />
+                  <AppIcon
+                    name="check"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary"
+                  />
                 )}
               </div>
               <p className="mt-1 text-[9px] text-on-surface-variant">
                 Dùng để người khác tìm bạn. ID là duy nhất, tên hiển thị vẫn có thể trùng.
               </p>
-              {errors.pingId && <p className="mt-1 text-[10px] font-medium text-error">{errors.pingId}</p>}
+              {errors.pingId && (
+                <p className="mt-1 text-[10px] font-medium text-error">{errors.pingId}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="register-email" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+              <label
+                htmlFor="register-email"
+                className="mb-1.5 block text-[11px] font-medium text-on-surface"
+              >
                 Email
               </label>
               <div className="relative">
@@ -286,14 +310,22 @@ const Register = () => {
                   placeholder="you@example.com"
                 />
                 {formData.email && !errors.email && (
-                  <AppIcon name="check" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary" />
+                  <AppIcon
+                    name="check"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary"
+                  />
                 )}
               </div>
-              {errors.email && <p className="mt-1 text-[10px] font-medium text-error">{errors.email}</p>}
+              {errors.email && (
+                <p className="mt-1 text-[10px] font-medium text-error">{errors.email}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="register-password" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+              <label
+                htmlFor="register-password"
+                className="mb-1.5 block text-[11px] font-medium text-on-surface"
+              >
                 Mật khẩu
               </label>
               <div className="relative">
@@ -315,7 +347,10 @@ const Register = () => {
                   className="absolute right-0.5 top-0.5 grid h-10 w-10 place-items-center rounded-[7px] text-on-surface-variant hover:bg-surface-container-high"
                   aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                 >
-                  <AppIcon name={showPassword ? 'visibility_off' : 'visibility'} className="text-[17px]" />
+                  <AppIcon
+                    name={showPassword ? 'visibility_off' : 'visibility'}
+                    className="text-[17px]"
+                  />
                 </button>
               </div>
               <div className="mt-2 flex items-center gap-1">
@@ -334,11 +369,16 @@ const Register = () => {
               <p className="mt-1 text-[9px] text-on-surface-variant">
                 Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.
               </p>
-              {errors.password && <p className="mt-1 text-[10px] font-medium text-error">{errors.password}</p>}
+              {errors.password && (
+                <p className="mt-1 text-[10px] font-medium text-error">{errors.password}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="register-confirm-password" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+              <label
+                htmlFor="register-confirm-password"
+                className="mb-1.5 block text-[11px] font-medium text-on-surface"
+              >
                 Nhập lại mật khẩu
               </label>
               <div className="relative">
@@ -360,7 +400,10 @@ const Register = () => {
                   className="absolute right-0.5 top-0.5 grid h-10 w-10 place-items-center rounded-[7px] text-on-surface-variant hover:bg-surface-container-high"
                   aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                 >
-                  <AppIcon name={showConfirmPassword ? 'visibility_off' : 'visibility'} className="text-[17px]" />
+                  <AppIcon
+                    name={showConfirmPassword ? 'visibility_off' : 'visibility'}
+                    className="text-[17px]"
+                  />
                 </button>
               </div>
               {errors.confirmPassword && (
@@ -373,7 +416,10 @@ const Register = () => {
 
             {otpRequested && (
               <div className="rounded-[10px] border border-secondary/20 bg-secondary-container/60 px-3 py-2.5">
-                <label htmlFor="register-otp" className="mb-1.5 block text-[11px] font-medium text-on-surface">
+                <label
+                  htmlFor="register-otp"
+                  className="mb-1.5 block text-[11px] font-medium text-on-surface"
+                >
                   Mã OTP email
                 </label>
                 <input
@@ -397,15 +443,24 @@ const Register = () => {
                   className={`${inputClass(errors.otpCode)} text-center text-[18px] font-semibold tracking-[0.28em]`}
                   placeholder="000000"
                 />
-                {otpMessage && <p className="mt-1.5 text-[10px] text-on-surface-variant">{otpMessage}</p>}
-                {errors.otpCode && <p className="mt-1 text-[10px] font-medium text-error">{errors.otpCode}</p>}
+                {otpMessage && (
+                  <p className="mt-1.5 text-[10px] text-on-surface-variant">{otpMessage}</p>
+                )}
+                {errors.otpCode && (
+                  <p className="mt-1 text-[10px] font-medium text-error">{errors.otpCode}</p>
+                )}
               </div>
             )}
 
             <label className="flex cursor-pointer items-start gap-2.5 py-1 text-[11px] leading-relaxed text-on-surface-variant">
-              <input type="checkbox" defaultChecked className="mt-0.5 h-4 w-4 rounded-[3px] border-outline accent-[#2F8A63]" />
+              <input
+                type="checkbox"
+                defaultChecked
+                className="mt-0.5 h-4 w-4 rounded-[3px] border-outline accent-[#2F8A63]"
+              />
               <span>
-                Tôi đồng ý với <span className="font-medium text-secondary">Điều khoản sử dụng</span> và{' '}
+                Tôi đồng ý với{' '}
+                <span className="font-medium text-secondary">Điều khoản sử dụng</span> và{' '}
                 <span className="font-medium text-secondary">Chính sách bảo mật</span>.
               </span>
             </label>
@@ -416,7 +471,9 @@ const Register = () => {
               className="flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-secondary px-4 text-[15px] font-semibold text-white transition hover:brightness-95 active:translate-y-px disabled:cursor-wait disabled:opacity-70"
             >
               {isSubmitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
-              {isSubmitting && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />}
+              {isSubmitting && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
+              )}
             </button>
 
             <div className="flex items-center gap-4 py-1">
@@ -427,7 +484,7 @@ const Register = () => {
 
             <button
               type="button"
-              onClick={startGoogleAuth}
+              onClick={() => startGoogleAuth(redirectPath)}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high"
               title="Tiếp tục với Google"
             >
@@ -437,7 +494,11 @@ const Register = () => {
 
             <p className="pt-2 text-center text-[12px] text-on-surface-variant">
               Đã có tài khoản?{' '}
-              <button type="button" onClick={() => navigate('/login')} className="font-medium text-secondary hover:underline">
+              <button
+                type="button"
+                onClick={() => navigate(withRedirectParam('/login', redirectPath))}
+                className="font-medium text-secondary hover:underline"
+              >
                 Đăng nhập
               </button>
             </p>

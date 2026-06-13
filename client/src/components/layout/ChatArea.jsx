@@ -411,6 +411,7 @@ const ChatArea = ({
   onStartReplyMessage,
   onPinMessage,
   onUnpinMessage,
+  onOpenSenderProfile,
   onJumpToPinnedMessage,
   jumpToMessageSignal,
   onEditMessage,
@@ -605,6 +606,7 @@ const ChatArea = ({
           user={currentUser}
           onBack={onBack}
           onToggleDetails={onToggleDetails}
+          onOpenProfile={onOpenSenderProfile}
           onToggleSearch={() => setIsSearchOpen((value) => !value)}
         />
       )}
@@ -790,6 +792,7 @@ const ChatArea = ({
           onDeleteMessage={onDeleteMessage}
           onReplyMessage={onStartReplyMessage}
           onPinMessage={onPinMessage}
+          onOpenSenderProfile={onOpenSenderProfile}
         />
       </div>
 

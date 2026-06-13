@@ -6,6 +6,7 @@ import AppModal from '../components/ui/AppModal';
 import PingMeLogo from '../components/ui/PingMeLogo';
 import PingMeWordmark from '../components/ui/PingMeWordmark';
 import { useAuth } from '../context/AuthContext';
+import { getRedirectFromSearch, withRedirectParam } from '../utils/authRedirect';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -28,6 +29,7 @@ const Login = () => {
   const { login, requestPasswordReset, resetPassword, startGoogleAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectPath = getRedirectFromSearch(location.search);
 
   useEffect(() => {
     if (location.state?.message) {
@@ -96,7 +98,7 @@ const Login = () => {
     try {
       const result = await login({ email, password });
       if (result?.success) {
-        navigate('/chat', { replace: true });
+        navigate(redirectPath || '/chat', { replace: true });
       } else {
         setErrors({ form: result?.error || 'Đăng nhập thất bại' });
       }
@@ -303,7 +305,7 @@ const Login = () => {
 
             <button
               type="button"
-              onClick={() => navigate('/register')}
+              onClick={() => navigate(withRedirectParam('/register', redirectPath))}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[14px] font-medium text-on-surface transition hover:bg-surface-container-high md:hidden"
             >
               <AppIcon name="person_add" className="text-[17px]" />
@@ -312,7 +314,7 @@ const Login = () => {
 
             <button
               type="button"
-              onClick={startGoogleAuth}
+              onClick={() => startGoogleAuth(redirectPath)}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface text-[13px] font-medium text-on-surface transition hover:bg-surface-container-high"
               title="Tiếp tục với Google"
             >
@@ -322,7 +324,7 @@ const Login = () => {
 
             <p className="hidden text-center text-[12px] text-on-surface-variant md:block">
               Chưa có tài khoản?{' '}
-              <button type="button" onClick={() => navigate('/register')} className="font-medium text-secondary hover:underline">
+              <button type="button" onClick={() => navigate(withRedirectParam('/register', redirectPath))} className="font-medium text-secondary hover:underline">
                 Tạo tài khoản
               </button>
             </p>

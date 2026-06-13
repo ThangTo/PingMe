@@ -153,6 +153,7 @@ const ChatDetailsPanel = ({
   onCancelEvent,
   onChecklistToggle,
   onJumpToMessage,
+  onOpenProfile,
   onBlocked,
   onClose,
 }) => {
@@ -194,6 +195,36 @@ const ChatDetailsPanel = ({
       name: user.name,
       avatar: user.avatar,
       conversationId: user.id,
+    });
+  };
+
+  const handleOpenConversationProfile = () => {
+    if (isGroup || isSaved || !user?.peerId) return;
+
+    onOpenProfile?.({
+      id: user.peerId,
+      username: user.name || '',
+      pingId: user.pingId || '',
+      avatar: user.avatar || '',
+      relationshipStatus: 'friend',
+      isOnline: user.isOnline,
+      lastSeen: user.lastSeen,
+      canViewPresence: user.canViewPresence,
+    });
+  };
+
+  const handleOpenMemberProfile = (member) => {
+    if (!member?.id) return;
+
+    onOpenProfile?.({
+      id: member.id,
+      username: member.username || '',
+      pingId: member.pingId || '',
+      avatar: member.avatar || '',
+      relationshipStatus: member.id === currentUserId ? 'self' : 'friend',
+      isOnline: member.isOnline,
+      lastSeen: member.lastSeen,
+      canViewPresence: member.canViewPresence,
     });
   };
   const quickActions = [
@@ -622,6 +653,20 @@ const ChatDetailsPanel = ({
               <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
                 <AppIcon name="archive" className="text-[26px]" />
               </div>
+            ) : !isGroup ? (
+              <button
+                type="button"
+                onClick={handleOpenConversationProfile}
+                className="shrink-0 rounded-full outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-secondary/35"
+                title="Xem hồ sơ"
+              >
+                <Avatar
+                  src={user?.avatar || fallbackAvatar}
+                  name={user?.name || 'Cuộc trò chuyện'}
+                  online={user?.isOnline}
+                  size="xl"
+                />
+              </button>
             ) : (
               <Avatar
                 src={user?.avatar || (!isGroup ? fallbackAvatar : '')}
@@ -630,7 +675,12 @@ const ChatDetailsPanel = ({
                 size="xl"
               />
             )}
-            <div className="min-w-0 pt-1">
+            <button
+              type="button"
+              onClick={handleOpenConversationProfile}
+              disabled={isGroup || isSaved || !user?.peerId}
+              className="min-w-0 pt-1 text-left disabled:cursor-default"
+            >
               {isGroup && (
                 <p className="mb-1 text-[12px] font-semibold text-on-surface-variant">Thông tin nhóm</p>
               )}
@@ -651,7 +701,7 @@ const ChatDetailsPanel = ({
               {!isGroup && !isSaved && presenceText && (
                 <p className="mt-1 text-[13px] text-on-surface-variant">{presenceText}</p>
               )}
-            </div>
+            </button>
           </div>
 
           <button
@@ -869,11 +919,22 @@ const ChatDetailsPanel = ({
                         key={member.id}
                         className="relative flex items-center gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-container-low"
                       >
-                        <Avatar src={member.avatar} name={member.username} online={member.isOnline} size="sm" />
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMemberProfile(member)}
+                          className="shrink-0 rounded-full outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-secondary/35"
+                          title="Xem hồ sơ"
+                        >
+                          <Avatar src={member.avatar} name={member.username} online={member.isOnline} size="sm" />
+                        </button>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-on-surface">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMemberProfile(member)}
+                            className="block max-w-full truncate text-left text-sm font-medium text-on-surface hover:text-secondary"
+                          >
                             {member.id === currentUserId ? 'Bạn' : member.username}
-                          </p>
+                          </button>
                           {member.pingId && (
                             <p className="truncate text-xs font-medium text-secondary">@{member.pingId}</p>
                           )}

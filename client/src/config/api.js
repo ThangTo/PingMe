@@ -6,6 +6,10 @@ const api = axios.create({
   timeout: 10000,
 });
 
+const isAuthPage = () => ['/login', '/register'].includes(window.location.pathname);
+const isPublicProfilePage = () => window.location.pathname.startsWith('/u/');
+const shouldRedirectToLogin = () => !isAuthPage() && !isPublicProfilePage();
+
 // Request interceptor (optional - để thêm token vào header nếu cần)
 api.interceptors.request.use(
   (config) => {
@@ -45,7 +49,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // Nếu refresh chính nó cũng lỗi -> Xóa session và về Login
         localStorage.removeItem('pingme_user');
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        if (shouldRedirectToLogin()) {
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);
@@ -55,7 +59,7 @@ api.interceptors.response.use(
     // Nếu chính lệnh refresh bị 401 thì văng ra login luôn, không retry nữa
     if (error.response?.status === 401 && requestUrl === '/auth/refresh') {
       localStorage.removeItem('pingme_user');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      if (shouldRedirectToLogin()) {
         window.location.href = '/login';
       }
     }

@@ -48,7 +48,7 @@ const searchController = {
           .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
           .skip(skip)
           .limit(limit + 1)
-          .populate('sender', 'username avatar')
+          .populate('sender', 'username pingId avatar')
           .populate('conversation', 'type title avatar members')
           .lean();
       } catch {
@@ -72,7 +72,7 @@ const searchController = {
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit + 1)
-          .populate('sender', 'username avatar')
+          .populate('sender', 'username pingId avatar')
           .populate('conversation', 'type title avatar members')
           .lean();
       }
@@ -95,7 +95,7 @@ const searchController = {
         })
           .sort({ createdAt: -1 })
           .limit(limit + 1 - messages.length)
-          .populate('sender', 'username avatar')
+          .populate('sender', 'username pingId avatar')
           .populate('conversation', 'type title avatar members')
           .lean();
 
@@ -116,6 +116,7 @@ const searchController = {
               : '',
         senderId: toIdString(message.sender),
         senderName: message.sender?.username || '',
+        senderPingId: message.sender?.pingId || '',
         senderAvatar: message.sender?.avatar || '',
         content: message.content || '',
         messageType: message.messageType || 'text',

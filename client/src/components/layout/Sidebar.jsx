@@ -7,6 +7,7 @@ import Avatar from '../ui/Avatar';
 import { ListSkeleton } from '../ui/LoadingState';
 import PingMeLogo from '../ui/PingMeLogo';
 import PingMeWordmark from '../ui/PingMeWordmark';
+import ProfileViewer from '../profile/ProfileViewer';
 
 const inboxTabs = [
   { key: 'all', label: 'Tất cả' },
@@ -385,8 +386,9 @@ const Sidebar = ({
     const map = new Map();
     directoryUsers.forEach((user) => map.set(user._id, user));
     searchResults.forEach((user) => map.set(user._id, user));
+    friendRequests.forEach((user) => map.set(user._id, { ...user, status: 'received' }));
     return map;
-  }, [directoryUsers, searchResults]);
+  }, [directoryUsers, friendRequests, searchResults]);
   const suggestedUsers = useMemo(
     () =>
       directoryUsers
@@ -408,10 +410,6 @@ const Sidebar = ({
     discoverList[0] ||
     receivedRequestUsers[0] ||
     null;
-  const selectedConnectionPresenceText = getPresenceText(selectedConnectionUser, {
-    onlineText: 'Đang hoạt động',
-  });
-
   const getRelationshipText = (status) => {
     if (status === 'friend') return 'Đã là bạn';
     if (status === 'sent') return 'Đã gửi lời mời';
@@ -503,6 +501,35 @@ const Sidebar = ({
         Kết nối
       </button>
     );
+  };
+
+  const handleProfileRelationshipChange = (profile, nextStatus) => {
+    const userId = profile?.id || profile?._id;
+    if (!userId) return;
+
+    const patchUser = (user) =>
+      user._id === userId
+        ? {
+            ...user,
+            status: nextStatus,
+            username: profile.username || user.username,
+            pingId: profile.pingId || user.pingId,
+            avatar: profile.avatar ?? user.avatar,
+            bio: profile.bio ?? user.bio,
+            isOnline: profile.isOnline ?? user.isOnline,
+            lastSeen: profile.lastSeen ?? user.lastSeen,
+            canViewPresence: profile.canViewPresence ?? user.canViewPresence,
+            mutualFriendCount: profile.mutualFriendCount ?? user.mutualFriendCount,
+            mutualFriends: profile.mutualFriends || user.mutualFriends,
+          }
+        : user;
+
+    setSearchResults((prev) => prev.map(patchUser));
+    setDirectoryUsers((prev) => prev.map(patchUser));
+
+    if (['friend', 'none'].includes(nextStatus)) {
+      setFriendRequests((prev) => prev.filter((request) => request._id !== userId));
+    }
   };
 
   const renderDirectoryUserRow = (user) => {
@@ -942,11 +969,17 @@ const Sidebar = ({
             ) : (
               friendRequests.map((req) => (
                 <div key={req._id} className="flex items-center gap-3 px-5 py-4">
-                  <Avatar src={req.avatar} name={req.username} online={req.isOnline} size="lg" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-on-surface">{req.username}</p>
-                    <p className="mt-0.5 text-xs text-on-surface-variant">Muốn kết nối với bạn</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedConnectionUserId(req._id)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <Avatar src={req.avatar} name={req.username} online={req.isOnline} size="lg" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-on-surface">{req.username}</span>
+                      <span className="mt-0.5 block text-xs text-on-surface-variant">Muốn kết nối với bạn</span>
+                    </span>
+                  </button>
                   <div className="flex shrink-0 gap-2">
                     <button
                       type="button"
@@ -1090,40 +1123,13 @@ const Sidebar = ({
 
             <div className="no-scrollbar flex-1 overflow-y-auto px-6 py-5">
               {selectedConnectionUser ? (
-                <article className="rounded-[14px] border border-outline-variant bg-surface px-5 py-5">
-                  <div className="flex items-start gap-4">
-                    <Avatar
-                      src={selectedConnectionUser.avatar}
-                      name={selectedConnectionUser.username}
-                      online={selectedConnectionUser.isOnline}
-                      size="xl"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-[18px] font-semibold text-on-surface">
-                        {selectedConnectionUser.username}
-                      </h3>
-                      {selectedConnectionUser.pingId && (
-                        <p className="mt-0.5 text-[12px] font-medium text-secondary">
-                          @{selectedConnectionUser.pingId}
-                        </p>
-                      )}
-                      {selectedConnectionPresenceText && (
-                        <p className="mt-1 text-[12px] text-on-surface-variant">
-                          {selectedConnectionPresenceText}
-                        </p>
-                      )}
-                      <p className="mt-1 text-[12px] text-on-surface-variant">
-                        {selectedConnectionUser.status === 'none' &&
-                        getMutualText(selectedConnectionUser)
-                          ? getMutualText(selectedConnectionUser)
-                          : getRelationshipText(selectedConnectionUser.status)}
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {renderConnectionActions(selectedConnectionUser)}
-                      </div>
-                    </div>
-                  </div>
-                </article>
+                <ProfileViewer
+                  pingId={selectedConnectionUser.pingId}
+                  initialProfile={selectedConnectionUser}
+                  compact
+                  onRelationshipChange={handleProfileRelationshipChange}
+                  onFriendAdded={onFriendAdded}
+                />
               ) : (
                 <div className="rounded-[14px] border border-outline-variant bg-surface px-5 py-8 text-center">
                   <AppIcon name="person_add" className="text-[30px] text-on-surface-variant" />

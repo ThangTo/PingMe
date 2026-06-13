@@ -31,3 +31,35 @@ export const authMiddleware = async (req, res, next) => {
         return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
     }
 }
+
+export const optionalAuthMiddleware = async (req, res, next) => {
+    try {
+        const token = req.cookies?.accessToken || req.headers.authorization?.split(' ')[1]
+
+        if (!token) {
+            req.user = null
+            return next()
+        }
+
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
+
+        if (decoded.sid) {
+            const activeSession = await Session.exists({
+                sessionId: decoded.sid,
+                user: decoded.userId,
+                revokedAt: null,
+                expiresAt: { $gt: new Date() },
+            })
+            if (!activeSession) {
+                req.user = null
+                return next()
+            }
+        }
+
+        req.user = { id: decoded.userId, username: decoded.username, sessionId: decoded.sid || null }
+        return next()
+    } catch {
+        req.user = null
+        return next()
+    }
+}

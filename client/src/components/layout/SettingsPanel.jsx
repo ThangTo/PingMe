@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import QRCode from 'qrcode';
 import api from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import AppSelect from '../ui/AppSelect';
 import AppIcon from '../ui/AppIcon';
+import AppModal from '../ui/AppModal';
 import Avatar from '../ui/Avatar';
 import { useConfirmDialog } from '../ui/confirmDialogContext';
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
+const qrLogoSrc = '/brand/logo-trans.png';
 
 const defaultPrivacySettings = {
   onlineVisibility: 'friends',
@@ -87,6 +90,69 @@ function SettingsSection({ title, description, children, action }) {
   );
 }
 
+const loadImage = (src) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+
+const drawRoundedRect = (ctx, x, y, width, height, radius) => {
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    return;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+};
+
+const createBrandedQrDataUrl = async (value) => {
+  const canvas = document.createElement('canvas');
+  await QRCode.toCanvas(canvas, value, {
+    width: 512,
+    margin: 2,
+    errorCorrectionLevel: 'H',
+    color: {
+      dark: '#22251f',
+      light: '#FBFAF7',
+    },
+  });
+
+  const context = canvas.getContext('2d');
+  if (!context) return canvas.toDataURL('image/png');
+
+  const logo = await loadImage(qrLogoSrc);
+  const badgeSize = Math.round(canvas.width * 0.24);
+  const logoSize = Math.round(canvas.width * 0.17);
+  const badgeX = Math.round((canvas.width - badgeSize) / 2);
+  const badgeY = Math.round((canvas.height - badgeSize) / 2);
+  const logoX = Math.round((canvas.width - logoSize) / 2);
+  const logoY = Math.round((canvas.height - logoSize) / 2);
+
+  context.save();
+  drawRoundedRect(context, badgeX, badgeY, badgeSize, badgeSize, Math.round(badgeSize * 0.24));
+  context.fillStyle = '#FBFAF7';
+  context.fill();
+  context.lineWidth = Math.max(2, Math.round(canvas.width * 0.008));
+  context.strokeStyle = '#DED8CE';
+  context.stroke();
+  context.drawImage(logo, logoX, logoY, logoSize, logoSize);
+  context.restore();
+
+  return canvas.toDataURL('image/png');
+};
+
 function SettingsPanel({ onBack, onNavigate, connectionRequestCount = 0 }) {
   const { user, updateUser, logout } = useAuth();
   const { confirm } = useConfirmDialog();
@@ -125,10 +191,78 @@ function SettingsPanel({ onBack, onNavigate, connectionRequestCount = 0 }) {
   const [messages, setMessages] = useState({});
   const [sessions, setSessions] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [isQrLoading, setIsQrLoading] = useState(false);
   const notificationsMuted = Boolean(profile.notificationSettings?.muteAll);
 
   const setFeedback = (scope, success = '', error = '') => {
     setMessages((current) => ({ ...current, [scope]: { success, error } }));
+  };
+
+  const getProfileShareUrl = () => {
+    if (!profile.pingId || typeof window === 'undefined') return '';
+    return `${window.location.origin}/u/${profile.pingId}`;
+  };
+
+  const handleCopyProfileLink = async () => {
+    const profileUrl = getProfileShareUrl();
+    if (!profileUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      setFeedback('profileShare', 'Đã copy link hồ sơ.');
+    } catch {
+      setFeedback('profileShare', '', 'Không thể copy link trên trình duyệt này.');
+    }
+  };
+
+  const handleNativeShare = async () => {
+    const profileUrl = getProfileShareUrl();
+    if (!profileUrl) return;
+
+    if (!navigator.share) {
+      setFeedback('profileShare', '', 'Trình duyệt này chưa hỗ trợ chia sẻ nhanh.');
+      return;
+    }
+
+    try {
+      await navigator.share({
+        title: `${profile.username || 'PingMe'} trên PingMe`,
+        text: `Kết nối với ${profile.username || 'tôi'} trên PingMe.`,
+        url: profileUrl,
+      });
+      setFeedback('profileShare', 'Đã mở chia sẻ hồ sơ.');
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        setFeedback('profileShare', '', 'Không thể mở chia sẻ nhanh.');
+      }
+    }
+  };
+
+  const handleOpenQrModal = async () => {
+    const profileUrl = getProfileShareUrl();
+    if (!profileUrl) return;
+
+    try {
+      setIsQrLoading(true);
+      setIsQrModalOpen(true);
+      const dataUrl = await createBrandedQrDataUrl(profileUrl);
+      setQrDataUrl(dataUrl);
+    } catch {
+      setFeedback('profileShare', '', 'Không thể tạo mã QR.');
+      setIsQrModalOpen(false);
+    } finally {
+      setIsQrLoading(false);
+    }
+  };
+
+  const handleDownloadQr = () => {
+    if (!qrDataUrl) return;
+    const link = document.createElement('a');
+    link.href = qrDataUrl;
+    link.download = `pingme-${profile.pingId || 'profile'}-qr.png`;
+    link.click();
   };
 
   useEffect(() => {
@@ -494,6 +628,89 @@ function SettingsPanel({ onBack, onNavigate, connectionRequestCount = 0 }) {
           {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
         </button>
       </SettingsSection>
+      <div className="mt-8">
+        <SettingsSection
+          title="Chia sẻ hồ sơ"
+          description="Dùng link hoặc mã QR để người khác xem hồ sơ công khai của bạn."
+        >
+          <div className="grid gap-3">
+            <label className="grid gap-1.5 text-[11px] font-medium text-on-surface">
+              Link hồ sơ
+              <div className="flex min-w-0 items-center gap-2">
+                <input
+                  value={getProfileShareUrl()}
+                  readOnly
+                  className="h-11 min-w-0 flex-1 rounded-[8px] border border-outline-variant bg-surface-container-low px-3 text-[12px] text-on-surface-variant outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyProfileLink}
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-outline bg-surface text-on-surface hover:bg-surface-container-low"
+                  aria-label="Copy link hồ sơ"
+                  title="Copy link"
+                >
+                  <AppIcon name="content_copy" className="text-[17px]" />
+                </button>
+              </div>
+            </label>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={handleNativeShare}
+                className="flex h-10 items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface px-3 text-[12px] font-semibold text-on-surface hover:bg-surface-container-low"
+              >
+                <AppIcon name="share" className="text-[15px]" />
+                Chia sẻ
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenQrModal}
+                className="flex h-10 items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface px-3 text-[12px] font-semibold text-on-surface hover:bg-surface-container-low"
+              >
+                <AppIcon name="qr_code" className="text-[15px]" />
+                Mã QR
+              </button>
+              <a
+                href={getProfileShareUrl()}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-10 items-center justify-center gap-2 rounded-[8px] border border-outline bg-surface px-3 text-[12px] font-semibold text-on-surface hover:bg-surface-container-low"
+              >
+                <AppIcon name="link" className="text-[15px]" />
+                Mở link
+              </a>
+            </div>
+          </div>
+          <SettingsMessage {...messages.profileShare} />
+        </SettingsSection>
+      </div>
+
+      <AppModal
+        open={isQrModalOpen}
+        title="Mã QR hồ sơ"
+        description="Quét mã này để mở trang hồ sơ công khai của bạn."
+        onClose={() => setIsQrModalOpen(false)}
+      >
+        <div className="grid justify-items-center gap-4">
+          <div className="grid h-[260px] w-[260px] place-items-center rounded-[12px] border border-outline bg-surface p-4">
+            {isQrLoading ? (
+              <span className="h-7 w-7 animate-spin rounded-full border-2 border-outline border-t-secondary" />
+            ) : (
+              qrDataUrl && <img src={qrDataUrl} alt="QR hồ sơ PingMe" className="h-full w-full object-contain" />
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleDownloadQr}
+            disabled={!qrDataUrl || isQrLoading}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-secondary px-4 text-[12px] font-semibold text-white hover:brightness-95 disabled:opacity-60"
+          >
+            <AppIcon name="download" className="text-[15px]" />
+            Tải PNG
+          </button>
+        </div>
+      </AppModal>
     </form>
   );
 
