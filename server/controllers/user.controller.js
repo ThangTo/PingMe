@@ -27,6 +27,12 @@ const getMessageAttachments = (message) => {
 const getMessagePreview = (message) => {
   if (!message) return 'Bắt đầu trò chuyện';
   if (message.isDeleted) return 'Tin nhắn này đã được thu hồi';
+  if (message.messageType === 'poll') {
+    return `Bình chọn: ${message.poll?.question || message.content || 'Bình chọn'}`;
+  }
+  if (message.messageType === 'event') {
+    return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
+  }
   const attachments = getMessageAttachments(message);
 
   if (message.content) return message.content;

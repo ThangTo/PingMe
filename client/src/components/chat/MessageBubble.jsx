@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import EmojiPicker from './EmojiPicker';
 import PollMessageCard from './PollMessageCard';
+import EventMessageCard from './EventMessageCard';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import StickerArtwork from '../ui/StickerArtwork';
@@ -24,6 +25,10 @@ const getReplyPreviewText = (replyTo) => {
   if (replyTo.isDeleted) return REVOKED_MESSAGE_TEXT;
   if (replyTo.messageType === 'poll') {
     return `Bình chọn: ${replyTo.poll?.question || replyTo.content || 'Bình chọn'}`;
+  }
+
+  if (replyTo.messageType === 'event') {
+    return `Sự kiện: ${replyTo.event?.title || replyTo.content || 'Sự kiện'}`;
   }
 
   const attachments = getMessageAttachments(replyTo);
@@ -342,6 +347,8 @@ const MessageBubble = ({
   currentUserId = '',
   onReaction,
   onPollVote,
+  onEventRsvp,
+  onCancelEvent,
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
@@ -369,6 +376,7 @@ const MessageBubble = ({
   const isRevoked = Boolean(message.isDeleted);
   const isCallMessage = message.messageType === 'call';
   const isPollMessage = !isRevoked && message.messageType === 'poll' && message.poll;
+  const isEventMessage = !isRevoked && message.messageType === 'event' && message.event;
   const isStickerMessage =
     !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
   const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
@@ -380,7 +388,9 @@ const MessageBubble = ({
   );
   const hasAttachments = attachments.length > 0;
   const shouldRenderTextBubble =
-    !isPollMessage && (Boolean(message.content) || (!hasAttachments && !isStickerMessage));
+    !isPollMessage &&
+    !isEventMessage &&
+    (Boolean(message.content) || (!hasAttachments && !isStickerMessage));
   const linkPreview = !isRevoked ? message.linkPreview : null;
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
@@ -646,7 +656,7 @@ const MessageBubble = ({
     { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
   ];
 
-  const visibleActionItems = isPollMessage
+  const visibleActionItems = isPollMessage || isEventMessage
     ? actionItems.filter((item) => item.key !== 'edit')
     : actionItems;
 
@@ -858,6 +868,17 @@ const MessageBubble = ({
                     reactionUsersById={reactionUsersById}
                     disabled={message.status === 'sending'}
                     onVote={onPollVote}
+                    isOwn={isOwn}
+                  />
+                )}
+                {isEventMessage && (
+                  <EventMessageCard
+                    event={message.event}
+                    currentUserId={currentUserId}
+                    reactionUsersById={reactionUsersById}
+                    disabled={message.status === 'sending'}
+                    onRsvp={onEventRsvp}
+                    onCancel={onCancelEvent}
                     isOwn={isOwn}
                   />
                 )}

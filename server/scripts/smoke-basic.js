@@ -195,6 +195,75 @@ if (!cancelScheduledResponse.ok) {
   throw new Error(`Cancel scheduled message smoke failed: ${cancelScheduledResponse.status}`);
 }
 
+const eventTitle = `PingMe event smoke ${Date.now()}`;
+const eventStartsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+const eventResponse = await fetch(`${apiBaseUrl}/events`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    title: eventTitle,
+    description: 'Smoke event description',
+    location: 'Smoke room',
+    startsAt: eventStartsAt,
+    reminderOffsetMinutes: 0,
+  }),
+});
+if (!eventResponse.ok) throw new Error(`Create event smoke failed: ${eventResponse.status}`);
+const eventPayload = await eventResponse.json();
+const eventId = eventPayload.event?.id;
+if (!eventId || eventPayload.message?.messageType !== 'event') {
+  throw new Error('Event smoke did not return event message payload.');
+}
+
+const eventListResponse = await fetch(
+  `${apiBaseUrl}/events?conversationId=${directConversationId}&status=scheduled`,
+  {
+    headers: { cookie: cookies },
+  },
+);
+if (!eventListResponse.ok) throw new Error(`List events smoke failed: ${eventListResponse.status}`);
+const eventListPayload = await eventListResponse.json();
+const eventInList = (eventListPayload.events || []).find(
+  (event) => event.id === eventId && event.title === eventTitle,
+);
+if (!eventInList) throw new Error('KhÃ´ng tÃ¬m tháº¥y sá»± kiá»‡n vá»«a táº¡o trong danh sÃ¡ch.');
+
+const eventRsvpResponse = await fetch(`${apiBaseUrl}/events/${eventId}/rsvp`, {
+  method: 'PATCH',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({ status: 'maybe' }),
+});
+if (!eventRsvpResponse.ok) throw new Error(`RSVP event smoke failed: ${eventRsvpResponse.status}`);
+
+const savedEventResponse = await fetch(`${apiBaseUrl}/events`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: savedConversationId,
+    title: 'should fail',
+    startsAt: eventStartsAt,
+  }),
+});
+if (savedEventResponse.ok) throw new Error('Saved conversation event smoke should fail.');
+
+const pastEventResponse = await fetch(`${apiBaseUrl}/events`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    title: 'should fail',
+    startsAt: new Date(Date.now() - 60 * 1000).toISOString(),
+  }),
+});
+if (pastEventResponse.ok) throw new Error('Event past time smoke should fail.');
+
+const cancelEventResponse = await fetch(`${apiBaseUrl}/events/${eventId}`, {
+  method: 'DELETE',
+  headers: { cookie: cookies },
+});
+if (!cancelEventResponse.ok) throw new Error(`Cancel event smoke failed: ${cancelEventResponse.status}`);
+
 for (const path of [
   '/auth/sessions',
   '/notifications?limit=1',

@@ -94,6 +94,8 @@ const MessageList = ({
   reactionUsersById = {},
   onReaction,
   onPollVote,
+  onEventRsvp,
+  onCancelEvent,
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
@@ -413,6 +415,8 @@ const MessageList = ({
               readReceipts={readReceipts}
               onReaction={onReaction}
               onPollVote={onPollVote}
+              onEventRsvp={onEventRsvp}
+              onCancelEvent={onCancelEvent}
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
@@ -439,6 +443,8 @@ const MessageList = ({
       messageIndexById,
       onDeleteMessage,
       onEditMessage,
+      onEventRsvp,
+      onCancelEvent,
       onPinMessage,
       onPollVote,
       onReaction,

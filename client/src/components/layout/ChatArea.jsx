@@ -22,6 +22,10 @@ const getPinnedPreviewText = (message) => {
     return `Bình chọn: ${message.poll?.question || message.content || 'Bình chọn'}`;
   }
 
+  if (message.messageType === 'event') {
+    return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
+  }
+
   const attachments = getMessageAttachments(message);
   if (message.content) return message.content;
   if (message.messageType === 'sticker' || message.sticker?.url) {
@@ -60,6 +64,25 @@ const getScheduledPreviewText = (scheduledMessage) => {
   if (!content) return 'Tin nhắn hẹn gửi';
   if (content.length <= 90) return content;
   return `${content.slice(0, 89)}...`;
+};
+
+const formatEventTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getEventPreviewText = (event) => {
+  const title = typeof event?.title === 'string' ? event.title.trim() : '';
+  if (!title) return 'Sự kiện';
+  if (title.length <= 90) return title;
+  return `${title.slice(0, 89)}...`;
 };
 
 const ScheduledMessagesStrip = ({ scheduledMessages = [], onCancelScheduledMessage }) => {
@@ -129,6 +152,92 @@ const ScheduledMessagesStrip = ({ scheduledMessages = [], onCancelScheduledMessa
   );
 };
 
+const UpcomingEventsStrip = ({ events = [], currentUserId = '', onCancelEvent }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(0);
+  const upcomingEvents = useMemo(
+    () =>
+      [...events]
+        .filter((item) => {
+          const startsAtMs = new Date(item?.startsAt || 0).getTime();
+          return (
+            item?.status !== 'cancelled' &&
+            !item?.isPast &&
+            (!nowMs || startsAtMs > nowMs)
+          );
+        })
+        .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0)),
+    [events, nowMs],
+  );
+  const nearestEvent = upcomingEvents[0] || null;
+
+  useEffect(() => {
+    const initialTimerId = window.setTimeout(() => setNowMs(Date.now()), 0);
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 60 * 1000);
+    return () => {
+      window.clearTimeout(initialTimerId);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  if (!nearestEvent) return null;
+
+  return (
+    <div className="shrink-0 border-t border-outline-variant bg-surface">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className="flex min-h-[44px] w-full items-center gap-2.5 px-4 text-left transition-colors hover:bg-surface-container-low md:px-5"
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-on-surface-variant">
+          <AppIcon name="event" className="text-[18px]" />
+        </span>
+        <span className="min-w-0 flex-1 text-[13px]">
+          <span className="font-semibold text-on-surface">{upcomingEvents.length} sự kiện</span>
+          <span className="text-on-surface-variant">
+            {' '}
+            · {formatEventTime(nearestEvent.startsAt)} · {getEventPreviewText(nearestEvent)}
+          </span>
+        </span>
+        <AppIcon
+          name={isOpen ? 'expand_less' : 'chevron_right'}
+          className="shrink-0 text-[20px] text-on-surface-variant"
+        />
+      </button>
+
+      {isOpen && (
+        <div className="max-h-[220px] overflow-y-auto border-t border-outline-variant px-4 py-2 md:px-5">
+          <div className="space-y-1">
+            {upcomingEvents.map((event) => (
+              <div
+                key={event.id}
+                className="flex min-w-0 items-center gap-3 rounded-[8px] px-2 py-2 transition-colors hover:bg-surface-container-low"
+              >
+                <span className="min-w-[72px] shrink-0 text-xs font-semibold text-on-surface-variant">
+                  {formatEventTime(event.startsAt)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-on-surface">
+                  {getEventPreviewText(event)}
+                </span>
+                {event.creatorId === currentUserId && (
+                  <button
+                    type="button"
+                    onClick={() => onCancelEvent?.(event)}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-on-surface-variant transition hover:bg-error-container hover:text-error"
+                    title="Hủy sự kiện"
+                  >
+                    <AppIcon name="close" className="text-[17px]" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChatArea = ({
   currentUser,
   conversationId,
@@ -138,9 +247,13 @@ const ChatArea = ({
   onSendMessage,
   onScheduleMessage,
   onCreatePoll,
+  onCreateEvent,
   onPollVote,
+  onEventRsvp,
   scheduledMessages = [],
   onCancelScheduledMessage,
+  events = [],
+  onCancelEvent,
   draftContent = '',
   onDraftChange,
   typingUsers = [],
@@ -234,7 +347,10 @@ const ChatArea = ({
             .map((option) => option.text || '')
             .join(' ')}`
         : '';
-      return `${content} ${filenames} ${stickerName} ${pollText}`.toLowerCase().includes(query);
+      const eventText = message.event
+        ? `${message.event.title || ''} ${message.event.description || ''} ${message.event.location || ''}`
+        : '';
+      return `${content} ${filenames} ${stickerName} ${pollText} ${eventText}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
   const searchMatchIds = useMemo(() => {
@@ -253,7 +369,10 @@ const ChatArea = ({
               .map((option) => option.text || '')
               .join(' ')}`
           : '';
-        return `${content} ${filenames} ${stickerName} ${pollText}`.toLowerCase().includes(query);
+        const eventText = message.event
+          ? `${message.event.title || ''} ${message.event.description || ''} ${message.event.location || ''}`
+          : '';
+        return `${content} ${filenames} ${stickerName} ${pollText} ${eventText}`.toLowerCase().includes(query);
       })
       .map((message) => message.id)
       .filter(Boolean);
@@ -499,6 +618,8 @@ const ChatArea = ({
           reactionUsersById={reactionUsersById}
           onReaction={onReaction}
           onPollVote={onPollVote}
+          onEventRsvp={onEventRsvp}
+          onCancelEvent={onCancelEvent}
           isLoading={isLoading}
           isLoadingOlderMessages={isLoadingOlderMessages}
           hasOlderMessages={hasOlderMessages}
@@ -524,13 +645,21 @@ const ChatArea = ({
         onCancelScheduledMessage={onCancelScheduledMessage}
       />
 
+      <UpcomingEventsStrip
+        events={events}
+        currentUserId={currentUserId}
+        onCancelEvent={onCancelEvent}
+      />
+
       <MessageInput
         conversationId={conversationId}
         draftContent={draftContent}
         onSendMessage={onSendMessage}
         onScheduleMessage={onScheduleMessage}
         onCreatePoll={onCreatePoll}
+        onCreateEvent={onCreateEvent}
         canCreatePoll={Boolean(currentUser?.isGroup)}
+        canCreateEvent={Boolean(currentUser && !currentUser.isSaved)}
         onDraftChange={onDraftChange}
         onTypingStart={onTypingStart}
         onTypingStop={onTypingStop}

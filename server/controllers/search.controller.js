@@ -62,6 +62,9 @@ const searchController = {
             { 'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'poll.question': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'poll.options.text': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'event.title': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'event.description': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'event.location': { $regex: `^${escapedQuery}`, $options: 'i' } },
           ],
         })
           .sort({ createdAt: -1 })
@@ -80,6 +83,9 @@ const searchController = {
             { 'sticker.name': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'poll.question': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'poll.options.text': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'event.title': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'event.description': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'event.location': { $regex: `^${escapedQuery}`, $options: 'i' } },
           ],
           _id: { $nin: messages.map((message) => message._id) },
         })
@@ -111,6 +117,7 @@ const searchController = {
         messageType: message.messageType || 'text',
         sticker: message.sticker || null,
         poll: message.poll || null,
+        event: message.event || null,
         attachment: message.attachment || null,
         attachments: message.attachments || [],
         createdAt: message.createdAt,

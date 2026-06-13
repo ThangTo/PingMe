@@ -8,6 +8,10 @@ import Session from '../models/Session.js';
 import User from '../models/User.js';
 import { updateMessageLinkPreview } from '../services/linkPreview.service.js';
 import { createNotification } from '../services/notification.service.js';
+import {
+  cancelConversationEventByMessage,
+  formatEventForMessage,
+} from '../services/conversationEvent.service.js';
 import { normalizeStickerForMessage } from '../services/sticker.service.js';
 import {
   sendIncomingCallPushToUser,
@@ -140,6 +144,9 @@ const resolveMentionUserIds = async ({ content, memberIds, senderId }) => {
 const getMessageNotificationBody = (messagePayload) => {
   if (messagePayload.messageType === 'poll') {
     return `Bình chọn: ${messagePayload.poll?.question || messagePayload.content || 'Bình chọn'}`;
+  }
+  if (messagePayload.messageType === 'event') {
+    return `Sự kiện: ${messagePayload.event?.title || messagePayload.content || 'Sự kiện'}`;
   }
   if (messagePayload.content) return messagePayload.content;
   if (messagePayload.messageType === 'sticker' || messagePayload.sticker?.url) {
@@ -670,6 +677,7 @@ const formatReplyPreview = (message) => {
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
+    event: message.isDeleted ? null : formatEventForMessage(message.event),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -692,6 +700,7 @@ const formatPinnedMessage = (message) => {
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
+    event: message.isDeleted ? null : formatEventForMessage(message.event),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -2090,7 +2099,7 @@ const socketHandler = (io) => {
           return;
         }
 
-        if (message.messageType === 'poll') {
+        if (message.messageType === 'poll' || message.messageType === 'event') {
           socket.emit('message_edit_failed', {
             messageId,
             error: 'Bình chọn không hỗ trợ chỉnh sửa trong V1',
@@ -2171,11 +2180,20 @@ const socketHandler = (io) => {
         const previousStatus = message.status;
         const deletedAt = new Date();
 
+        if (message.messageType === 'event') {
+          await cancelConversationEventByMessage({
+            io,
+            message,
+            actorId: deleterId,
+          });
+        }
+
         message.content = REVOKED_MESSAGE_TEXT;
         message.attachment = null;
         message.attachments = [];
         message.linkPreview = null;
         message.sticker = null;
+        message.event = null;
         message.messageType = 'text';
         message.reactions = [];
         message.isEdited = false;
@@ -2204,7 +2222,7 @@ const socketHandler = (io) => {
 
         const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
           .sort({ createdAt: -1 })
-          .select('content attachment attachments sticker poll createdAt isDeleted messageType callDetails')
+          .select('content attachment attachments sticker poll event createdAt isDeleted messageType callDetails')
           .lean();
 
         emitToUsers(io, participantIds, 'message_deleted', {
@@ -2215,6 +2233,7 @@ const socketHandler = (io) => {
           content: REVOKED_MESSAGE_TEXT,
           attachment: null,
           sticker: null,
+          event: null,
           attachments: [],
           linkPreview: null,
           reactions: [],
@@ -2237,6 +2256,9 @@ const socketHandler = (io) => {
                 poll: conversationLastMessage.isDeleted
                   ? null
                   : formatPollPayload(conversationLastMessage.poll),
+                event: conversationLastMessage.isDeleted
+                  ? null
+                  : formatEventForMessage(conversationLastMessage.event),
                 attachments: conversationLastMessage.isDeleted
                   ? []
                   : normalizeAttachmentList({

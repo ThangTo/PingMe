@@ -66,6 +66,27 @@ const normalizeAttachmentList = ({ attachment, attachments } = {}) => {
 const formatReplyPreview = (message) => {
   if (!message) return null;
 
+  const event = message.event
+      ? {
+          eventId: toIdString(message.event.eventId),
+          creatorId: toIdString(message.event.creatorId) || null,
+          title: message.event.title || '',
+        description: message.event.description || '',
+        location: message.event.location || '',
+        startsAt: message.event.startsAt || null,
+        endsAt: message.event.endsAt || null,
+        timezone: message.event.timezone || '',
+        status: message.event.status || 'scheduled',
+        rsvps: (message.event.rsvps || [])
+          .map((rsvp) => ({
+            userId: toIdString(rsvp.userId || rsvp.user),
+            status: rsvp.status,
+            updatedAt: rsvp.updatedAt || null,
+          }))
+          .filter((rsvp) => rsvp.userId && rsvp.status),
+      }
+    : null;
+
   return {
     id: message.id || message._id?.toString(),
     senderId: message.sender?._id?.toString() || message.sender?.toString(),
@@ -73,6 +94,7 @@ const formatReplyPreview = (message) => {
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
+    event: message.isDeleted ? null : event,
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []

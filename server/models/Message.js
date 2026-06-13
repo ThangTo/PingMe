@@ -145,6 +145,83 @@ const pollSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const eventRsvpSnapshotSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['going', 'maybe', 'declined'],
+      required: true,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false },
+);
+
+const eventSnapshotSchema = new mongoose.Schema(
+  {
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ConversationEvent',
+      required: true,
+    },
+    creatorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [120, 'Event title cannot exceed 120 characters'],
+    },
+    description: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [1000, 'Event description cannot exceed 1000 characters'],
+    },
+    location: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [160, 'Event location cannot exceed 160 characters'],
+    },
+    startsAt: {
+      type: Date,
+      required: true,
+    },
+    endsAt: {
+      type: Date,
+      default: null,
+    },
+    timezone: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 80,
+    },
+    status: {
+      type: String,
+      enum: ['scheduled', 'cancelled'],
+      default: 'scheduled',
+    },
+    rsvps: {
+      type: [eventRsvpSnapshotSchema],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
 const messageSchema = new mongoose.Schema(
   {
     // Người gửi
@@ -179,7 +256,7 @@ const messageSchema = new mongoose.Schema(
     // Loại tin nhắn: text, image, file, audio, video
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio', 'video', 'call', 'sticker', 'poll'],
+      enum: ['text', 'image', 'file', 'audio', 'video', 'call', 'sticker', 'poll', 'event'],
       default: 'text',
     },
 
@@ -209,6 +286,11 @@ const messageSchema = new mongoose.Schema(
 
     poll: {
       type: pollSchema,
+      default: null,
+    },
+
+    event: {
+      type: eventSnapshotSchema,
       default: null,
     },
 
@@ -299,6 +381,9 @@ messageSchema.index(
     'attachment.filename': 'text',
     'poll.question': 'text',
     'poll.options.text': 'text',
+    'event.title': 'text',
+    'event.description': 'text',
+    'event.location': 'text',
   },
   { name: 'message_text_search' },
 );
@@ -316,7 +401,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -330,7 +415,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -345,7 +430,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

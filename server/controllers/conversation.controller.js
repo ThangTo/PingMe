@@ -13,6 +13,7 @@ import {
   getPeerMember,
   toIdString,
 } from '../services/conversation.service.js';
+import { formatEventForMessage } from '../services/conversationEvent.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
 
 const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
@@ -60,6 +61,9 @@ const getMessagePreview = (message) => {
   if (message.messageType === 'poll') {
     return `Bình chọn: ${message.poll?.question || message.content || 'Bình chọn'}`;
   }
+  if (message.messageType === 'event') {
+    return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
+  }
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Đã gửi nhãn dán';
   }
@@ -87,6 +91,7 @@ const formatPinnedMessage = (message) => {
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
+    event: message.isDeleted ? null : formatEventForMessage(message.event),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: getMessageAttachments(message),
     isDeleted: Boolean(message.isDeleted),

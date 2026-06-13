@@ -79,6 +79,58 @@ const normalizePoll = (poll) => {
   };
 };
 
+const normalizeEvent = (event) => {
+  if (!event?.title) return null;
+
+  const rsvps = Array.isArray(event.rsvps)
+    ? event.rsvps
+        .map((rsvp) => {
+          const userId = getIdString(rsvp.userId || rsvp.user);
+          if (!userId || !rsvp.status) return null;
+
+          return {
+            userId,
+            status: rsvp.status,
+            updatedAt: rsvp.updatedAt || null,
+          };
+        })
+        .filter(Boolean)
+    : [];
+  const rsvpCounts = rsvps.reduce(
+    (counts, rsvp) => ({
+      ...counts,
+      [rsvp.status]: (counts[rsvp.status] || 0) + 1,
+    }),
+    { going: 0, maybe: 0, declined: 0 },
+  );
+  const startsAt = event.startsAt || null;
+
+  return {
+    id: event.id || event.eventId || getIdString(event._id),
+    eventId: event.eventId || event.id || getIdString(event._id),
+    conversationId: event.conversationId || getIdString(event.conversation),
+    messageId: event.messageId || getIdString(event.message) || null,
+    creatorId: event.creatorId || getIdString(event.creator) || null,
+    title: event.title || '',
+    description: event.description || '',
+    location: event.location || '',
+    startsAt,
+    endsAt: event.endsAt || null,
+    timezone: event.timezone || '',
+    status: event.status || 'scheduled',
+    rsvps,
+    rsvpCounts: event.rsvpCounts || rsvpCounts,
+    reminderAt: event.reminderAt || null,
+    reminderOffsetMinutes: event.reminderOffsetMinutes ?? 15,
+    cancelledAt: event.cancelledAt || null,
+    cancelledBy: event.cancelledBy || null,
+    createdAt: event.createdAt || null,
+    updatedAt: event.updatedAt || null,
+    isCancelled: event.isCancelled || event.status === 'cancelled',
+    isPast: event.isPast || (startsAt ? new Date(startsAt).getTime() <= Date.now() : false),
+  };
+};
+
 const normalizeReadStates = (readStates = []) =>
   readStates
     .map((readState) => {
@@ -161,11 +213,15 @@ const getMessagePreview = (
   callDetails = null,
   sticker = null,
   poll = null,
+  event = null,
 ) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (messageType === 'call') return getCallPreviewText(callDetails, content);
   if (messageType === 'poll') {
     return `Bình chọn: ${poll?.question || content || 'Bình chọn'}`;
+  }
+  if (messageType === 'event') {
+    return `Sự kiện: ${event?.title || content || 'Sự kiện'}`;
   }
   if (messageType === 'sticker' || sticker?.url) {
     return sticker?.name ? `Nhãn dán: ${sticker.name}` : 'Đã gửi nhãn dán';
@@ -218,6 +274,7 @@ const showHiddenTabMessageNotification = ({ message, conversationId, conversatio
       message.callDetails,
       message.sticker,
       message.poll,
+      message.event,
     ),
   );
   const senderName = message.senderName || 'PingMe';
@@ -276,6 +333,7 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     messageType: message.messageType || 'text',
     sticker: isDeleted ? null : message.sticker || null,
     poll: isDeleted ? null : normalizePoll(message.poll),
+    event: isDeleted ? null : normalizeEvent(message.event),
     attachment: isDeleted ? null : message.attachment || null,
     attachments: isDeleted ? [] : getMessageAttachments(message),
     isDeleted,
@@ -295,6 +353,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   messageType: msg.messageType || 'text',
   sticker: msg.sticker || null,
   poll: normalizePoll(msg.poll),
+  event: normalizeEvent(msg.event),
   callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
@@ -453,6 +512,25 @@ const formatScheduledMessagesByConversationId = (scheduledMessages = []) =>
     };
   }, {});
 
+const sortConversationEvents = (items = []) =>
+  [...items].sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
+
+const formatEventsByConversationId = (events = []) =>
+  events.reduce((eventsByConversationId, event) => {
+    const normalized = normalizeEvent(event);
+    if (!normalized?.id || !normalized.conversationId) return eventsByConversationId;
+
+    return {
+      ...eventsByConversationId,
+      [normalized.conversationId]: sortConversationEvents([
+        ...(eventsByConversationId[normalized.conversationId] || []).filter(
+          (item) => item.id !== normalized.id,
+        ),
+        normalized,
+      ]),
+    };
+  }, {});
+
 const AppNotificationToasts = ({ notifications, onOpen, onDismiss }) => {
   if (!notifications.length) return null;
 
@@ -510,6 +588,7 @@ const Chat = () => {
   const [conversations, setConversations] = useState([]);
   const [draftsByConversationId, setDraftsByConversationId] = useState({});
   const [scheduledMessagesByConversationId, setScheduledMessagesByConversationId] = useState({});
+  const [eventsByConversationId, setEventsByConversationId] = useState({});
   const [, setOnlineUsers] = useState([]);
   const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
@@ -825,6 +904,9 @@ const Chat = () => {
   const selectedScheduledMessages = selectedConversationId
     ? scheduledMessagesByConversationId[selectedConversationId] || []
     : [];
+  const selectedEvents = selectedConversationId
+    ? eventsByConversationId[selectedConversationId] || []
+    : [];
   const currentChatUserName = currentChatUser?.name;
   const isGlobalNotificationsMuted = Boolean(user?.notificationSettings?.muteAll);
   const applyDraftPayload = useCallback((draft) => {
@@ -1020,6 +1102,130 @@ const Chat = () => {
     };
   }, [removeScheduledMessage, showAppNotification, upsertScheduledMessage]);
 
+  const upsertConversationEvent = useCallback((event) => {
+    const normalized = normalizeEvent(event);
+    if (!normalized?.id || !normalized.conversationId) return null;
+
+    setEventsByConversationId((current) => {
+      const currentList = current[normalized.conversationId] || [];
+      const withoutExisting = currentList.filter((item) => item.id !== normalized.id);
+
+      return {
+        ...current,
+        [normalized.conversationId]: sortConversationEvents([...withoutExisting, normalized]),
+      };
+    });
+
+    return normalized;
+  }, []);
+
+  const applyConversationEventToMessages = useCallback((event) => {
+    const normalized = normalizeEvent(event);
+    if (!normalized?.id) return;
+
+    setMessages((prev) =>
+      prev.map((message) => {
+        const messageEventId = message.event?.id || message.event?.eventId;
+        const shouldUpdate =
+          message.id === normalized.messageId || (messageEventId && messageEventId === normalized.id);
+
+        return shouldUpdate ? { ...message, event: normalized } : message;
+      }),
+    );
+
+    setReplyingMessage((prev) => {
+      const replyEventId = prev?.event?.id || prev?.event?.eventId;
+      if (!replyEventId || replyEventId !== normalized.id) return prev;
+      return { ...prev, event: normalized };
+    });
+
+    setConversations((prev) =>
+      prev.map((conv) => {
+        if (conv.id !== normalized.conversationId) return conv;
+
+        const pinnedMessages = (conv.pinnedMessages || []).map((pinnedMessage) => {
+          const pinnedEventId = pinnedMessage.event?.id || pinnedMessage.event?.eventId;
+          return pinnedMessage.id === normalized.messageId || pinnedEventId === normalized.id
+            ? { ...pinnedMessage, event: normalized }
+            : pinnedMessage;
+        });
+        const latestPinnedMessage =
+          conv.latestPinnedMessage?.id === normalized.messageId ||
+          conv.latestPinnedMessage?.event?.id === normalized.id ||
+          conv.latestPinnedMessage?.event?.eventId === normalized.id
+            ? { ...conv.latestPinnedMessage, event: normalized }
+            : conv.latestPinnedMessage || pinnedMessages[0] || null;
+
+        return {
+          ...conv,
+          pinnedMessages,
+          latestPinnedMessage,
+          pinnedMessage: latestPinnedMessage,
+        };
+      }),
+    );
+  }, []);
+
+  const loadEvents = useCallback(async (conversationId = null) => {
+    try {
+      const response = await api.get('/events', {
+        params: {
+          status: 'scheduled',
+          ...(conversationId ? { conversationId } : {}),
+        },
+      });
+
+      if (!response.data.success) return;
+
+      const events = (response.data.events || [])
+        .map(normalizeEvent)
+        .filter((event) => event?.id && event.conversationId);
+
+      if (conversationId) {
+        setEventsByConversationId((current) => ({
+          ...current,
+          [conversationId]: sortConversationEvents(events),
+        }));
+        return;
+      }
+
+      setEventsByConversationId(formatEventsByConversationId(events));
+    } catch (error) {
+      console.error('Không thể tải sự kiện:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const applyEventPayload = (payload = {}) => {
+      const event = payload.event || payload;
+      const normalized = upsertConversationEvent(event);
+      if (normalized) applyConversationEventToMessages(normalized);
+    };
+
+    const handleEventReminderDue = (payload = {}) => {
+      const event = normalizeEvent(payload.event || payload);
+      if (!event?.conversationId) return;
+
+      showAppNotification({
+        title: 'Sắp đến sự kiện',
+        body: event.title || 'Một sự kiện trong cuộc trò chuyện sắp bắt đầu',
+        conversationId: event.conversationId,
+      });
+    };
+
+    socket.on('event_created', applyEventPayload);
+    socket.on('event_rsvp_updated', applyEventPayload);
+    socket.on('event_cancelled', applyEventPayload);
+    socket.on('event_reminder_due', handleEventReminderDue);
+
+    return () => {
+      socket.off('event_created', applyEventPayload);
+      socket.off('event_rsvp_updated', applyEventPayload);
+      socket.off('event_cancelled', applyEventPayload);
+      socket.off('event_reminder_due', handleEventReminderDue);
+    };
+  }, [applyConversationEventToMessages, showAppNotification, upsertConversationEvent]);
+
   const isConversationMuted = useCallback(
     (conversationId) => {
       if (!conversationId) return false;
@@ -1196,6 +1402,7 @@ const Chat = () => {
           console.error('Không thể tải bản nháp:', draftError);
         }
         void loadScheduledMessages();
+        void loadEvents();
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách bạn bè:', error);
@@ -1203,7 +1410,7 @@ const Chat = () => {
     } finally {
       setIsFriendsLoading(false);
     }
-  }, [conversations.length, loadScheduledMessages]);
+  }, [conversations.length, loadEvents, loadScheduledMessages]);
 
   const upsertConversation = useCallback(
     (conversation, options = {}) => {
@@ -1581,11 +1788,13 @@ const Chat = () => {
       const shouldMarkRead = !isOwnMessage && isCurrentConversation && document.hasFocus();
       const incomingAttachments = getMessageAttachments(data);
       const incomingPoll = normalizePoll(data.poll);
+      const incomingEvent = normalizeEvent(data.event);
       const incomingMessage = {
         ...data,
         messageType: data.messageType || 'text',
         sticker: data.sticker || null,
         poll: incomingPoll,
+        event: incomingEvent,
         callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
@@ -1593,6 +1802,14 @@ const Chat = () => {
       const hasConversation = conversationsRef.current.some((conv) => conv.id === eventConversationId);
 
       console.log('📨 Received message:', data);
+      if (incomingEvent) {
+        upsertConversationEvent({
+          ...incomingEvent,
+          conversationId: incomingEvent.conversationId || eventConversationId,
+          messageId: incomingEvent.messageId || data.id,
+        });
+      }
+
       if (user?.id && data.id && data.senderId && !data.isGroup && !isOwnMessage) {
         socket.emit('mark_message_delivered', {
           messageId: data.id,
@@ -1617,6 +1834,7 @@ const Chat = () => {
           data.callDetails,
           data.sticker,
           incomingPoll,
+          incomingEvent,
         );
         const shouldShowAppToast = !isCurrentConversation;
 
@@ -1667,6 +1885,7 @@ const Chat = () => {
             data.callDetails,
             data.sticker,
             incomingPoll,
+            incomingEvent,
           ),
           hasLastMessage: true,
           lastMessageAt: data.timestamp,
@@ -1827,6 +2046,7 @@ const Chat = () => {
     const handleMessageSent = (data) => {
       const savedAttachments = getMessageAttachments(data);
       const savedPoll = normalizePoll(data.poll);
+      const savedEvent = normalizeEvent(data.event);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.tempId
@@ -1839,6 +2059,7 @@ const Chat = () => {
                 messageType: data.messageType || msg.messageType || 'text',
                 sticker: data.sticker || msg.sticker || null,
                 poll: savedPoll || msg.poll || null,
+                event: savedEvent || msg.event || null,
                 callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
@@ -2090,6 +2311,7 @@ const Chat = () => {
               messageType: 'text',
               sticker: null,
               poll: null,
+              event: null,
               attachment: null,
               attachments: [],
               linkPreview: null,
@@ -2110,6 +2332,7 @@ const Chat = () => {
                 messageType: 'text',
                 sticker: null,
                 poll: null,
+                event: null,
                 attachment: null,
                 attachments: [],
                 isDeleted: true,
@@ -2129,6 +2352,7 @@ const Chat = () => {
               content: REVOKED_MESSAGE_TEXT,
               sticker: null,
               poll: null,
+              event: null,
               attachment: null,
               attachments: [],
               isDeleted: true,
@@ -2151,6 +2375,7 @@ const Chat = () => {
                       lastMessage.callDetails,
                       lastMessage.sticker,
                       lastMessage.poll,
+                      lastMessage.event,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -2228,6 +2453,7 @@ const Chat = () => {
     removeTypingUser,
     showAppNotification,
     shouldNotifyConversation,
+    upsertConversationEvent,
   ]);
 
   const handleTypingStart = () => {
@@ -2303,6 +2529,101 @@ const Chat = () => {
     } catch (error) {
       console.error('Không thể hủy tin nhắn hẹn gửi:', error);
       alert(error?.response?.data?.error || 'Không thể hủy tin nhắn hẹn gửi');
+    }
+  };
+
+  const handleCreateEvent = async (eventInput) => {
+    if (!selectedConversationId || !user) {
+      throw new Error('Chưa chọn cuộc trò chuyện');
+    }
+
+    if (currentChatUser?.isSaved) {
+      throw new Error('Sự kiện không hỗ trợ trong Saved Messages');
+    }
+
+    const response = await api.post('/events', {
+      conversationId: selectedConversationId,
+      ...eventInput,
+    });
+    const event = normalizeEvent(response.data?.event);
+    const message = response.data?.message
+      ? normalizeMessage(response.data.message, selectedConversationId, user, currentChatUser)
+      : null;
+
+    if (event) {
+      upsertConversationEvent(event);
+      applyConversationEventToMessages(event);
+    }
+
+    if (message?.id) {
+      mergeMessageWindow([message]);
+      setConversations((prev) => {
+        const targetConv = prev.find((c) => c.id === selectedConversationId);
+        if (!targetConv) return prev;
+
+        const updatedTarget = {
+          ...targetConv,
+          lastMessage: getMessagePreview(
+            message.content,
+            null,
+            false,
+            [],
+            'event',
+            null,
+            null,
+            null,
+            event || message.event,
+          ),
+          hasLastMessage: true,
+          lastMessageAt: message.timestamp,
+        };
+        const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
+        return sortConversations([updatedTarget, ...otherConvs]);
+      });
+    }
+
+    setReplyingMessage(null);
+    return event || response.data?.event || null;
+  };
+
+  const handleEventRsvp = async (eventId, status) => {
+    if (!eventId || !status) return;
+
+    try {
+      const response = await api.patch(`/events/${eventId}/rsvp`, { status });
+      const event = response.data?.event;
+      if (event) {
+        const normalized = upsertConversationEvent(event);
+        applyConversationEventToMessages(normalized || event);
+      }
+    } catch (error) {
+      console.error('Không thể cập nhật RSVP:', error);
+      alert(error?.response?.data?.error || 'Không thể cập nhật RSVP');
+    }
+  };
+
+  const handleCancelEvent = async (event) => {
+    const eventId = event?.id || event?.eventId;
+    if (!eventId) return;
+
+    const confirmed = await confirm({
+      title: 'Hủy sự kiện?',
+      description: 'Sự kiện này sẽ được đánh dấu là đã hủy cho mọi thành viên trong cuộc trò chuyện.',
+      confirmText: 'Hủy sự kiện',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      const response = await api.delete(`/events/${eventId}`);
+      const cancelledEvent = response.data?.event;
+      if (cancelledEvent) {
+        const normalized = upsertConversationEvent(cancelledEvent);
+        applyConversationEventToMessages(normalized || cancelledEvent);
+      }
+    } catch (error) {
+      console.error('Không thể hủy sự kiện:', error);
+      alert(error?.response?.data?.error || 'Không thể hủy sự kiện');
     }
   };
 
@@ -2558,10 +2879,11 @@ const Chat = () => {
     setActiveRailItem('messages');
     socket.emit('join_conversation', { conversationId });
     void loadScheduledMessages(conversationId);
+    void loadEvents(conversationId);
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
-  }, [loadScheduledMessages, resetMessageWindow, selectedConversationId]);
+  }, [loadEvents, loadScheduledMessages, resetMessageWindow, selectedConversationId]);
 
   const handleOpenMessageTarget = async ({ conversationId, messageId, type }) => {
     if (!conversationId) {
@@ -2677,6 +2999,7 @@ const Chat = () => {
       !message ||
       message.isDeleted ||
       message.messageType === 'poll' ||
+      message.messageType === 'event' ||
       message.senderId !== user?.id ||
       message.status === 'sending'
     ) {
@@ -2812,6 +3135,10 @@ const Chat = () => {
                     onScheduleMessage={handleScheduleMessage}
                     onCreatePoll={handleCreatePoll}
                     onPollVote={handlePollVote}
+                    onCreateEvent={handleCreateEvent}
+                    onEventRsvp={handleEventRsvp}
+                    events={selectedEvents}
+                    onCancelEvent={handleCancelEvent}
                     scheduledMessages={selectedScheduledMessages}
                     onCancelScheduledMessage={handleCancelScheduledMessage}
                     draftContent={selectedDraftContent}

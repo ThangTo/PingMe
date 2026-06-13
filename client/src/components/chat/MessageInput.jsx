@@ -4,6 +4,7 @@ import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import ScheduleMessageModal from './ScheduleMessageModal';
 import CreatePollModal from './CreatePollModal';
+import CreateEventModal from './CreateEventModal';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 
@@ -42,6 +43,10 @@ const getReplyPreviewText = (replyingMessage) => {
   if (replyingMessage.isDeleted) return REVOKED_MESSAGE_TEXT;
   if (replyingMessage.messageType === 'poll') {
     return `Bình chọn: ${replyingMessage.poll?.question || replyingMessage.content || 'Bình chọn'}`;
+  }
+
+  if (replyingMessage.messageType === 'event') {
+    return `Sự kiện: ${replyingMessage.event?.title || replyingMessage.content || 'Sự kiện'}`;
   }
 
   const attachments = getMessageAttachments(replyingMessage);
@@ -241,7 +246,9 @@ const MessageInput = ({
   onSendMessage,
   onScheduleMessage,
   onCreatePoll,
+  onCreateEvent,
   canCreatePoll = false,
+  canCreateEvent = false,
   onDraftChange,
   disabled = false,
   onTypingStart,
@@ -266,12 +273,16 @@ const MessageInput = ({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPollOpen, setIsPollOpen] = useState(false);
+  const [isEventOpen, setIsEventOpen] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
   const pickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
+  const actionMenuRef = useRef(null);
+  const actionButtonRef = useRef(null);
   const wasEditingRef = useRef(false);
   const isTypingRef = useRef(false);
   const lastTypingEmitAtRef = useRef(0);
@@ -344,6 +355,27 @@ const MessageInput = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isPickerOpen]);
+
+  useEffect(() => {
+    if (!isActionMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (actionMenuRef.current?.contains(event.target)) return;
+      if (actionButtonRef.current?.contains(event.target)) return;
+      setIsActionMenuOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsActionMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isActionMenuOpen]);
 
   const clearPreviews = () => {
     setPreviews((current) => {
@@ -936,10 +968,49 @@ const MessageInput = ({
     !isUploadingVoice &&
     !isRecordingVoice &&
     Boolean(onCreatePoll);
+  const canOpenEvent =
+    canCreateEvent &&
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice &&
+    Boolean(onCreateEvent);
+  const composerActions = [
+    canOpenPoll
+      ? {
+          key: 'poll',
+          label: 'Bình chọn',
+          description: 'Tạo poll trong nhóm',
+          icon: 'poll',
+          onSelect: () => setIsPollOpen(true),
+        }
+      : null,
+    canOpenEvent
+      ? {
+          key: 'event',
+          label: 'Sự kiện',
+          description: 'Tạo lịch hẹn trong chat',
+          icon: 'event',
+          onSelect: () => setIsEventOpen(true),
+        }
+      : null,
+  ].filter(Boolean);
+  const hasComposerActions = composerActions.length > 0;
 
   useEffect(() => {
     if (!canOpenPoll) setIsPollOpen(false);
   }, [canOpenPoll]);
+
+  useEffect(() => {
+    if (!canOpenEvent) setIsEventOpen(false);
+  }, [canOpenEvent]);
+
+  useEffect(() => {
+    if (!hasComposerActions) setIsActionMenuOpen(false);
+  }, [hasComposerActions]);
 
   const handleScheduleSubmit = async (scheduledAt) => {
     if (!canSchedule) return;
@@ -972,6 +1043,11 @@ const MessageInput = ({
         open={isPollOpen}
         onClose={() => setIsPollOpen(false)}
         onCreatePoll={onCreatePoll}
+      />
+      <CreateEventModal
+        open={isEventOpen}
+        onClose={() => setIsEventOpen(false)}
+        onCreateEvent={onCreateEvent}
       />
 
       {hasPreviews && (
@@ -1273,7 +1349,10 @@ const MessageInput = ({
         >
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            setIsActionMenuOpen(false);
+            fileInputRef.current?.click();
+          }}
           disabled={disabled || Boolean(editingMessage) || isRecordingVoice || hasVoicePreview}
           className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
           title="Đính kèm"
@@ -1281,14 +1360,44 @@ const MessageInput = ({
           <AppIcon name="attach_file" className="text-[20px]" />
         </button>
 
+        {hasComposerActions && (
+          <button
+            ref={actionButtonRef}
+            type="button"
+            onClick={() => {
+              setIsPickerOpen(false);
+              setIsActionMenuOpen((current) => !current);
+            }}
+            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:hidden ${
+              isActionMenuOpen ? 'bg-surface-container-low text-on-surface' : ''
+            }`}
+            title="Thao tác"
+            aria-label="Mở thao tác"
+            aria-expanded={isActionMenuOpen}
+          >
+            <AppIcon name="add" className="text-[20px]" />
+          </button>
+        )}
+
         {canOpenPoll && (
           <button
             type="button"
             onClick={() => setIsPollOpen(true)}
-            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
             title="Tạo bình chọn"
           >
             <AppIcon name="poll" className="text-[19px]" />
+          </button>
+        )}
+
+        {canOpenEvent && (
+          <button
+            type="button"
+            onClick={() => setIsEventOpen(true)}
+            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+            title="Tạo sự kiện"
+          >
+            <AppIcon name="event" className="text-[19px]" />
           </button>
         )}
 
@@ -1317,6 +1426,7 @@ const MessageInput = ({
           ref={emojiButtonRef}
           type="button"
           onClick={() => {
+            setIsActionMenuOpen(false);
             setActivePickerTab('emoji');
             setIsPickerOpen((current) => !current);
           }}
@@ -1330,7 +1440,10 @@ const MessageInput = ({
         {canSchedule && (
           <button
             type="button"
-            onClick={() => setIsScheduleOpen(true)}
+            onClick={() => {
+              setIsActionMenuOpen(false);
+              setIsScheduleOpen(true);
+            }}
             className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
             title="Hẹn giờ gửi"
           >
@@ -1365,6 +1478,35 @@ const MessageInput = ({
           <AppIcon name={editingMessage ? 'check' : 'send'} className="text-[18px]" />
         </button>
         </form>
+
+        {isActionMenuOpen && hasComposerActions && (
+          <div
+            ref={actionMenuRef}
+            className="absolute bottom-[calc(100%+8px)] left-0 z-[130] w-60 overflow-hidden rounded-[14px] border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl sm:hidden"
+          >
+            {composerActions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                onClick={() => {
+                  setIsActionMenuOpen(false);
+                  action.onSelect();
+                }}
+                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors hover:bg-surface-container-low"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-accent-soft text-on-surface">
+                  <AppIcon name={action.icon} className="text-[18px]" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-on-surface">{action.label}</span>
+                  <span className="block truncate text-xs text-on-surface-variant">
+                    {action.description}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {isPickerOpen && (
           <div ref={pickerRef}>

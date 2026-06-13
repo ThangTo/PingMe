@@ -222,6 +222,38 @@ const buildIncomingCallPushPayload = ({ callerUser, type, conversationId, callId
   };
 };
 
+const buildEventReminderPushPayload = ({ event, conversation }) => {
+  const conversationId = event.conversationId || event.conversation?.toString();
+  const eventTitle = event.title || 'Sự kiện';
+  const conversationTitle = conversation?.type === 'group' ? conversation.title || 'Nhóm chat' : '';
+  const startsAt = event.startsAt ? new Date(event.startsAt) : null;
+  const timeText =
+    startsAt && !Number.isNaN(startsAt.getTime())
+      ? new Intl.DateTimeFormat('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(startsAt)
+      : '';
+
+  return {
+    title: conversationTitle ? `Sắp đến sự kiện trong ${conversationTitle}` : 'Sắp đến sự kiện',
+    body: truncateText([eventTitle, timeText].filter(Boolean).join(' · '), 120),
+    icon: '/pingme.svg',
+    badge: '/pingme.svg',
+    tag: event.id ? `pingme-event-${event.id}` : `pingme-event-${Date.now()}`,
+    timestamp: Date.now(),
+    data: {
+      type: 'event',
+      conversationId,
+      eventId: event.id,
+      messageId: event.messageId || null,
+      url: conversationId ? `/chat?conversationId=${encodeURIComponent(conversationId)}` : '/chat',
+    },
+  };
+};
+
 const shouldRemoveSubscription = (error = {}) => [403, 404, 410].includes(error.statusCode);
 
 const isActiveMute = (value) => {
@@ -349,6 +381,48 @@ export const sendMessagePushToUsers = async ({ recipientIds = [], message, conve
 
   console.log(
     `[Push] message recipients=${usersToNotify.length} subscriptions=${subscriptions} sent=${sent} removed=${removed}`,
+  );
+};
+
+export const sendEventReminderPushToUsers = async ({ recipientIds = [], event, conversation }) => {
+  const conversationMutedUserIds = getConversationMutedUserIds(conversation);
+  const uniqueRecipientIds = [
+    ...new Set(
+      recipientIds
+        .map((id) => id?.toString())
+        .filter((id) => id && !conversationMutedUserIds.has(id)),
+    ),
+  ];
+  if (!uniqueRecipientIds.length) return;
+
+  ensureWebPushConfigured();
+
+  const users = await User.find({
+    _id: { $in: uniqueRecipientIds },
+    'pushSubscriptions.0': { $exists: true },
+  })
+    .select('pushSubscriptions notificationSettings')
+    .lean();
+
+  const usersToNotify = users.filter((user) => !user.notificationSettings?.muteAll);
+  if (!usersToNotify.length) return;
+
+  const payload = buildEventReminderPushPayload({ event, conversation });
+  const results = await Promise.all(
+    usersToNotify.map((user) =>
+      sendPayloadToSubscriptions({
+        user,
+        payload,
+      }),
+    ),
+  );
+
+  const sent = results.reduce((total, result) => total + result.sent, 0);
+  const subscriptions = results.reduce((total, result) => total + result.subscriptions, 0);
+  const removed = results.reduce((total, result) => total + result.removed, 0);
+
+  console.log(
+    `[Push] event-reminder recipients=${usersToNotify.length} subscriptions=${subscriptions} sent=${sent} removed=${removed}`,
   );
 };
 

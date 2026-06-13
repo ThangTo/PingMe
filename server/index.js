@@ -14,6 +14,7 @@ import socketHandler from './socket/socketHandler.js';
 import authRoutes from './routers/auth.routes.js';
 import callRoutes from './routers/call.routes.js';
 import conversationRoutes from './routers/conversation.routes.js';
+import eventRoutes from './routers/event.routes.js';
 import messageRoutes from './routers/message.routes.js';
 import notificationRoutes from './routers/notification.routes.js';
 import pushRoutes from './routers/push.routes.js';
@@ -22,6 +23,7 @@ import socialRoutes from './routers/social.routes.js';
 import stickerRoutes from './routers/sticker.routes.js';
 import userRoutes from './routers/user.routes.js';
 import { startEmailQueueWorker } from './services/emailQueue.service.js';
+import { startEventReminderWorker } from './services/conversationEvent.service.js';
 import { startScheduledMessageWorker } from './services/scheduledMessage.service.js';
 import { requestTimingMiddleware } from './middlewares/performance.middleware.js';
 import { configureRealtimeAdapter } from './integrations/realtime/realtimeAdapter.js';
@@ -77,6 +79,7 @@ socketHandler(io);
 app.use('/api/auth', authRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/events', eventRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
@@ -151,6 +154,7 @@ server.on('error', (error) => {
 });
 
 let stopEmailQueueWorker = null;
+let stopEventReminderWorker = null;
 let stopScheduledMessageWorker = null;
 let stopRealtimeAdapter = null;
 
@@ -169,6 +173,14 @@ databaseReady.then(() => {
 
   if (runEmbeddedScheduledMessageWorker) {
     stopScheduledMessageWorker = startScheduledMessageWorker({ io });
+  }
+
+  const runEmbeddedEventReminderWorker =
+    process.env.EVENT_REMINDER_WORKER_ENABLED === 'true' ||
+    (!process.env.EVENT_REMINDER_WORKER_ENABLED && process.env.NODE_ENV !== 'production');
+
+  if (runEmbeddedEventReminderWorker) {
+    stopEventReminderWorker = startEventReminderWorker({ io });
   }
 
   void configureRealtimeAdapter(io)
@@ -190,6 +202,7 @@ databaseReady.then(() => {
 // Xử lý graceful shutdown
 process.on('SIGTERM', () => {
   stopEmailQueueWorker?.();
+  stopEventReminderWorker?.();
   stopScheduledMessageWorker?.();
   stopRealtimeAdapter?.();
   console.log('👋 SIGTERM received. Closing server...');
@@ -201,6 +214,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   stopEmailQueueWorker?.();
+  stopEventReminderWorker?.();
   stopScheduledMessageWorker?.();
   stopRealtimeAdapter?.();
   server.close(() => process.exit(0));

@@ -15,7 +15,14 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['message', 'mention', 'friend_request', 'friend_accepted', 'missed_call'],
+      enum: [
+        'message',
+        'mention',
+        'friend_request',
+        'friend_accepted',
+        'missed_call',
+        'event_reminder',
+      ],
       required: true,
     },
     title: {
