@@ -1,4 +1,5 @@
 import {
+  AlarmClock,
   Archive,
   ArrowLeft,
   AtSign,
@@ -87,6 +88,7 @@ import {
 
 const iconMap = {
   account_circle: UserCircle,
+  reminder: AlarmClock,
   add_moderator: ShieldPlus,
   admin: ShieldCheck,
   add_reaction: SmilePlus,

@@ -227,6 +227,106 @@ if (!cancelScheduledResponse.ok) {
   throw new Error(`Cancel scheduled message smoke failed: ${cancelScheduledResponse.status}`);
 }
 
+const reminderTitle = `PingMe reminder smoke ${Date.now()}`;
+const reminderFirstRunAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+const reminderTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const reminderResponse = await fetch(`${apiBaseUrl}/reminders/recurring`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    title: reminderTitle,
+    notes: 'Smoke recurring reminder notes',
+    frequency: 'daily',
+    firstRunAt: reminderFirstRunAt,
+    timezone: reminderTimezone,
+  }),
+});
+if (!reminderResponse.ok) {
+  throw new Error(`Create recurring reminder smoke failed: ${reminderResponse.status}`);
+}
+const reminderPayload = await reminderResponse.json();
+const reminderId = reminderPayload.reminder?.id;
+if (!reminderId) throw new Error('Recurring reminder smoke did not return an id.');
+
+const savedReminderResponse = await fetch(`${apiBaseUrl}/reminders/recurring`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: savedConversationId,
+    title: `${reminderTitle} saved`,
+    frequency: 'weekly',
+    firstRunAt: reminderFirstRunAt,
+    timezone: reminderTimezone,
+  }),
+});
+if (!savedReminderResponse.ok) {
+  throw new Error(`Create saved recurring reminder smoke failed: ${savedReminderResponse.status}`);
+}
+const savedReminderPayload = await savedReminderResponse.json();
+const savedReminderId = savedReminderPayload.reminder?.id;
+if (!savedReminderId) throw new Error('Saved recurring reminder smoke did not return an id.');
+
+const reminderListResponse = await fetch(
+  `${apiBaseUrl}/reminders/recurring?conversationId=${directConversationId}&status=open`,
+  {
+    headers: { cookie: cookies },
+  },
+);
+if (!reminderListResponse.ok) {
+  throw new Error(`List recurring reminders smoke failed: ${reminderListResponse.status}`);
+}
+const reminderListPayload = await reminderListResponse.json();
+const reminderInList = (reminderListPayload.reminders || []).find(
+  (reminder) => reminder.id === reminderId && reminder.title === reminderTitle,
+);
+if (!reminderInList) throw new Error('KhÃ´ng tÃ¬m tháº¥y nháº¯c háº¹n vá»«a táº¡o trong danh sÃ¡ch.');
+
+const invalidReminderFrequencyResponse = await fetch(`${apiBaseUrl}/reminders/recurring`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    title: 'should fail',
+    frequency: 'yearly',
+    firstRunAt: reminderFirstRunAt,
+    timezone: reminderTimezone,
+  }),
+});
+if (invalidReminderFrequencyResponse.ok) throw new Error('Reminder invalid frequency smoke should fail.');
+
+const pastReminderResponse = await fetch(`${apiBaseUrl}/reminders/recurring`, {
+  method: 'POST',
+  headers: { cookie: cookies, 'content-type': 'application/json' },
+  body: JSON.stringify({
+    conversationId: directConversationId,
+    title: 'should fail',
+    frequency: 'daily',
+    firstRunAt: new Date(Date.now() - 60 * 1000).toISOString(),
+    timezone: reminderTimezone,
+  }),
+});
+if (pastReminderResponse.ok) throw new Error('Reminder past time smoke should fail.');
+
+const cancelReminderResponse = await fetch(`${apiBaseUrl}/reminders/recurring/${reminderId}`, {
+  method: 'DELETE',
+  headers: { cookie: cookies },
+});
+if (!cancelReminderResponse.ok) {
+  throw new Error(`Cancel recurring reminder smoke failed: ${cancelReminderResponse.status}`);
+}
+
+const cancelSavedReminderResponse = await fetch(
+  `${apiBaseUrl}/reminders/recurring/${savedReminderId}`,
+  {
+    method: 'DELETE',
+    headers: { cookie: cookies },
+  },
+);
+if (!cancelSavedReminderResponse.ok) {
+  throw new Error(`Cancel saved recurring reminder smoke failed: ${cancelSavedReminderResponse.status}`);
+}
+
 const eventTitle = `PingMe event smoke ${Date.now()}`;
 const eventStartsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 const eventResponse = await fetch(`${apiBaseUrl}/events`, {

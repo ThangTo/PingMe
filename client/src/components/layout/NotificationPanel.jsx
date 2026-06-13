@@ -49,7 +49,17 @@ const notificationIcon = (type) => {
   if (type === 'mention') return 'alternate_email';
   if (type === 'friend_request' || type === 'friend_accepted') return 'person_add';
   if (type === 'call' || type === 'missed_call') return 'call';
+  if (type === 'event_reminder' || type === 'recurring_reminder') return 'reminder';
   return 'chat_bubble';
+};
+
+const notificationLabel = (type) => {
+  if (type === 'mention') return 'Lượt nhắc tên';
+  if (type === 'friend_request') return 'Lời mời kết bạn';
+  if (type === 'event_reminder') return 'Nhắc sự kiện';
+  if (type === 'recurring_reminder') return 'Nhắc hẹn';
+  if (type?.includes('call')) return 'Cuộc gọi';
+  return 'Tin nhắn';
 };
 
 const NotificationPanel = ({
@@ -115,7 +125,9 @@ const NotificationPanel = ({
     if (activeFilter === 'unread') return notifications.filter((notification) => !notification.readAt);
     if (activeFilter === 'important') {
       return notifications.filter((notification) =>
-        ['mention', 'friend_request', 'missed_call'].includes(notification.type),
+        ['mention', 'friend_request', 'missed_call', 'event_reminder', 'recurring_reminder'].includes(
+          notification.type,
+        ),
       );
     }
     return notifications;
@@ -160,13 +172,7 @@ const NotificationPanel = ({
         )}
         <span className="mt-1.5 flex items-center gap-1.5 text-[10px] text-on-surface-variant">
           <AppIcon name={notificationIcon(notification.type)} className="text-[12px]" />
-          {notification.type === 'mention'
-            ? 'Lượt nhắc tên'
-            : notification.type === 'friend_request'
-              ? 'Lời mời kết bạn'
-              : notification.type?.includes('call')
-                ? 'Cuộc gọi'
-                : 'Tin nhắn'}
+          {notificationLabel(notification.type)}
         </span>
       </span>
       {!notification.readAt && <span className="mt-4 h-2 w-2 shrink-0 rounded-full bg-error" />}

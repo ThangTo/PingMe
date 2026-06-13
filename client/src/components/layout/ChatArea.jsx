@@ -89,6 +89,31 @@ const getEventPreviewText = (event) => {
   return `${title.slice(0, 89)}...`;
 };
 
+const REMINDER_FREQUENCY_LABELS = {
+  daily: 'Hằng ngày',
+  weekly: 'Hằng tuần',
+  monthly: 'Hằng tháng',
+};
+
+const formatReminderTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getReminderPreviewText = (reminder) => {
+  const title = typeof reminder?.title === 'string' ? reminder.title.trim() : '';
+  if (!title) return 'Nhắc hẹn';
+  if (title.length <= 90) return title;
+  return `${title.slice(0, 89)}...`;
+};
+
 const ScheduledMessagesStrip = ({ scheduledMessages = [], onCancelScheduledMessage }) => {
   const [isOpen, setIsOpen] = useState(false);
   const pendingMessages = useMemo(
@@ -242,6 +267,112 @@ const UpcomingEventsStrip = ({ events = [], currentUserId = '', onCancelEvent })
   );
 };
 
+const RecurringRemindersStrip = ({
+  reminders = [],
+  onSnoozeReminder,
+  onDismissReminder,
+  onCancelReminder,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const openReminders = useMemo(
+    () =>
+      [...reminders]
+        .filter((item) => ['active', 'due'].includes(item?.status))
+        .sort((a, b) => {
+          if (a.status === 'due' && b.status !== 'due') return -1;
+          if (a.status !== 'due' && b.status === 'due') return 1;
+          return new Date(a.nextRunAt || 0) - new Date(b.nextRunAt || 0);
+        }),
+    [reminders],
+  );
+  const nearestReminder = openReminders[0] || null;
+
+  if (!nearestReminder) return null;
+
+  return (
+    <div className="shrink-0 border-t border-outline-variant bg-surface">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className="flex min-h-[44px] w-full items-center gap-2.5 px-4 text-left transition-colors hover:bg-surface-container-low md:px-5"
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-on-surface-variant">
+          <AppIcon name="reminder" className="text-[18px]" />
+        </span>
+        <span className="min-w-0 flex-1 text-[13px]">
+          <span className="font-semibold text-on-surface">
+            {openReminders.length} nhắc hẹn
+          </span>
+          <span className="text-on-surface-variant">
+            {' '}
+            · {nearestReminder.status === 'due' ? 'Đến hạn' : formatReminderTime(nearestReminder.nextRunAt)} ·{' '}
+            {getReminderPreviewText(nearestReminder)}
+          </span>
+        </span>
+        <AppIcon
+          name={isOpen ? 'expand_less' : 'chevron_right'}
+          className="shrink-0 text-[20px] text-on-surface-variant"
+        />
+      </button>
+
+      {isOpen && (
+        <div className="max-h-[240px] overflow-y-auto border-t border-outline-variant px-4 py-2 md:px-5">
+          <div className="space-y-1">
+            {openReminders.map((reminder) => (
+              <div
+                key={reminder.id}
+                className="flex min-w-0 flex-col gap-2 rounded-[8px] px-2 py-2 transition-colors hover:bg-surface-container-low sm:flex-row sm:items-center"
+              >
+                <span className="min-w-[92px] shrink-0 text-xs font-semibold text-on-surface-variant">
+                  {reminder.status === 'due' ? 'Đến hạn' : formatReminderTime(reminder.nextRunAt)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-on-surface">
+                    {getReminderPreviewText(reminder)}
+                  </span>
+                  <span className="block text-xs text-on-surface-variant">
+                    {REMINDER_FREQUENCY_LABELS[reminder.frequency] || 'Nhắc hẹn'}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {reminder.status === 'due' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onSnoozeReminder?.(reminder, 15)}
+                        className="grid h-8 w-8 place-items-center rounded-[8px] text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
+                        title="Nhắc lại sau 15 phút"
+                      >
+                        <AppIcon name="schedule" className="text-[17px]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDismissReminder?.(reminder)}
+                        className="grid h-8 w-8 place-items-center rounded-[8px] text-on-surface-variant transition hover:bg-secondary-container hover:text-secondary"
+                        title="Hoàn tất lần nhắc này"
+                      >
+                        <AppIcon name="check" className="text-[17px]" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onCancelReminder?.(reminder)}
+                    className="grid h-8 w-8 place-items-center rounded-[8px] text-on-surface-variant transition hover:bg-error-container hover:text-error"
+                    title="Hủy nhắc hẹn"
+                  >
+                    <AppIcon name="close" className="text-[17px]" />
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChatArea = ({
   currentUser,
   conversationId,
@@ -253,6 +384,7 @@ const ChatArea = ({
   onCreatePoll,
   onCreateEvent,
   onCreateChecklist,
+  onCreateReminder,
   onPollVote,
   onEventRsvp,
   onChecklistToggle,
@@ -260,6 +392,10 @@ const ChatArea = ({
   onCancelScheduledMessage,
   events = [],
   onCancelEvent,
+  reminders = [],
+  onSnoozeReminder,
+  onDismissReminder,
+  onCancelReminder,
   draftContent = '',
   onDraftChange,
   typingUsers = [],
@@ -668,6 +804,13 @@ const ChatArea = ({
         onCancelEvent={onCancelEvent}
       />
 
+      <RecurringRemindersStrip
+        reminders={reminders}
+        onSnoozeReminder={onSnoozeReminder}
+        onDismissReminder={onDismissReminder}
+        onCancelReminder={onCancelReminder}
+      />
+
       <MessageInput
         conversationId={conversationId}
         draftContent={draftContent}
@@ -676,9 +819,11 @@ const ChatArea = ({
         onCreatePoll={onCreatePoll}
         onCreateEvent={onCreateEvent}
         onCreateChecklist={onCreateChecklist}
+        onCreateReminder={onCreateReminder}
         canCreatePoll={Boolean(currentUser?.isGroup)}
         canCreateEvent={Boolean(currentUser && !currentUser.isSaved)}
         canCreateChecklist={Boolean(currentUser?.isGroup)}
+        canCreateReminder={Boolean(currentUser)}
         conversationMembers={currentUser?.members || []}
         onDraftChange={onDraftChange}
         onTypingStart={onTypingStart}

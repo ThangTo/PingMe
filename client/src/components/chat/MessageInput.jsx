@@ -6,6 +6,7 @@ import ScheduleMessageModal from './ScheduleMessageModal';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
 import CreateChecklistModal from './CreateChecklistModal';
+import CreateRecurringReminderModal from './CreateRecurringReminderModal';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 
@@ -253,9 +254,11 @@ const MessageInput = ({
   onCreatePoll,
   onCreateEvent,
   onCreateChecklist,
+  onCreateReminder,
   canCreatePoll = false,
   canCreateEvent = false,
   canCreateChecklist = false,
+  canCreateReminder = false,
   conversationMembers = [],
   onDraftChange,
   disabled = false,
@@ -283,6 +286,7 @@ const MessageInput = ({
   const [isPollOpen, setIsPollOpen] = useState(false);
   const [isEventOpen, setIsEventOpen] = useState(false);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
@@ -997,6 +1001,16 @@ const MessageInput = ({
     !isUploadingVoice &&
     !isRecordingVoice &&
     Boolean(onCreateChecklist);
+  const canOpenReminder =
+    canCreateReminder &&
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice &&
+    Boolean(onCreateReminder);
   const composerActions = [
     canOpenPoll
       ? {
@@ -1025,6 +1039,15 @@ const MessageInput = ({
           onSelect: () => setIsChecklistOpen(true),
         }
       : null,
+    canOpenReminder
+      ? {
+          key: 'reminder',
+          label: 'Nhắc hẹn',
+          description: 'Tạo nhắc định kỳ cá nhân',
+          icon: 'reminder',
+          onSelect: () => setIsReminderOpen(true),
+        }
+      : null,
   ].filter(Boolean);
   const hasComposerActions = composerActions.length > 0;
 
@@ -1039,6 +1062,10 @@ const MessageInput = ({
   useEffect(() => {
     if (!canOpenChecklist) setIsChecklistOpen(false);
   }, [canOpenChecklist]);
+
+  useEffect(() => {
+    if (!canOpenReminder) setIsReminderOpen(false);
+  }, [canOpenReminder]);
 
   useEffect(() => {
     if (!hasComposerActions) setIsActionMenuOpen(false);
@@ -1056,6 +1083,19 @@ const MessageInput = ({
     setMessage('');
     notifyDraftChange('');
     onCancelReplyMessage?.();
+    stopTypingNow();
+
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
+  };
+
+  const handleCreateReminderSubmit = async (reminderInput) => {
+    if (!canOpenReminder) return;
+
+    await onCreateReminder?.(reminderInput);
+    setMessage('');
+    notifyDraftChange('');
     stopTypingNow();
 
     if (inputRef.current) {
@@ -1086,6 +1126,12 @@ const MessageInput = ({
         onClose={() => setIsChecklistOpen(false)}
         onCreateChecklist={onCreateChecklist}
         members={conversationMembers}
+      />
+      <CreateRecurringReminderModal
+        open={isReminderOpen}
+        initialTitle={message}
+        onClose={() => setIsReminderOpen(false)}
+        onCreateReminder={handleCreateReminderSubmit}
       />
 
       {hasPreviews && (
@@ -1447,6 +1493,17 @@ const MessageInput = ({
             title="Tạo checklist"
           >
             <AppIcon name="checklist" className="text-[19px]" />
+          </button>
+        )}
+
+        {canOpenReminder && (
+          <button
+            type="button"
+            onClick={() => setIsReminderOpen(true)}
+            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+            title="Tạo nhắc hẹn"
+          >
+            <AppIcon name="reminder" className="text-[19px]" />
           </button>
         )}
 

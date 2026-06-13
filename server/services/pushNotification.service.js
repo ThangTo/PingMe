@@ -254,6 +254,32 @@ const buildEventReminderPushPayload = ({ event, conversation }) => {
   };
 };
 
+const buildRecurringReminderPushPayload = ({ reminder, conversation }) => {
+  const conversationId = reminder.conversationId || reminder.conversation?.toString();
+  const reminderTitle = reminder.title || 'Nhắc hẹn';
+  const conversationTitle =
+    conversation?.type === 'group'
+      ? conversation.title || 'Nhóm chat'
+      : conversation?.type === 'saved'
+        ? 'Saved Messages'
+        : '';
+
+  return {
+    title: conversationTitle ? `Nhắc hẹn trong ${conversationTitle}` : 'Đến giờ nhắc hẹn',
+    body: truncateText(reminderTitle, 120),
+    icon: '/pingme.svg',
+    badge: '/pingme.svg',
+    tag: reminder.id ? `pingme-reminder-${reminder.id}` : `pingme-reminder-${Date.now()}`,
+    timestamp: Date.now(),
+    data: {
+      type: 'recurring_reminder',
+      conversationId,
+      reminderId: reminder.id,
+      url: conversationId ? `/chat?conversationId=${encodeURIComponent(conversationId)}` : '/chat',
+    },
+  };
+};
+
 const shouldRemoveSubscription = (error = {}) => [403, 404, 410].includes(error.statusCode);
 
 const isActiveMute = (value) => {
@@ -423,6 +449,35 @@ export const sendEventReminderPushToUsers = async ({ recipientIds = [], event, c
 
   console.log(
     `[Push] event-reminder recipients=${usersToNotify.length} subscriptions=${subscriptions} sent=${sent} removed=${removed}`,
+  );
+};
+
+export const sendRecurringReminderPushToUser = async ({
+  recipientId,
+  reminder,
+  conversation = null,
+}) => {
+  const recipientIdString = recipientId?.toString();
+  if (!recipientIdString) return;
+
+  ensureWebPushConfigured();
+
+  const user = await User.findOne({
+    _id: recipientIdString,
+    'pushSubscriptions.0': { $exists: true },
+  })
+    .select('pushSubscriptions notificationSettings')
+    .lean();
+
+  if (!user || user.notificationSettings?.muteAll) return;
+
+  const result = await sendPayloadToSubscriptions({
+    user,
+    payload: buildRecurringReminderPushPayload({ reminder, conversation }),
+  });
+
+  console.log(
+    `[Push] recurring-reminder recipient=${recipientIdString} subscriptions=${result.subscriptions} sent=${result.sent} removed=${result.removed}`,
   );
 };
 

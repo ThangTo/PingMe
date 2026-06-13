@@ -18,12 +18,14 @@ import eventRoutes from './routers/event.routes.js';
 import messageRoutes from './routers/message.routes.js';
 import notificationRoutes from './routers/notification.routes.js';
 import pushRoutes from './routers/push.routes.js';
+import reminderRoutes from './routers/reminder.routes.js';
 import searchRoutes from './routers/search.routes.js';
 import socialRoutes from './routers/social.routes.js';
 import stickerRoutes from './routers/sticker.routes.js';
 import userRoutes from './routers/user.routes.js';
 import { startEmailQueueWorker } from './services/emailQueue.service.js';
 import { startEventReminderWorker } from './services/conversationEvent.service.js';
+import { startRecurringReminderWorker } from './services/recurringReminder.service.js';
 import { startScheduledMessageWorker } from './services/scheduledMessage.service.js';
 import { requestTimingMiddleware } from './middlewares/performance.middleware.js';
 import { configureRealtimeAdapter } from './integrations/realtime/realtimeAdapter.js';
@@ -83,6 +85,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/reminders', reminderRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/stickers', stickerRoutes);
@@ -155,6 +158,7 @@ server.on('error', (error) => {
 
 let stopEmailQueueWorker = null;
 let stopEventReminderWorker = null;
+let stopRecurringReminderWorker = null;
 let stopScheduledMessageWorker = null;
 let stopRealtimeAdapter = null;
 
@@ -183,6 +187,14 @@ databaseReady.then(() => {
     stopEventReminderWorker = startEventReminderWorker({ io });
   }
 
+  const runEmbeddedRecurringReminderWorker =
+    process.env.RECURRING_REMINDER_WORKER_ENABLED === 'true' ||
+    (!process.env.RECURRING_REMINDER_WORKER_ENABLED && process.env.NODE_ENV !== 'production');
+
+  if (runEmbeddedRecurringReminderWorker) {
+    stopRecurringReminderWorker = startRecurringReminderWorker({ io });
+  }
+
   void configureRealtimeAdapter(io)
     .then((stopAdapter) => {
       stopRealtimeAdapter = stopAdapter;
@@ -203,6 +215,7 @@ databaseReady.then(() => {
 process.on('SIGTERM', () => {
   stopEmailQueueWorker?.();
   stopEventReminderWorker?.();
+  stopRecurringReminderWorker?.();
   stopScheduledMessageWorker?.();
   stopRealtimeAdapter?.();
   console.log('👋 SIGTERM received. Closing server...');
@@ -215,6 +228,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   stopEmailQueueWorker?.();
   stopEventReminderWorker?.();
+  stopRecurringReminderWorker?.();
   stopScheduledMessageWorker?.();
   stopRealtimeAdapter?.();
   server.close(() => process.exit(0));

@@ -551,6 +551,55 @@ const formatScheduledMessagesByConversationId = (scheduledMessages = []) =>
     };
   }, {});
 
+const normalizeRecurringReminder = (reminder = {}) => ({
+  id: reminder.id || reminder._id || '',
+  ownerId: reminder.ownerId || getIdString(reminder.owner),
+  conversationId: reminder.conversationId || getIdString(reminder.conversation),
+  title: reminder.title || '',
+  notes: reminder.notes || '',
+  frequency: reminder.frequency || 'daily',
+  timezone: reminder.timezone || '',
+  anchor: reminder.anchor || null,
+  nextRunAt: reminder.nextRunAt || null,
+  lastDueAt: reminder.lastDueAt || null,
+  lastDismissedAt: reminder.lastDismissedAt || null,
+  snoozedUntil: reminder.snoozedUntil || null,
+  status: reminder.status || 'active',
+  cancelledAt: reminder.cancelledAt || null,
+  createdAt: reminder.createdAt || null,
+  updatedAt: reminder.updatedAt || null,
+  isDue: reminder.isDue || reminder.status === 'due',
+});
+
+const sortRecurringReminders = (items = []) =>
+  [...items].sort((a, b) => {
+    if (a.status === 'due' && b.status !== 'due') return -1;
+    if (a.status !== 'due' && b.status === 'due') return 1;
+    return new Date(a.nextRunAt || 0) - new Date(b.nextRunAt || 0);
+  });
+
+const formatRecurringRemindersByConversationId = (reminders = []) =>
+  reminders.reduce((remindersByConversationId, reminder) => {
+    const normalized = normalizeRecurringReminder(reminder);
+    if (
+      !normalized.id ||
+      !normalized.conversationId ||
+      !['active', 'due'].includes(normalized.status)
+    ) {
+      return remindersByConversationId;
+    }
+
+    return {
+      ...remindersByConversationId,
+      [normalized.conversationId]: sortRecurringReminders([
+        ...(remindersByConversationId[normalized.conversationId] || []).filter(
+          (item) => item.id !== normalized.id,
+        ),
+        normalized,
+      ]),
+    };
+  }, {});
+
 const sortConversationEvents = (items = []) =>
   [...items].sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
 
@@ -628,6 +677,7 @@ const Chat = () => {
   const [draftsByConversationId, setDraftsByConversationId] = useState({});
   const [scheduledMessagesByConversationId, setScheduledMessagesByConversationId] = useState({});
   const [eventsByConversationId, setEventsByConversationId] = useState({});
+  const [recurringRemindersByConversationId, setRecurringRemindersByConversationId] = useState({});
   const [, setOnlineUsers] = useState([]);
   const [typingUsersById, setTypingUsersById] = useState({});
   const [showDetails, setShowDetails] = useState(false);
@@ -956,6 +1006,9 @@ const Chat = () => {
   const selectedEvents = selectedConversationId
     ? eventsByConversationId[selectedConversationId] || []
     : [];
+  const selectedRecurringReminders = selectedConversationId
+    ? recurringRemindersByConversationId[selectedConversationId] || []
+    : [];
   const currentChatUserName = currentChatUser?.name;
   const isGlobalNotificationsMuted = Boolean(user?.notificationSettings?.muteAll);
   const applyDraftPayload = useCallback((draft) => {
@@ -1150,6 +1203,112 @@ const Chat = () => {
       socket.off('scheduled_message_failed', handleScheduledFailed);
     };
   }, [removeScheduledMessage, showAppNotification, upsertScheduledMessage]);
+
+  const upsertRecurringReminder = useCallback((reminder) => {
+    const normalized = normalizeRecurringReminder(reminder);
+    if (!normalized.id || !normalized.conversationId) return;
+
+    setRecurringRemindersByConversationId((current) => {
+      const currentList = current[normalized.conversationId] || [];
+      const withoutExisting = currentList.filter((item) => item.id !== normalized.id);
+
+      if (!['active', 'due'].includes(normalized.status)) {
+        if (withoutExisting.length === currentList.length) return current;
+        return {
+          ...current,
+          [normalized.conversationId]: withoutExisting,
+        };
+      }
+
+      return {
+        ...current,
+        [normalized.conversationId]: sortRecurringReminders([...withoutExisting, normalized]),
+      };
+    });
+  }, []);
+
+  const removeRecurringReminder = useCallback((payload = {}) => {
+    const reminder = payload.reminder || payload;
+    const reminderId = payload.reminderId || reminder.id || reminder._id || '';
+    const conversationId =
+      payload.conversationId || reminder.conversationId || getIdString(reminder.conversation);
+
+    if (!reminderId || !conversationId) return;
+
+    setRecurringRemindersByConversationId((current) => {
+      const currentList = current[conversationId] || [];
+      const nextList = currentList.filter((item) => item.id !== reminderId);
+      if (nextList.length === currentList.length) return current;
+
+      return {
+        ...current,
+        [conversationId]: nextList,
+      };
+    });
+  }, []);
+
+  const loadRecurringReminders = useCallback(async (conversationId = null) => {
+    try {
+      const response = await api.get('/reminders/recurring', {
+        params: {
+          status: 'open',
+          ...(conversationId ? { conversationId } : {}),
+        },
+      });
+
+      if (!response.data.success) return;
+
+      const reminders = (response.data.reminders || [])
+        .map(normalizeRecurringReminder)
+        .filter((item) => item.id && item.conversationId && ['active', 'due'].includes(item.status));
+
+      if (conversationId) {
+        setRecurringRemindersByConversationId((current) => ({
+          ...current,
+          [conversationId]: sortRecurringReminders(reminders),
+        }));
+        return;
+      }
+
+      setRecurringRemindersByConversationId(formatRecurringRemindersByConversationId(reminders));
+    } catch (error) {
+      console.error('Không thể tải nhắc hẹn định kỳ:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleReminderUpsert = (payload = {}) => {
+      upsertRecurringReminder(payload.reminder || payload);
+    };
+    const handleReminderCancelled = (payload = {}) => {
+      removeRecurringReminder(payload);
+    };
+    const handleReminderDue = (payload = {}) => {
+      const reminder = normalizeRecurringReminder(payload.reminder || payload);
+      if (!reminder?.conversationId) return;
+
+      upsertRecurringReminder(reminder);
+      showAppNotification({
+        title: 'Đến giờ nhắc hẹn',
+        body: reminder.title || 'Một nhắc hẹn trong cuộc trò chuyện đã đến hạn',
+        conversationId: reminder.conversationId,
+      });
+    };
+
+    socket.on('recurring_reminder_created', handleReminderUpsert);
+    socket.on('recurring_reminder_snoozed', handleReminderUpsert);
+    socket.on('recurring_reminder_dismissed', handleReminderUpsert);
+    socket.on('recurring_reminder_due', handleReminderDue);
+    socket.on('recurring_reminder_cancelled', handleReminderCancelled);
+
+    return () => {
+      socket.off('recurring_reminder_created', handleReminderUpsert);
+      socket.off('recurring_reminder_snoozed', handleReminderUpsert);
+      socket.off('recurring_reminder_dismissed', handleReminderUpsert);
+      socket.off('recurring_reminder_due', handleReminderDue);
+      socket.off('recurring_reminder_cancelled', handleReminderCancelled);
+    };
+  }, [removeRecurringReminder, showAppNotification, upsertRecurringReminder]);
 
   const upsertConversationEvent = useCallback((event) => {
     const normalized = normalizeEvent(event);
@@ -1452,6 +1611,7 @@ const Chat = () => {
         }
         void loadScheduledMessages();
         void loadEvents();
+        void loadRecurringReminders();
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách bạn bè:', error);
@@ -1459,7 +1619,7 @@ const Chat = () => {
     } finally {
       setIsFriendsLoading(false);
     }
-  }, [conversations.length, loadEvents, loadScheduledMessages]);
+  }, [conversations.length, loadEvents, loadRecurringReminders, loadScheduledMessages]);
 
   const upsertConversation = useCallback(
     (conversation, options = {}) => {
@@ -2671,6 +2831,71 @@ const Chat = () => {
     }
   };
 
+  const handleCreateRecurringReminder = async (reminderInput) => {
+    if (!selectedConversationId || !user) {
+      throw new Error('Chưa chọn cuộc trò chuyện');
+    }
+
+    const response = await api.post('/reminders/recurring', {
+      conversationId: selectedConversationId,
+      ...reminderInput,
+    });
+    const reminder = response.data?.reminder;
+    if (reminder) upsertRecurringReminder(reminder);
+
+    clearConversationDraft(selectedConversationId);
+    return reminder || null;
+  };
+
+  const handleSnoozeRecurringReminder = async (reminder, minutes = 15) => {
+    if (!reminder?.id) return;
+
+    try {
+      const response = await api.post(`/reminders/recurring/${reminder.id}/snooze`, {
+        minutes,
+      });
+      if (response.data?.reminder) upsertRecurringReminder(response.data.reminder);
+    } catch (error) {
+      console.error('Không thể snooze nhắc hẹn:', error);
+      alert(error?.response?.data?.error || 'Không thể snooze nhắc hẹn');
+    }
+  };
+
+  const handleDismissRecurringReminder = async (reminder) => {
+    if (!reminder?.id) return;
+
+    try {
+      const response = await api.post(`/reminders/recurring/${reminder.id}/dismiss`);
+      if (response.data?.reminder) upsertRecurringReminder(response.data.reminder);
+    } catch (error) {
+      console.error('Không thể hoàn tất nhắc hẹn:', error);
+      alert(error?.response?.data?.error || 'Không thể hoàn tất nhắc hẹn');
+    }
+  };
+
+  const handleCancelRecurringReminder = async (reminder) => {
+    if (!reminder?.id) return;
+
+    const confirmed = await confirm({
+      title: 'Hủy nhắc hẹn?',
+      description: 'Nhắc hẹn này sẽ không xuất hiện lại trong cuộc trò chuyện.',
+      confirmText: 'Hủy nhắc',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/reminders/recurring/${reminder.id}`);
+      removeRecurringReminder({
+        reminderId: reminder.id,
+        conversationId: reminder.conversationId,
+      });
+    } catch (error) {
+      console.error('Không thể hủy nhắc hẹn:', error);
+      alert(error?.response?.data?.error || 'Không thể hủy nhắc hẹn');
+    }
+  };
+
   const handleCreateEvent = async (eventInput) => {
     if (!selectedConversationId || !user) {
       throw new Error('Chưa chọn cuộc trò chuyện');
@@ -3144,10 +3369,17 @@ const Chat = () => {
     socket.emit('join_conversation', { conversationId });
     void loadScheduledMessages(conversationId);
     void loadEvents(conversationId);
+    void loadRecurringReminders(conversationId);
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
-  }, [loadEvents, loadScheduledMessages, resetMessageWindow, selectedConversationId]);
+  }, [
+    loadEvents,
+    loadRecurringReminders,
+    loadScheduledMessages,
+    resetMessageWindow,
+    selectedConversationId,
+  ]);
 
   const handleOpenMessageTarget = async ({ conversationId, messageId, type }) => {
     if (!conversationId) {
@@ -3406,6 +3638,11 @@ const Chat = () => {
                     onChecklistToggle={handleChecklistToggle}
                     events={selectedEvents}
                     onCancelEvent={handleCancelEvent}
+                    reminders={selectedRecurringReminders}
+                    onCreateReminder={handleCreateRecurringReminder}
+                    onSnoozeReminder={handleSnoozeRecurringReminder}
+                    onDismissReminder={handleDismissRecurringReminder}
+                    onCancelReminder={handleCancelRecurringReminder}
                     scheduledMessages={selectedScheduledMessages}
                     onCancelScheduledMessage={handleCancelScheduledMessage}
                     draftContent={selectedDraftContent}

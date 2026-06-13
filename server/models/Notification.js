@@ -22,6 +22,7 @@ const notificationSchema = new mongoose.Schema(
         'friend_accepted',
         'missed_call',
         'event_reminder',
+        'recurring_reminder',
       ],
       required: true,
     },
