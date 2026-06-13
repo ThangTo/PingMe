@@ -175,10 +175,10 @@ Mục tiêu: biến message thành hành động. Người dùng không chỉ n�
 | Stage | Status | Priority | Tags | Scope | Output / Gate |
 |---|---|---|---|---|---|
 | 2.1 Poll MVP | READY_TO_TEST | P1 | `#group #realtime #retention` | Group-only poll message type, single-choice vote changing, deadline optional | Vote realtime, refresh vẫn đúng, kết quả có count/percent và voter list |
-| 2.2 Event In Chat | PLANNED | P1 | `#retention #notification` | Tạo lịch hẹn từ conversation, RSVP đơn giản | Event card, reminder, danh sách người tham gia |
-| 2.3 Collaborative Checklist | PLANNED | P1 | `#group #realtime #wow` | Checklist chung, assign member, mark done | Update realtime, audit nhỏ: ai tick, lúc nào |
+| 2.2 Event In Chat | READY_TO_TEST | P1 | `#retention #notification` | Tạo lịch hẹn từ conversation, RSVP đơn giản | Event card, reminder, danh sách người tham gia |
+| 2.3 Collaborative Checklist | READY_TO_TEST | P1 | `#group #realtime #wow` | Checklist chung, assign member, mark done | Update realtime, audit nhỏ: ai tick, lúc nào |
 | 2.4 Message Evolution | PLANNED | P2 | `#wow #core` | Convert message thành task, poll, event, checklist item | Object mới giữ link tới message gốc và jump được |
-| 2.5 Conversation Workspace MVP | PLANNED | P2 | `#wow #retention #monetization` | Tab workspace trong detail panel: notes, files, links, decisions, tasks | Mỗi conversation có một "home base" không rối |
+| 2.5 Conversation Workspace MVP | READY_TO_TEST | P2 | `#wow #retention #monetization` | Tab Kế hoạch trong detail panel tổng hợp Poll, Event, Checklist; thao tác trực tiếp và jump về tin gốc | Mỗi conversation có một "home base" không rối |
 | 2.6 Shared Plans | PLANNED | P2 | `#wow #group` | Plan card cho đi chơi/họp/sự kiện: poll địa điểm, checklist, chi phí, album | Một flow tạo kế hoạch trọn vẹn từ chat |
 | 2.7 Decision Timeline | PLANNED | P2 | `#ai #wow` | Tự hoặc bán tự động lưu các quyết định đã chốt | Timeline có link message gốc, người chốt, thời điểm |
 

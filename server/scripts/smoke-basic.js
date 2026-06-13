@@ -65,6 +65,38 @@ const directConversation = (conversationsPayload.conversations || []).find(
 if (!directConversation) throw new Error('Cần ít nhất một direct conversation để smoke test.');
 const directConversationId = directConversation._id || directConversation.id;
 
+const savedWorkspaceResponse = await fetch(
+  `${apiBaseUrl}/conversations/${savedConversationId}/workspace?status=active&type=all&limit=30`,
+  { headers: { cookie: cookies } },
+);
+if (!savedWorkspaceResponse.ok) {
+  throw new Error(`Saved workspace smoke failed: ${savedWorkspaceResponse.status}`);
+}
+const savedWorkspacePayload = await savedWorkspaceResponse.json();
+if ((savedWorkspacePayload.items || []).length !== 0) {
+  throw new Error('Saved workspace smoke should return an empty list.');
+}
+
+const directWorkspaceResponse = await fetch(
+  `${apiBaseUrl}/conversations/${directConversationId}/workspace?status=active&type=all&limit=5`,
+  { headers: { cookie: cookies } },
+);
+if (!directWorkspaceResponse.ok) {
+  throw new Error(`Direct workspace smoke failed: ${directWorkspaceResponse.status}`);
+}
+const directWorkspacePayload = await directWorkspaceResponse.json();
+if ((directWorkspacePayload.items || []).some((item) => item.type !== 'event')) {
+  throw new Error('Direct workspace smoke exposed a non-event item.');
+}
+
+const invalidWorkspaceResponse = await fetch(
+  `${apiBaseUrl}/conversations/000000000000000000000000/workspace`,
+  { headers: { cookie: cookies } },
+);
+if (invalidWorkspaceResponse.ok) {
+  throw new Error('Workspace membership/not-found smoke should fail.');
+}
+
 const draftContent = `PingMe draft smoke ${Date.now()}`;
 const draftResponse = await fetch(`${apiBaseUrl}/conversations/${directConversationId}/draft`, {
   method: 'PUT',

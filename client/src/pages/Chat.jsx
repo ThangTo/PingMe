@@ -79,6 +79,38 @@ const normalizePoll = (poll) => {
   };
 };
 
+const normalizeChecklist = (checklist) => {
+  if (!checklist?.title) return null;
+
+  const items = Array.isArray(checklist.items) ? checklist.items : [];
+  const normalizedItems = items.map((item, index) => ({
+    id: item.id || `item-${index}`,
+    text: item.text || '',
+    assigneeId: getIdString(item.assigneeId) || null,
+    isDone: Boolean(item.isDone),
+    completedBy: getIdString(item.completedBy) || null,
+    completedAt: item.completedAt || null,
+    lastChangedBy: getIdString(item.lastChangedBy) || null,
+    lastChangedAt: item.lastChangedAt || null,
+  }));
+  const completedItems = Number.isFinite(checklist.completedItems)
+    ? checklist.completedItems
+    : normalizedItems.filter((item) => item.isDone).length;
+  const totalItems = Number.isFinite(checklist.totalItems)
+    ? checklist.totalItems
+    : normalizedItems.length;
+
+  return {
+    title: checklist.title,
+    totalItems,
+    completedItems,
+    isComplete: Boolean(
+      checklist.isComplete || (totalItems > 0 && completedItems === totalItems),
+    ),
+    items: normalizedItems,
+  };
+};
+
 const normalizeEvent = (event) => {
   if (!event?.title) return null;
 
@@ -214,6 +246,7 @@ const getMessagePreview = (
   sticker = null,
   poll = null,
   event = null,
+  checklist = null,
 ) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (messageType === 'call') return getCallPreviewText(callDetails, content);
@@ -222,6 +255,9 @@ const getMessagePreview = (
   }
   if (messageType === 'event') {
     return `Sự kiện: ${event?.title || content || 'Sự kiện'}`;
+  }
+  if (messageType === 'checklist') {
+    return `Checklist: ${checklist?.title || content || 'Checklist'}`;
   }
   if (messageType === 'sticker' || sticker?.url) {
     return sticker?.name ? `Nhãn dán: ${sticker.name}` : 'Đã gửi nhãn dán';
@@ -275,6 +311,7 @@ const showHiddenTabMessageNotification = ({ message, conversationId, conversatio
       message.sticker,
       message.poll,
       message.event,
+      message.checklist,
     ),
   );
   const senderName = message.senderName || 'PingMe';
@@ -334,6 +371,7 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     sticker: isDeleted ? null : message.sticker || null,
     poll: isDeleted ? null : normalizePoll(message.poll),
     event: isDeleted ? null : normalizeEvent(message.event),
+    checklist: isDeleted ? null : normalizeChecklist(message.checklist),
     attachment: isDeleted ? null : message.attachment || null,
     attachments: isDeleted ? [] : getMessageAttachments(message),
     isDeleted,
@@ -354,6 +392,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   sticker: msg.sticker || null,
   poll: normalizePoll(msg.poll),
   event: normalizeEvent(msg.event),
+  checklist: normalizeChecklist(msg.checklist),
   callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
@@ -617,6 +656,7 @@ const Chat = () => {
   const typingExpiryTimersRef = useRef(new Map());
   const draftPersistTimersRef = useRef(new Map());
   const pollCreateResolversRef = useRef(new Map());
+  const checklistCreateResolversRef = useRef(new Map());
 
   useEffect(() => {
     const draftPersistTimers = draftPersistTimersRef.current;
@@ -633,6 +673,15 @@ const Chat = () => {
     return () => {
       pollCreateResolvers.forEach(({ timeoutId }) => clearTimeout(timeoutId));
       pollCreateResolvers.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const checklistCreateResolvers = checklistCreateResolversRef.current;
+
+    return () => {
+      checklistCreateResolvers.forEach(({ timeoutId }) => clearTimeout(timeoutId));
+      checklistCreateResolvers.clear();
     };
   }, []);
 
@@ -1789,12 +1838,14 @@ const Chat = () => {
       const incomingAttachments = getMessageAttachments(data);
       const incomingPoll = normalizePoll(data.poll);
       const incomingEvent = normalizeEvent(data.event);
+      const incomingChecklist = normalizeChecklist(data.checklist);
       const incomingMessage = {
         ...data,
         messageType: data.messageType || 'text',
         sticker: data.sticker || null,
         poll: incomingPoll,
         event: incomingEvent,
+        checklist: incomingChecklist,
         callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
@@ -1835,6 +1886,7 @@ const Chat = () => {
           data.sticker,
           incomingPoll,
           incomingEvent,
+          incomingChecklist,
         );
         const shouldShowAppToast = !isCurrentConversation;
 
@@ -1886,6 +1938,7 @@ const Chat = () => {
             data.sticker,
             incomingPoll,
             incomingEvent,
+            incomingChecklist,
           ),
           hasLastMessage: true,
           lastMessageAt: data.timestamp,
@@ -2047,6 +2100,7 @@ const Chat = () => {
       const savedAttachments = getMessageAttachments(data);
       const savedPoll = normalizePoll(data.poll);
       const savedEvent = normalizeEvent(data.event);
+      const savedChecklist = normalizeChecklist(data.checklist);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.tempId
@@ -2060,6 +2114,7 @@ const Chat = () => {
                 sticker: data.sticker || msg.sticker || null,
                 poll: savedPoll || msg.poll || null,
                 event: savedEvent || msg.event || null,
+                checklist: savedChecklist || msg.checklist || null,
                 callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
@@ -2077,6 +2132,13 @@ const Chat = () => {
         clearTimeout(pendingPollCreate.timeoutId);
         pollCreateResolversRef.current.delete(data.tempId);
         pendingPollCreate.resolve(data);
+      }
+
+      const pendingChecklistCreate = checklistCreateResolversRef.current.get(data.tempId);
+      if (pendingChecklistCreate) {
+        clearTimeout(pendingChecklistCreate.timeoutId);
+        checklistCreateResolversRef.current.delete(data.tempId);
+        pendingChecklistCreate.resolve(data);
       }
     };
 
@@ -2143,9 +2205,79 @@ const Chat = () => {
       });
     };
 
+    const handleChecklistCreateFailed = (data) => {
+      if (data?.tempId) {
+        setMessages((prev) => prev.filter((message) => message.id !== data.tempId));
+        void fetchFriends();
+      }
+
+      const pendingChecklistCreate = checklistCreateResolversRef.current.get(data?.tempId);
+      if (pendingChecklistCreate) {
+        clearTimeout(pendingChecklistCreate.timeoutId);
+        checklistCreateResolversRef.current.delete(data.tempId);
+        pendingChecklistCreate.reject(new Error(data.error || 'Không thể tạo checklist'));
+        return;
+      }
+
+      showAppNotification({
+        title: 'Checklist thất bại',
+        body: data?.error || 'Không thể tạo checklist',
+        conversationId: selectedConversationId,
+      });
+    };
+
+    const handleChecklistUpdated = (data) => {
+      const nextChecklist = normalizeChecklist(data?.checklist);
+      if (!data?.messageId || !nextChecklist) return;
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === data.messageId ? { ...message, checklist: nextChecklist } : message,
+        ),
+      );
+
+      setReplyingMessage((prev) =>
+        prev?.id === data.messageId ? { ...prev, checklist: nextChecklist } : prev,
+      );
+
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id !== data.conversationId) return conv;
+
+          const pinnedMessages = (conv.pinnedMessages || []).map((pinnedMessage) =>
+            pinnedMessage.id === data.messageId
+              ? { ...pinnedMessage, checklist: nextChecklist }
+              : pinnedMessage,
+          );
+          const latestPinnedMessage =
+            conv.latestPinnedMessage?.id === data.messageId
+              ? { ...conv.latestPinnedMessage, checklist: nextChecklist }
+              : conv.latestPinnedMessage || pinnedMessages[0] || null;
+
+          return {
+            ...conv,
+            pinnedMessages,
+            latestPinnedMessage,
+            pinnedMessage: latestPinnedMessage,
+          };
+        }),
+      );
+    };
+
+    const handleChecklistUpdateFailed = (data) => {
+      showAppNotification({
+        title: 'Không thể cập nhật checklist',
+        body: data?.error || 'Không thể cập nhật checklist',
+        conversationId: selectedConversationId,
+      });
+    };
+
     socket.on('poll_create_failed', handlePollCreateFailed);
     socket.on('poll_vote_updated', handlePollVoteUpdated);
     socket.on('poll_vote_failed', handlePollVoteFailed);
+    socket.on('checklist_create_failed', handleChecklistCreateFailed);
+    socket.on('checklist_updated', handleChecklistUpdated);
+    socket.on('checklist_update_failed', handleChecklistUpdateFailed);
 
     const handleMessageWasDelivered = (data) => {
       setMessages((prev) =>
@@ -2312,6 +2444,7 @@ const Chat = () => {
               sticker: null,
               poll: null,
               event: null,
+              checklist: null,
               attachment: null,
               attachments: [],
               linkPreview: null,
@@ -2333,6 +2466,7 @@ const Chat = () => {
                 sticker: null,
                 poll: null,
                 event: null,
+                checklist: null,
                 attachment: null,
                 attachments: [],
                 isDeleted: true,
@@ -2353,6 +2487,7 @@ const Chat = () => {
               sticker: null,
               poll: null,
               event: null,
+              checklist: null,
               attachment: null,
               attachments: [],
               isDeleted: true,
@@ -2376,6 +2511,7 @@ const Chat = () => {
                       lastMessage.sticker,
                       lastMessage.poll,
                       lastMessage.event,
+                      lastMessage.checklist,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -2432,6 +2568,9 @@ const Chat = () => {
       socket.off('poll_create_failed', handlePollCreateFailed);
       socket.off('poll_vote_updated', handlePollVoteUpdated);
       socket.off('poll_vote_failed', handlePollVoteFailed);
+      socket.off('checklist_create_failed', handleChecklistCreateFailed);
+      socket.off('checklist_updated', handleChecklistUpdated);
+      socket.off('checklist_update_failed', handleChecklistUpdateFailed);
       socket.off('message_was_delivered', handleMessageWasDelivered);
       socket.off('pinned_messages_updated', handlePinnedMessagesUpdated);
       socket.off('message_pinned', handleMessagePinned);
@@ -2803,6 +2942,125 @@ const Chat = () => {
     });
   };
 
+  const handleCreateChecklist = ({ title, items }) => {
+    if (!selectedConversationId || !user) {
+      return Promise.reject(new Error('Chưa chọn cuộc trò chuyện'));
+    }
+
+    if (!currentChatUser?.isGroup) {
+      return Promise.reject(new Error('Checklist chỉ hỗ trợ trong nhóm'));
+    }
+
+    const cleanTitle = typeof title === 'string' ? title.trim() : '';
+    const cleanItems = Array.isArray(items)
+      ? items
+          .map((item) => ({
+            text: typeof item?.text === 'string' ? item.text.trim() : '',
+            assigneeId: item?.assigneeId || null,
+          }))
+          .filter((item) => item.text)
+      : [];
+
+    if (!cleanTitle || cleanItems.length < 1) {
+      return Promise.reject(new Error('Checklist cần tiêu đề và ít nhất 1 mục'));
+    }
+
+    const tempId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+    const optimisticChecklist = normalizeChecklist({
+      title: cleanTitle,
+      totalItems: cleanItems.length,
+      completedItems: 0,
+      isComplete: false,
+      items: cleanItems.map((item, index) => ({
+        id: `temp-${tempId}-${index}`,
+        text: item.text,
+        assigneeId: item.assigneeId || null,
+        isDone: false,
+        completedBy: null,
+        completedAt: null,
+        lastChangedBy: null,
+        lastChangedAt: null,
+      })),
+    });
+
+    const newMessage = {
+      id: tempId,
+      conversationId: selectedConversationId,
+      senderId: user.id,
+      senderName: user.username || 'Bạn',
+      senderAvatar: user.avatar || '',
+      content: cleanTitle,
+      messageType: 'checklist',
+      checklist: optimisticChecklist,
+      poll: null,
+      event: null,
+      sticker: null,
+      callDetails: null,
+      timestamp,
+      status: 'sending',
+      attachment: null,
+      attachments: [],
+      linkPreview: null,
+      replyTo: null,
+      reactions: [],
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+    setReplyingMessage(null);
+
+    setConversations((prev) => {
+      const targetConv = prev.find((c) => c.id === selectedConversationId);
+      if (!targetConv) return prev;
+      const updatedTarget = {
+        ...targetConv,
+        lastMessage: getMessagePreview(
+          cleanTitle,
+          null,
+          false,
+          [],
+          'checklist',
+          null,
+          null,
+          null,
+          null,
+          optimisticChecklist,
+        ),
+        hasLastMessage: true,
+        lastMessageAt: timestamp,
+      };
+      const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
+      return sortConversations([updatedTarget, ...otherConvs]);
+    });
+
+    return new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        checklistCreateResolversRef.current.delete(tempId);
+        setMessages((prev) => prev.filter((message) => message.id !== tempId));
+        void fetchFriends();
+        reject(new Error('Không nhận được xác nhận tạo checklist'));
+      }, 15000);
+
+      checklistCreateResolversRef.current.set(tempId, { resolve, reject, timeoutId });
+      socket.emit('create_checklist', {
+        tempId,
+        conversationId: selectedConversationId,
+        title: cleanTitle,
+        items: cleanItems,
+      });
+    });
+  };
+
+  const handleChecklistToggle = (messageId, itemId, isDone) => {
+    if (!messageId || !itemId || typeof isDone !== 'boolean') return;
+
+    socket.emit('toggle_checklist_item', {
+      messageId,
+      itemId,
+      isDone,
+    });
+  };
+
   const handleReaction = (messageId, emoji) => {
     if (!user) return;
     socket.emit('add_reaction', {
@@ -2829,10 +3087,9 @@ const Chat = () => {
     });
   };
 
-  const handleJumpToPinnedMessage = async (pinnedMessage) => {
-    if (!selectedConversationId || !pinnedMessage?.id) return;
+  const handleJumpToMessage = async (messageId) => {
+    if (!selectedConversationId || !messageId) return;
 
-    const messageId = pinnedMessage.id;
     const hasMessage = messagesRef.current.some((message) => message.id === messageId);
 
     if (!hasMessage) {
@@ -2849,13 +3106,20 @@ const Chat = () => {
           setMessagePagination(response.data.pagination || EMPTY_MESSAGE_PAGINATION);
         }
       } catch (error) {
-        console.error('Không thể tải tin nhắn đã ghim:', error);
-        alert('Không thể tải tin nhắn đã ghim');
+        console.error('Không thể tải tin nhắn cần mở:', error);
+        alert('Không thể tải tin nhắn cần mở');
         return;
       }
     }
 
     setPendingJumpMessageId(messageId);
+  };
+
+  const handleJumpToPinnedMessage = (pinnedMessage) => handleJumpToMessage(pinnedMessage?.id);
+
+  const handleWorkspaceJumpToMessage = async (messageId) => {
+    setShowDetails(false);
+    await handleJumpToMessage(messageId);
   };
 
   const handleSelectConversation = useCallback((conversationId) => {
@@ -2895,7 +3159,7 @@ const Chat = () => {
 
     if (conversationId === selectedConversationId && messageId) {
       handleSelectConversation(conversationId);
-      await handleJumpToPinnedMessage({ id: messageId });
+      await handleJumpToMessage(messageId);
       return;
     }
 
@@ -3000,6 +3264,7 @@ const Chat = () => {
       message.isDeleted ||
       message.messageType === 'poll' ||
       message.messageType === 'event' ||
+      message.messageType === 'checklist' ||
       message.senderId !== user?.id ||
       message.status === 'sending'
     ) {
@@ -3137,6 +3402,8 @@ const Chat = () => {
                     onPollVote={handlePollVote}
                     onCreateEvent={handleCreateEvent}
                     onEventRsvp={handleEventRsvp}
+                    onCreateChecklist={handleCreateChecklist}
+                    onChecklistToggle={handleChecklistToggle}
                     events={selectedEvents}
                     onCancelEvent={handleCancelEvent}
                     scheduledMessages={selectedScheduledMessages}
@@ -3185,6 +3452,12 @@ const Chat = () => {
                       onRemoveGroupMember={handleRemoveGroupMember}
                       onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
                       onUpdateConversationNotifications={handleUpdateConversationNotifications}
+                      reactionUsersById={reactionUsersById}
+                      onPollVote={handlePollVote}
+                      onEventRsvp={handleEventRsvp}
+                      onCancelEvent={handleCancelEvent}
+                      onChecklistToggle={handleChecklistToggle}
+                      onJumpToMessage={handleWorkspaceJumpToMessage}
                       onBlocked={() => {
                         setSelectedConversationId(null);
                         setShowDetails(false);

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import EmojiPicker from './EmojiPicker';
 import PollMessageCard from './PollMessageCard';
 import EventMessageCard from './EventMessageCard';
+import ChecklistMessageCard from './ChecklistMessageCard';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import StickerArtwork from '../ui/StickerArtwork';
@@ -29,6 +30,10 @@ const getReplyPreviewText = (replyTo) => {
 
   if (replyTo.messageType === 'event') {
     return `Sự kiện: ${replyTo.event?.title || replyTo.content || 'Sự kiện'}`;
+  }
+
+  if (replyTo.messageType === 'checklist') {
+    return `Checklist: ${replyTo.checklist?.title || replyTo.content || 'Checklist'}`;
   }
 
   const attachments = getMessageAttachments(replyTo);
@@ -348,6 +353,7 @@ const MessageBubble = ({
   onReaction,
   onPollVote,
   onEventRsvp,
+  onChecklistToggle,
   onCancelEvent,
   onEditMessage,
   onDeleteMessage,
@@ -377,6 +383,7 @@ const MessageBubble = ({
   const isCallMessage = message.messageType === 'call';
   const isPollMessage = !isRevoked && message.messageType === 'poll' && message.poll;
   const isEventMessage = !isRevoked && message.messageType === 'event' && message.event;
+  const isChecklistMessage = !isRevoked && message.messageType === 'checklist' && message.checklist;
   const isStickerMessage =
     !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
   const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
@@ -390,6 +397,7 @@ const MessageBubble = ({
   const shouldRenderTextBubble =
     !isPollMessage &&
     !isEventMessage &&
+    !isChecklistMessage &&
     (Boolean(message.content) || (!hasAttachments && !isStickerMessage));
   const linkPreview = !isRevoked ? message.linkPreview : null;
   const activeLightboxImage =
@@ -656,7 +664,7 @@ const MessageBubble = ({
     { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
   ];
 
-  const visibleActionItems = isPollMessage || isEventMessage
+  const visibleActionItems = isPollMessage || isEventMessage || isChecklistMessage
     ? actionItems.filter((item) => item.key !== 'edit')
     : actionItems;
 
@@ -880,9 +888,20 @@ const MessageBubble = ({
                     onRsvp={onEventRsvp}
                     onCancel={onCancelEvent}
                     isOwn={isOwn}
-                  />
-                )}
-                {isStickerMessage && (
+                    />
+                  )}
+                  {isChecklistMessage && (
+                    <ChecklistMessageCard
+                      checklist={message.checklist}
+                      messageId={message.id}
+                      currentUserId={currentUserId}
+                      reactionUsersById={reactionUsersById}
+                      disabled={message.status === 'sending'}
+                      onToggle={onChecklistToggle}
+                      isOwn={isOwn}
+                    />
+                  )}
+                  {isStickerMessage && (
                   <div className={`relative ${isOwn ? 'self-end' : 'self-start'}`}>
                     <StickerArtwork
                       sticker={message.sticker}

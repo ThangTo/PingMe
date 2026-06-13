@@ -21,7 +21,7 @@ const populateMessageQuery = (query) =>
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 

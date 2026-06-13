@@ -14,6 +14,7 @@ import {
   toIdString,
 } from '../services/conversation.service.js';
 import { formatEventForMessage } from '../services/conversationEvent.service.js';
+import { getConversationWorkspace } from '../services/conversationWorkspace.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
 
 const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
@@ -55,6 +56,31 @@ const formatPollPayload = (poll) => {
   };
 };
 
+const formatChecklistPayload = (checklist) => {
+  if (!checklist?.title) return null;
+
+  const items = Array.isArray(checklist.items) ? checklist.items : [];
+  const formattedItems = items.map((item) => ({
+    id: item.id,
+    text: item.text || '',
+    assigneeId: toIdString(item.assigneeId) || null,
+    isDone: Boolean(item.isDone),
+    completedBy: toIdString(item.completedBy) || null,
+    completedAt: item.completedAt || null,
+    lastChangedBy: toIdString(item.lastChangedBy) || null,
+    lastChangedAt: item.lastChangedAt || null,
+  }));
+  const completedItems = formattedItems.filter((item) => item.isDone).length;
+
+  return {
+    title: checklist.title,
+    totalItems: formattedItems.length,
+    completedItems,
+    isComplete: formattedItems.length > 0 && completedItems === formattedItems.length,
+    items: formattedItems,
+  };
+};
+
 const getMessagePreview = (message) => {
   if (!message) return 'Bắt đầu trò chuyện';
   if (message.isDeleted) return REVOKED_MESSAGE_TEXT;
@@ -63,6 +89,9 @@ const getMessagePreview = (message) => {
   }
   if (message.messageType === 'event') {
     return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
+  }
+  if (message.messageType === 'checklist') {
+    return `Checklist: ${message.checklist?.title || message.content || 'Checklist'}`;
   }
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Đã gửi nhãn dán';
@@ -92,6 +121,7 @@ const formatPinnedMessage = (message) => {
     sticker: message.isDeleted ? null : message.sticker || null,
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
+    checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: getMessageAttachments(message),
     isDeleted: Boolean(message.isDeleted),
@@ -794,6 +824,28 @@ const conversationController = {
     } catch (error) {
       console.error('Lỗi cập nhật thông báo cuộc trò chuyện:', error);
       return res.status(500).json({ error: 'Không thể cập nhật thông báo cuộc trò chuyện' });
+    }
+  },
+
+  getWorkspace: async (req, res) => {
+    try {
+      const workspace = await getConversationWorkspace({
+        conversationId: req.params.conversationId,
+        userId: req.user.id,
+        status: req.query.status,
+        type: req.query.type,
+        cursor: req.query.cursor,
+        limit: req.query.limit,
+      });
+
+      return res.status(200).json({ success: true, ...workspace });
+    } catch (error) {
+      if (error?.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+
+      console.error('Lỗi lấy Conversation Workspace:', error);
+      return res.status(500).json({ error: 'Không thể tải kế hoạch cuộc trò chuyện' });
     }
   },
 

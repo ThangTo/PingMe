@@ -26,6 +26,10 @@ const getPinnedPreviewText = (message) => {
     return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
   }
 
+  if (message.messageType === 'checklist') {
+    return `Checklist: ${message.checklist?.title || message.content || 'Checklist'}`;
+  }
+
   const attachments = getMessageAttachments(message);
   if (message.content) return message.content;
   if (message.messageType === 'sticker' || message.sticker?.url) {
@@ -248,8 +252,10 @@ const ChatArea = ({
   onScheduleMessage,
   onCreatePoll,
   onCreateEvent,
+  onCreateChecklist,
   onPollVote,
   onEventRsvp,
+  onChecklistToggle,
   scheduledMessages = [],
   onCancelScheduledMessage,
   events = [],
@@ -350,7 +356,12 @@ const ChatArea = ({
       const eventText = message.event
         ? `${message.event.title || ''} ${message.event.description || ''} ${message.event.location || ''}`
         : '';
-      return `${content} ${filenames} ${stickerName} ${pollText} ${eventText}`.toLowerCase().includes(query);
+      const checklistText = message.checklist
+        ? `${message.checklist.title || ''} ${(message.checklist.items || [])
+            .map((item) => item.text || '')
+            .join(' ')}`
+        : '';
+      return `${content} ${filenames} ${stickerName} ${pollText} ${eventText} ${checklistText}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
   const searchMatchIds = useMemo(() => {
@@ -372,7 +383,12 @@ const ChatArea = ({
         const eventText = message.event
           ? `${message.event.title || ''} ${message.event.description || ''} ${message.event.location || ''}`
           : '';
-        return `${content} ${filenames} ${stickerName} ${pollText} ${eventText}`.toLowerCase().includes(query);
+        const checklistText = message.checklist
+          ? `${message.checklist.title || ''} ${(message.checklist.items || [])
+              .map((item) => item.text || '')
+              .join(' ')}`
+          : '';
+        return `${content} ${filenames} ${stickerName} ${pollText} ${eventText} ${checklistText}`.toLowerCase().includes(query);
       })
       .map((message) => message.id)
       .filter(Boolean);
@@ -619,6 +635,7 @@ const ChatArea = ({
           onReaction={onReaction}
           onPollVote={onPollVote}
           onEventRsvp={onEventRsvp}
+          onChecklistToggle={onChecklistToggle}
           onCancelEvent={onCancelEvent}
           isLoading={isLoading}
           isLoadingOlderMessages={isLoadingOlderMessages}
@@ -658,8 +675,11 @@ const ChatArea = ({
         onScheduleMessage={onScheduleMessage}
         onCreatePoll={onCreatePoll}
         onCreateEvent={onCreateEvent}
+        onCreateChecklist={onCreateChecklist}
         canCreatePoll={Boolean(currentUser?.isGroup)}
         canCreateEvent={Boolean(currentUser && !currentUser.isSaved)}
+        canCreateChecklist={Boolean(currentUser?.isGroup)}
+        conversationMembers={currentUser?.members || []}
         onDraftChange={onDraftChange}
         onTypingStart={onTypingStart}
         onTypingStop={onTypingStop}

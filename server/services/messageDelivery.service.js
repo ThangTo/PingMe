@@ -63,6 +63,56 @@ const normalizeAttachmentList = ({ attachment, attachments } = {}) => {
   return attachment ? [attachment] : [];
 };
 
+const formatPollPayload = (poll) => {
+  if (!poll?.question) return null;
+
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  const formattedOptions = options.map((option) => {
+    const voterIds = (option.voterIds || []).map((voterId) => toIdString(voterId)).filter(Boolean);
+
+    return {
+      id: option.id,
+      text: option.text || '',
+      voteCount: voterIds.length,
+      voterIds,
+    };
+  });
+
+  return {
+    question: poll.question,
+    allowMultiple: false,
+    closesAt: poll.closesAt || null,
+    isClosed: Boolean(poll.closesAt && new Date(poll.closesAt).getTime() <= Date.now()),
+    totalVotes: formattedOptions.reduce((total, option) => total + option.voteCount, 0),
+    options: formattedOptions,
+  };
+};
+
+const formatChecklistPayload = (checklist) => {
+  if (!checklist?.title) return null;
+
+  const items = Array.isArray(checklist.items) ? checklist.items : [];
+  const formattedItems = items.map((item) => ({
+    id: item.id,
+    text: item.text || '',
+    assigneeId: toIdString(item.assigneeId) || null,
+    isDone: Boolean(item.isDone),
+    completedBy: toIdString(item.completedBy) || null,
+    completedAt: item.completedAt || null,
+    lastChangedBy: toIdString(item.lastChangedBy) || null,
+    lastChangedAt: item.lastChangedAt || null,
+  }));
+  const completedItems = formattedItems.filter((item) => item.isDone).length;
+
+  return {
+    title: checklist.title,
+    totalItems: formattedItems.length,
+    completedItems,
+    isComplete: formattedItems.length > 0 && completedItems === formattedItems.length,
+    items: formattedItems,
+  };
+};
+
 const formatReplyPreview = (message) => {
   if (!message) return null;
 
@@ -94,7 +144,9 @@ const formatReplyPreview = (message) => {
     content: message.isDeleted ? REVOKED_MESSAGE_TEXT : message.content,
     messageType: message.messageType || 'text',
     sticker: message.isDeleted ? null : message.sticker || null,
+    poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : event,
+    checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []

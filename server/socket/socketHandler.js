@@ -51,6 +51,10 @@ const POLL_MIN_OPTIONS = 2;
 const POLL_MAX_OPTIONS = 10;
 const POLL_MIN_DELAY_MS = 60 * 1000;
 const POLL_MAX_AHEAD_MS = 365 * 24 * 60 * 60 * 1000;
+const CHECKLIST_TITLE_MAX_LENGTH = 160;
+const CHECKLIST_ITEM_MAX_LENGTH = 120;
+const CHECKLIST_MIN_ITEMS = 1;
+const CHECKLIST_MAX_ITEMS = 20;
 
 const parseCookieHeader = (cookieHeader = '') =>
   cookieHeader.split(';').reduce((cookies, pair) => {
@@ -147,6 +151,9 @@ const getMessageNotificationBody = (messagePayload) => {
   }
   if (messagePayload.messageType === 'event') {
     return `Sự kiện: ${messagePayload.event?.title || messagePayload.content || 'Sự kiện'}`;
+  }
+  if (messagePayload.messageType === 'checklist') {
+    return `Checklist: ${messagePayload.checklist?.title || messagePayload.content || 'Checklist'}`;
   }
   if (messagePayload.content) return messagePayload.content;
   if (messagePayload.messageType === 'sticker' || messagePayload.sticker?.url) {
@@ -640,6 +647,65 @@ const validatePollCreatePayload = ({ question, options, closesAt }) => {
   };
 };
 
+const normalizeChecklistText = (value) => (typeof value === 'string' ? value.trim() : '');
+
+const normalizeChecklistItems = ({ items, memberIds }) => {
+  if (!Array.isArray(items)) {
+    throw new Error('Checklist cần ít nhất 1 mục');
+  }
+
+  if (items.length < CHECKLIST_MIN_ITEMS || items.length > CHECKLIST_MAX_ITEMS) {
+    throw new Error('Checklist cần từ 1 đến 20 mục');
+  }
+
+  const memberIdSet = new Set(memberIds.map((memberId) => toIdString(memberId)).filter(Boolean));
+
+  return items.map((item) => {
+    const text = normalizeChecklistText(typeof item === 'string' ? item : item?.text);
+    const assigneeId = item && typeof item === 'object' ? toIdString(item.assigneeId) : '';
+
+    if (!text) {
+      throw new Error('Mục checklist không được rỗng');
+    }
+
+    if (text.length > CHECKLIST_ITEM_MAX_LENGTH) {
+      throw new Error('Mỗi mục checklist tối đa 120 ký tự');
+    }
+
+    if (assigneeId && !memberIdSet.has(assigneeId)) {
+      throw new Error('Người được giao phải là thành viên nhóm');
+    }
+
+    return {
+      id: randomUUID(),
+      text,
+      assigneeId: assigneeId || null,
+      isDone: false,
+      completedBy: null,
+      completedAt: null,
+      lastChangedBy: null,
+      lastChangedAt: null,
+    };
+  });
+};
+
+const validateChecklistCreatePayload = ({ title, items, memberIds }) => {
+  const cleanTitle = normalizeChecklistText(title);
+
+  if (!cleanTitle) {
+    throw new Error('Tiêu đề checklist không được rỗng');
+  }
+
+  if (cleanTitle.length > CHECKLIST_TITLE_MAX_LENGTH) {
+    throw new Error('Tiêu đề checklist tối đa 160 ký tự');
+  }
+
+  return {
+    title: cleanTitle,
+    items: normalizeChecklistItems({ items, memberIds }),
+  };
+};
+
 const formatPollPayload = (poll) => {
   if (!poll?.question) return null;
 
@@ -666,6 +732,31 @@ const formatPollPayload = (poll) => {
   };
 };
 
+const formatChecklistPayload = (checklist) => {
+  if (!checklist?.title) return null;
+
+  const items = Array.isArray(checklist.items) ? checklist.items : [];
+  const formattedItems = items.map((item) => ({
+    id: item.id,
+    text: item.text || '',
+    assigneeId: toIdString(item.assigneeId) || null,
+    isDone: Boolean(item.isDone),
+    completedBy: toIdString(item.completedBy) || null,
+    completedAt: item.completedAt || null,
+    lastChangedBy: toIdString(item.lastChangedBy) || null,
+    lastChangedAt: item.lastChangedAt || null,
+  }));
+  const completedItems = formattedItems.filter((item) => item.isDone).length;
+
+  return {
+    title: checklist.title,
+    totalItems: formattedItems.length,
+    completedItems,
+    isComplete: formattedItems.length > 0 && completedItems === formattedItems.length,
+    items: formattedItems,
+  };
+};
+
 const formatReplyPreview = (message) => {
   if (!message) return null;
 
@@ -678,6 +769,7 @@ const formatReplyPreview = (message) => {
     sticker: message.isDeleted ? null : message.sticker || null,
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
+    checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -701,6 +793,7 @@ const formatPinnedMessage = (message) => {
     sticker: message.isDeleted ? null : message.sticker || null,
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
+    checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -1707,6 +1800,119 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on('create_checklist', async (data = {}) => {
+      const { tempId, conversationId } = data || {};
+
+      try {
+        const senderId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+          throw new Error('conversationId không hợp lệ');
+        }
+
+        const conversation = await Conversation.findById(conversationId);
+
+        if (!conversation) {
+          throw new Error('Cuộc trò chuyện không tồn tại');
+        }
+
+        if (conversation.type !== 'group') {
+          throw new Error('Checklist chỉ hỗ trợ trong nhóm');
+        }
+
+        if (!isConversationMember(conversation, senderId)) {
+          throw new Error('Bạn không thuộc cuộc trò chuyện này');
+        }
+
+        const memberIds = getConversationMemberIds(conversation);
+        const checklistInput = validateChecklistCreatePayload({
+          title: data.title,
+          items: data.items,
+          memberIds,
+        });
+        const senderUser = await User.findById(senderId).select('username avatar').lean();
+
+        const newMessage = await Message.create({
+          sender: senderId,
+          recipient: null,
+          conversation: conversation._id,
+          content: checklistInput.title,
+          messageType: 'checklist',
+          checklist: {
+            title: checklistInput.title,
+            items: checklistInput.items,
+          },
+          status: 'sent',
+          mentions: [],
+        });
+
+        conversation.lastMessage = newMessage._id;
+        await conversation.save();
+
+        const resolvedConversationId = conversation._id.toString();
+        const checklistPayload = formatChecklistPayload(newMessage.checklist);
+        const baseMessagePayload = {
+          id: newMessage.id,
+          conversationId: resolvedConversationId,
+          recipientId: null,
+          senderName: senderUser?.username || socket.username || '',
+          senderAvatar: senderUser?.avatar || '',
+          timestamp: newMessage.createdAt,
+          status: newMessage.status,
+          content: newMessage.content,
+          messageType: 'checklist',
+          checklist: checklistPayload,
+          poll: null,
+          event: null,
+          sticker: null,
+          attachment: null,
+          attachments: [],
+          linkPreview: null,
+          callDetails: null,
+          replyTo: null,
+          mentions: [],
+          isSaved: false,
+        };
+
+        socket.emit('message_sent', {
+          tempId,
+          ...baseMessagePayload,
+        });
+
+        const messagePayload = {
+          ...baseMessagePayload,
+          senderId,
+          isGroup: true,
+        };
+
+        queueMessagePushNotification({
+          memberIds,
+          senderId,
+          messagePayload,
+          conversation,
+          senderUser,
+        });
+        queueMessageNotifications({
+          io,
+          memberIds,
+          senderId,
+          messagePayload,
+          conversation,
+          senderUser,
+          mentionIds: [],
+        });
+
+        const roomId = joinOnlineUsersToConversation(io, memberIds, resolvedConversationId);
+        socket.to(roomId).emit('receive_message', messagePayload);
+      } catch (error) {
+        console.warn('Không thể tạo checklist:', error.message || error);
+        socket.emit('checklist_create_failed', {
+          tempId,
+          error: error.message || 'Không thể tạo checklist',
+        });
+      }
+    });
+
     /**
      * Event: typing
      * Xử lý khi User A đang gõ tin nhắn cho User B
@@ -2072,6 +2278,78 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on('toggle_checklist_item', async (data = {}) => {
+      const { messageId, itemId, isDone } = data || {};
+
+      try {
+        const actorId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          throw new Error('messageId không hợp lệ');
+        }
+
+        if (!itemId || typeof itemId !== 'string') {
+          throw new Error('itemId không hợp lệ');
+        }
+
+        if (typeof isDone !== 'boolean') {
+          throw new Error('Trạng thái checklist không hợp lệ');
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message || message.isDeleted || message.messageType !== 'checklist') {
+          throw new Error('Checklist không tồn tại');
+        }
+
+        const conversation = await Conversation.findById(message.conversation).select('type members');
+        if (!conversation || conversation.type !== 'group') {
+          throw new Error('Checklist chỉ hỗ trợ trong nhóm');
+        }
+
+        if (!isConversationMember(conversation, actorId)) {
+          throw new Error('Bạn không thuộc cuộc trò chuyện này');
+        }
+
+        const item = message.checklist?.items?.find((checklistItem) => checklistItem.id === itemId);
+        if (!item) {
+          throw new Error('Mục checklist không tồn tại');
+        }
+
+        const changedAt = new Date();
+        const actorObjectId = new mongoose.Types.ObjectId(actorId.toString());
+        item.isDone = isDone;
+        item.lastChangedBy = actorObjectId;
+        item.lastChangedAt = changedAt;
+
+        if (isDone) {
+          item.completedBy = actorObjectId;
+          item.completedAt = changedAt;
+        } else {
+          item.completedBy = null;
+          item.completedAt = null;
+        }
+
+        message.markModified('checklist.items');
+        await message.save();
+
+        emitToUsers(io, getConversationMemberIds(conversation), 'checklist_updated', {
+          conversationId: toIdString(conversation),
+          messageId: message.id,
+          checklist: formatChecklistPayload(message.checklist),
+          updatedItemId: itemId,
+          actorId: actorId.toString(),
+          updatedAt: changedAt,
+        });
+      } catch (error) {
+        console.warn('Không thể cập nhật checklist:', error.message || error);
+        socket.emit('checklist_update_failed', {
+          messageId,
+          itemId,
+          error: error.message || 'Không thể cập nhật checklist',
+        });
+      }
+    });
+
     socket.on('edit_message', async (data) => {
       try {
         const { messageId, content } = data;
@@ -2099,10 +2377,14 @@ const socketHandler = (io) => {
           return;
         }
 
-        if (message.messageType === 'poll' || message.messageType === 'event') {
+        if (
+          message.messageType === 'poll' ||
+          message.messageType === 'event' ||
+          message.messageType === 'checklist'
+        ) {
           socket.emit('message_edit_failed', {
             messageId,
-            error: 'Bình chọn không hỗ trợ chỉnh sửa trong V1',
+            error: 'Loại tin nhắn này không hỗ trợ chỉnh sửa trong V1',
           });
           return;
         }
@@ -2220,10 +2502,12 @@ const socketHandler = (io) => {
               ],
             };
 
-        const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
-          .sort({ createdAt: -1 })
-          .select('content attachment attachments sticker poll event createdAt isDeleted messageType callDetails')
-          .lean();
+          const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
+            .sort({ createdAt: -1 })
+            .select(
+              'content attachment attachments sticker poll event checklist createdAt isDeleted messageType callDetails',
+            )
+            .lean();
 
         emitToUsers(io, participantIds, 'message_deleted', {
           messageId: message.id,
@@ -2232,11 +2516,13 @@ const socketHandler = (io) => {
           recipientId,
           content: REVOKED_MESSAGE_TEXT,
           attachment: null,
-          sticker: null,
-          event: null,
-          attachments: [],
-          linkPreview: null,
-          reactions: [],
+            sticker: null,
+            poll: null,
+            event: null,
+            checklist: null,
+            attachments: [],
+            linkPreview: null,
+            reactions: [],
           isDeleted: true,
           deletedAt: message.deletedAt,
           updatedAt: message.updatedAt,
@@ -2259,6 +2545,9 @@ const socketHandler = (io) => {
                 event: conversationLastMessage.isDeleted
                   ? null
                   : formatEventForMessage(conversationLastMessage.event),
+                checklist: conversationLastMessage.isDeleted
+                  ? null
+                  : formatChecklistPayload(conversationLastMessage.checklist),
                 attachments: conversationLastMessage.isDeleted
                   ? []
                   : normalizeAttachmentList({

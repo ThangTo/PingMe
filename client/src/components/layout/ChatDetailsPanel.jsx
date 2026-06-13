@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import { useCall } from '../../context/CallContext';
 import { getPresenceText } from '../../utils/presence';
+import ConversationWorkspace from '../chat/ConversationWorkspace';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import AppModal from '../ui/AppModal';
@@ -13,6 +14,7 @@ const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
 
 const tabs = [
+  { key: 'workspace', label: 'Kế hoạch' },
   { key: 'media', label: 'Media' },
   { key: 'audio', label: 'Audio' },
   { key: 'files', label: 'Tệp' },
@@ -145,12 +147,18 @@ const ChatDetailsPanel = ({
   onRemoveGroupMember,
   onUpdateGroupMemberRole,
   onUpdateConversationNotifications,
+  reactionUsersById = {},
+  onPollVote,
+  onEventRsvp,
+  onCancelEvent,
+  onChecklistToggle,
+  onJumpToMessage,
   onBlocked,
   onClose,
 }) => {
   const { confirm } = useConfirmDialog();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('media');
+  const [activeTab, setActiveTab] = useState('workspace');
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMembersOpen, setIsMembersOpen] = useState(false);
@@ -310,6 +318,8 @@ const ChatDetailsPanel = ({
   }, [user?.id]);
 
   useEffect(() => {
+    setActiveTab('workspace');
+    setSearchQuery('');
     setIsMembersOpen(false);
     setIsMemberComposerOpen(false);
     setActiveMemberMenuId(null);
@@ -937,13 +947,13 @@ const ChatDetailsPanel = ({
           </section>
         )}
 
-        <div className="mt-5 flex border-b border-outline-variant px-5 md:px-6">
+        <div className="no-scrollbar mt-5 flex overflow-x-auto border-b border-outline-variant px-5 md:px-6">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`relative flex-1 pb-3 text-sm transition-colors ${
+              className={`relative min-w-[72px] flex-1 px-1 pb-3 text-sm transition-colors ${
                 activeTab === tab.key ? 'font-semibold text-on-surface' : 'text-on-surface-variant'
               }`}
             >
@@ -955,20 +965,35 @@ const ChatDetailsPanel = ({
           ))}
         </div>
 
-        <div className="border-b border-outline-variant px-5 py-4 md:px-6">
-          <div className="relative">
-            <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Tìm media, tệp, liên kết..."
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest pl-10 pr-3 text-sm outline-none transition-colors focus:border-accent"
-            />
+        {activeTab !== 'workspace' && (
+          <div className="border-b border-outline-variant px-5 py-4 md:px-6">
+            <div className="relative">
+              <AppIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm media, tệp, liên kết..."
+                className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest pl-10 pr-3 text-sm outline-none transition-colors focus:border-accent"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="no-scrollbar flex-1 overflow-y-auto">
-          {(isGalleryLoading || galleryError) && (
+          {activeTab === 'workspace' && (
+            <ConversationWorkspace
+              conversation={user}
+              currentUserId={currentUserId}
+              reactionUsersById={reactionUsersById}
+              onPollVote={onPollVote}
+              onEventRsvp={onEventRsvp}
+              onCancelEvent={onCancelEvent}
+              onChecklistToggle={onChecklistToggle}
+              onJumpToMessage={onJumpToMessage}
+            />
+          )}
+
+          {activeTab !== 'workspace' && (isGalleryLoading || galleryError) && (
             <div className="border-b border-outline-variant px-6 py-3">
               <p className={`text-xs ${galleryError ? 'text-error' : 'text-on-surface-variant'}`}>
                 {galleryError || 'Đang tải gallery...'}

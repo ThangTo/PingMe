@@ -65,6 +65,8 @@ const searchController = {
             { 'event.title': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'event.description': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'event.location': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'checklist.title': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'checklist.items.text': { $regex: `^${escapedQuery}`, $options: 'i' } },
           ],
         })
           .sort({ createdAt: -1 })
@@ -86,6 +88,8 @@ const searchController = {
             { 'event.title': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'event.description': { $regex: `^${escapedQuery}`, $options: 'i' } },
             { 'event.location': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'checklist.title': { $regex: `^${escapedQuery}`, $options: 'i' } },
+            { 'checklist.items.text': { $regex: `^${escapedQuery}`, $options: 'i' } },
           ],
           _id: { $nin: messages.map((message) => message._id) },
         })
@@ -118,6 +122,7 @@ const searchController = {
         sticker: message.sticker || null,
         poll: message.poll || null,
         event: message.event || null,
+        checklist: message.checklist || null,
         attachment: message.attachment || null,
         attachments: message.attachments || [],
         createdAt: message.createdAt,

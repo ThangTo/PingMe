@@ -8,6 +8,7 @@ router.get('/', authMiddleware, conversationController.getConversations);
 router.get('/drafts', authMiddleware, conversationController.getDrafts);
 router.post('/saved', authMiddleware, conversationController.ensureSavedConversation);
 router.post('/groups', authMiddleware, conversationController.createGroup);
+router.get('/:conversationId/workspace', authMiddleware, conversationController.getWorkspace);
 router.put('/:conversationId/draft', authMiddleware, conversationController.updateDraft);
 router.delete('/:conversationId/draft', authMiddleware, conversationController.deleteDraft);
 router.patch(

@@ -5,6 +5,7 @@ import AppIcon from '../ui/AppIcon';
 import ScheduleMessageModal from './ScheduleMessageModal';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
+import CreateChecklistModal from './CreateChecklistModal';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 
@@ -47,6 +48,10 @@ const getReplyPreviewText = (replyingMessage) => {
 
   if (replyingMessage.messageType === 'event') {
     return `Sự kiện: ${replyingMessage.event?.title || replyingMessage.content || 'Sự kiện'}`;
+  }
+
+  if (replyingMessage.messageType === 'checklist') {
+    return `Checklist: ${replyingMessage.checklist?.title || replyingMessage.content || 'Checklist'}`;
   }
 
   const attachments = getMessageAttachments(replyingMessage);
@@ -247,8 +252,11 @@ const MessageInput = ({
   onScheduleMessage,
   onCreatePoll,
   onCreateEvent,
+  onCreateChecklist,
   canCreatePoll = false,
   canCreateEvent = false,
+  canCreateChecklist = false,
+  conversationMembers = [],
   onDraftChange,
   disabled = false,
   onTypingStart,
@@ -274,6 +282,7 @@ const MessageInput = ({
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPollOpen, setIsPollOpen] = useState(false);
   const [isEventOpen, setIsEventOpen] = useState(false);
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
@@ -978,6 +987,16 @@ const MessageInput = ({
     !isUploadingVoice &&
     !isRecordingVoice &&
     Boolean(onCreateEvent);
+  const canOpenChecklist =
+    canCreateChecklist &&
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice &&
+    Boolean(onCreateChecklist);
   const composerActions = [
     canOpenPoll
       ? {
@@ -997,6 +1016,15 @@ const MessageInput = ({
           onSelect: () => setIsEventOpen(true),
         }
       : null,
+    canOpenChecklist
+      ? {
+          key: 'checklist',
+          label: 'Checklist',
+          description: 'Chia việc trong nhóm',
+          icon: 'checklist',
+          onSelect: () => setIsChecklistOpen(true),
+        }
+      : null,
   ].filter(Boolean);
   const hasComposerActions = composerActions.length > 0;
 
@@ -1007,6 +1035,10 @@ const MessageInput = ({
   useEffect(() => {
     if (!canOpenEvent) setIsEventOpen(false);
   }, [canOpenEvent]);
+
+  useEffect(() => {
+    if (!canOpenChecklist) setIsChecklistOpen(false);
+  }, [canOpenChecklist]);
 
   useEffect(() => {
     if (!hasComposerActions) setIsActionMenuOpen(false);
@@ -1048,6 +1080,12 @@ const MessageInput = ({
         open={isEventOpen}
         onClose={() => setIsEventOpen(false)}
         onCreateEvent={onCreateEvent}
+      />
+      <CreateChecklistModal
+        open={isChecklistOpen}
+        onClose={() => setIsChecklistOpen(false)}
+        onCreateChecklist={onCreateChecklist}
+        members={conversationMembers}
       />
 
       {hasPreviews && (
@@ -1398,6 +1436,17 @@ const MessageInput = ({
             title="Tạo sự kiện"
           >
             <AppIcon name="event" className="text-[19px]" />
+          </button>
+        )}
+
+        {canOpenChecklist && (
+          <button
+            type="button"
+            onClick={() => setIsChecklistOpen(true)}
+            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+            title="Tạo checklist"
+          >
+            <AppIcon name="checklist" className="text-[19px]" />
           </button>
         )}
 

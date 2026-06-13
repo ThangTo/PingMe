@@ -50,6 +50,7 @@ function EventMessageCard({
   onRsvp,
   onCancel,
   isOwn = false,
+  variant = 'message',
 }) {
   const [activeStatus, setActiveStatus] = useState(null);
   const [nowMs, setNowMs] = useState(0);
@@ -96,8 +97,12 @@ function EventMessageCard({
 
   return (
     <div
-      className={`w-[min(360px,76vw)] rounded-[12px] border border-outline-variant bg-surface-container-lowest text-on-surface shadow-sm md:w-[min(430px,68vw)] ${
-        isOwn ? 'rounded-br-[4px]' : 'rounded-bl-[4px]'
+      className={`rounded-[12px] border border-outline-variant bg-surface-container-lowest text-on-surface ${
+        variant === 'workspace'
+          ? 'w-full shadow-none'
+          : `w-[min(360px,76vw)] shadow-sm md:w-[min(430px,68vw)] ${
+              isOwn ? 'rounded-br-[4px]' : 'rounded-bl-[4px]'
+            }`
       }`}
     >
       <div className="border-b border-outline-variant px-3.5 py-3">

@@ -145,6 +145,69 @@ const pollSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const checklistItemSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [120, 'Checklist item cannot exceed 120 characters'],
+    },
+    assigneeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    isDone: {
+      type: Boolean,
+      default: false,
+    },
+    completedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    lastChangedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    lastChangedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
+const checklistSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [160, 'Checklist title cannot exceed 160 characters'],
+    },
+    items: {
+      type: [checklistItemSchema],
+      default: [],
+      validate: {
+        validator: (items) => Array.isArray(items) && items.length >= 1 && items.length <= 20,
+        message: 'Checklist must have between 1 and 20 items',
+      },
+    },
+  },
+  { _id: false },
+);
+
 const eventRsvpSnapshotSchema = new mongoose.Schema(
   {
     userId: {
@@ -256,7 +319,18 @@ const messageSchema = new mongoose.Schema(
     // Loại tin nhắn: text, image, file, audio, video
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio', 'video', 'call', 'sticker', 'poll', 'event'],
+      enum: [
+        'text',
+        'image',
+        'file',
+        'audio',
+        'video',
+        'call',
+        'sticker',
+        'poll',
+        'event',
+        'checklist',
+      ],
       default: 'text',
     },
 
@@ -291,6 +365,11 @@ const messageSchema = new mongoose.Schema(
 
     event: {
       type: eventSnapshotSchema,
+      default: null,
+    },
+
+    checklist: {
+      type: checklistSchema,
       default: null,
     },
 
@@ -368,6 +447,7 @@ messageSchema.index({ recipient: 1, sender: 1, status: 1 });
 messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
 messageSchema.index({ conversation: 1, createdAt: -1 });
 messageSchema.index({ conversation: 1, createdAt: -1, _id: -1 });
+messageSchema.index({ conversation: 1, messageType: 1, isDeleted: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ conversation: 1, recipient: 1, status: 1 });
 messageSchema.index({ roomId: 1 });
 messageSchema.index({ 'sticker.name': 1 });
@@ -384,6 +464,8 @@ messageSchema.index(
     'event.title': 'text',
     'event.description': 'text',
     'event.location': 'text',
+    'checklist.title': 'text',
+    'checklist.items.text': 'text',
   },
   { name: 'message_text_search' },
 );
@@ -401,7 +483,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -415,7 +497,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -430,7 +512,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

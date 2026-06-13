@@ -33,6 +33,9 @@ const getMessagePreview = (message) => {
   if (message.messageType === 'event') {
     return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
   }
+  if (message.messageType === 'checklist') {
+    return `Checklist: ${message.checklist?.title || message.content || 'Checklist'}`;
+  }
   const attachments = getMessageAttachments(message);
 
   if (message.content) return message.content;
