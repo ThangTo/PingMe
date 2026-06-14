@@ -1,9 +1,15 @@
-import LottieSticker from './LottieSticker';
+import { lazy, Suspense } from 'react';
+
+const LottieSticker = lazy(() => import('./LottieSticker'));
 
 const isLottieSticker = (sticker = {}) =>
   sticker.assetType === 'lottie' ||
   sticker.source === 'lottie' ||
   /\.json($|\?)/i.test(sticker.url || sticker.previewUrl || '');
+
+const LottieStickerFallback = ({ className = '' }) => (
+  <span className={`block h-full w-full animate-pulse rounded-[18px] bg-surface-container-low ${className}`} />
+);
 
 const StickerArtwork = ({
   sticker,
@@ -22,14 +28,16 @@ const StickerArtwork = ({
 
   if (isLottieSticker(sticker)) {
     return (
-      <LottieSticker
-        src={src}
-        title={title}
-        className={className}
-        autoplay={autoplay}
-        loop={loop}
-        playOnHover={playOnHover}
-      />
+      <Suspense fallback={<LottieStickerFallback className={className} />}>
+        <LottieSticker
+          src={src}
+          title={title}
+          className={className}
+          autoplay={autoplay}
+          loop={loop}
+          playOnHover={playOnHover}
+        />
+      </Suspense>
     );
   }
 

@@ -1,23 +1,12 @@
 /**
  * Chat Page - Layout tổng theo hướng tối giản, giữ nguyên realtime flow.
  */
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AppRail from '../components/layout/AppRail';
 import Sidebar from '../components/layout/Sidebar';
 import ChatArea from '../components/layout/ChatArea';
-import ChatDetailsPanel from '../components/layout/ChatDetailsPanel';
-import SettingsPanel from '../components/layout/SettingsPanel';
-import NotificationPanel from '../components/layout/NotificationPanel';
-import GlobalSearchPanel from '../components/layout/GlobalSearchPanel';
 import IncomingCallModal from '../components/call/IncomingCallModal';
 import CallOverlay from '../components/call/CallOverlay';
-import ProfileViewer from '../components/profile/ProfileViewer';
-import AddChecklistItemModal from '../components/chat/AddChecklistItemModal';
-import CreateChecklistModal from '../components/chat/CreateChecklistModal';
-import CreateEventModal from '../components/chat/CreateEventModal';
-import ForwardMessageModal from '../components/chat/ForwardMessageModal';
-import CreatePollModal from '../components/chat/CreatePollModal';
-import MessageEvolutionModal from '../components/chat/MessageEvolutionModal';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
@@ -25,6 +14,26 @@ import api from '../config/api';
 import AppIcon from '../components/ui/AppIcon';
 import { useConfirmDialog } from '../components/ui/confirmDialogContext';
 import { showClientNotification } from '../services/pushNotifications';
+
+const ChatDetailsPanel = lazy(() => import('../components/layout/ChatDetailsPanel'));
+const SettingsPanel = lazy(() => import('../components/layout/SettingsPanel'));
+const NotificationPanel = lazy(() => import('../components/layout/NotificationPanel'));
+const GlobalSearchPanel = lazy(() => import('../components/layout/GlobalSearchPanel'));
+const ProfileViewer = lazy(() => import('../components/profile/ProfileViewer'));
+const AddChecklistItemModal = lazy(() => import('../components/chat/AddChecklistItemModal'));
+const CreateChecklistModal = lazy(() => import('../components/chat/CreateChecklistModal'));
+const CreateEventModal = lazy(() => import('../components/chat/CreateEventModal'));
+const ForwardMessageModal = lazy(() => import('../components/chat/ForwardMessageModal'));
+const CreatePollModal = lazy(() => import('../components/chat/CreatePollModal'));
+const MessageEvolutionModal = lazy(() => import('../components/chat/MessageEvolutionModal'));
+
+const LazyPanelFallback = () => (
+  <div className="flex h-full flex-1 items-center justify-center bg-surface text-sm text-on-surface-variant">
+    Dang tai...
+  </div>
+);
+
+const LazyModalFallback = () => null;
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -887,6 +896,20 @@ const Chat = () => {
   });
   const offlineSyncActiveCountRef = useRef(0);
   const hasSeenConnectedSocketRef = useRef(false);
+  const savedConversationEnsuredRef = useRef(false);
+  const savedConversationEnsurePromiseRef = useRef(null);
+  const sideStateLoadedRef = useRef(false);
+  const sideStateLoadPromiseRef = useRef(null);
+  const sideStateUserIdRef = useRef(null);
+
+  useEffect(() => {
+    if (sideStateUserIdRef.current === (user?.id || null)) return;
+    sideStateUserIdRef.current = user?.id || null;
+    savedConversationEnsuredRef.current = false;
+    savedConversationEnsurePromiseRef.current = null;
+    sideStateLoadedRef.current = false;
+    sideStateLoadPromiseRef.current = null;
+  }, [user?.id]);
 
   useEffect(() => {
     const draftPersistTimers = draftPersistTimersRef.current;
@@ -1768,71 +1791,97 @@ const Chat = () => {
     };
   }, []);
 
-  const fetchFriends = useCallback(async () => {
-    try {
-      if (conversations.length === 0) setIsFriendsLoading(true);
-      setFriendsError('');
-      await api.post('/conversations/saved');
-      const response = await api.get('/conversations');
-      if (response.data.success) {
-        const formattedFriends = response.data.conversations.map((conversation) => {
-          const pinnedMessages = conversation.pinnedMessages || [];
-          const latestPinnedMessage =
-            conversation.latestPinnedMessage || conversation.pinnedMessage || pinnedMessages[0] || null;
-          const isSaved = Boolean(conversation.isSaved || conversation.type === 'saved');
-          const isDirect = conversation.type === 'direct';
-
-          return {
-            id: conversation._id,
-            peerId: conversation.peerId || null,
-            pingId: conversation.pingId || conversation.peerPingId || '',
-            type: conversation.type || 'direct',
-            name: isSaved ? SAVED_CONVERSATION_NAME : conversation.name,
-            avatar: conversation.avatar,
-            isOnline: isDirect ? Boolean(conversation.isOnline) : false,
-            lastSeen: isDirect ? conversation.lastSeen || null : null,
-            canViewPresence: isDirect ? conversation.canViewPresence ?? true : false,
-            isGroup: conversation.type === 'group',
-            isSaved,
-            members: normalizeMembers(conversation.members),
-            memberCount: conversation.memberCount || conversation.members?.length || 0,
-            hasLastMessage: Boolean(conversation.hasLastMessage),
-            lastMessage: conversation.lastMessage || (isSaved ? SAVED_CONVERSATION_EMPTY_PREVIEW : 'Bắt đầu trò chuyện'),
-            lastMessageAt: conversation.lastMessageAt || null,
-            unreadCount: isSaved ? 0 : conversation.unreadCount || 0,
-            readState: conversation.readState || null,
-            readStates: normalizeReadStates(conversation.readStates),
-            pinnedMessages,
-            pinnedMessageCount: conversation.pinnedMessageCount ?? pinnedMessages.length,
-            latestPinnedMessage,
-            pinnedMessage: latestPinnedMessage,
-          };
+  const ensureSavedConversation = useCallback(async () => {
+    if (savedConversationEnsuredRef.current) return;
+    if (!savedConversationEnsurePromiseRef.current) {
+      savedConversationEnsurePromiseRef.current = api
+        .post('/conversations/saved')
+        .then(() => {
+          savedConversationEnsuredRef.current = true;
+        })
+        .finally(() => {
+          savedConversationEnsurePromiseRef.current = null;
         });
-        setConversations(sortConversations(formattedFriends));
-        if (isValidDateString(response.data.serverNow)) {
-          conversationSyncCursorRef.current = response.data.serverNow;
-          writeStoredCursor(OFFLINE_SYNC_CONVERSATION_CURSOR_KEY, response.data.serverNow);
-        }
-
-        try {
-          const draftsResponse = await api.get('/conversations/drafts');
-          if (draftsResponse.data.success) {
-            setDraftsByConversationId(formatDraftsByConversationId(draftsResponse.data.drafts));
-          }
-        } catch (draftError) {
-          console.error('Không thể tải bản nháp:', draftError);
-        }
-        void loadScheduledMessages();
-        void loadEvents();
-        void loadRecurringReminders();
-      }
-    } catch (error) {
-      console.error('Lỗi khi lấy danh sách bạn bè:', error);
-      setFriendsError('Không thể tải danh sách trò chuyện');
-    } finally {
-      setIsFriendsLoading(false);
     }
-  }, [conversations.length, loadEvents, loadRecurringReminders, loadScheduledMessages]);
+    await savedConversationEnsurePromiseRef.current;
+  }, []);
+
+  const loadConversationSideState = useCallback(
+    async ({ conversationId = null, force = false } = {}) => {
+      if (!force && !conversationId && sideStateLoadedRef.current) return;
+      if (!force && !conversationId && sideStateLoadPromiseRef.current) {
+        await sideStateLoadPromiseRef.current;
+        return;
+      }
+
+      const tasks = [
+        loadScheduledMessages(conversationId || null),
+        loadEvents(conversationId || null),
+        loadRecurringReminders(conversationId || null),
+      ];
+
+      if (!conversationId || force) {
+        tasks.unshift(
+          api
+            .get('/conversations/drafts')
+            .then((response) => {
+              if (response.data.success) {
+                setDraftsByConversationId(formatDraftsByConversationId(response.data.drafts));
+              }
+            })
+            .catch((draftError) => {
+              console.error('Không thể tải bản nháp:', draftError);
+            }),
+        );
+      }
+
+      const loadPromise = Promise.allSettled(tasks).then(() => {
+        if (!conversationId) {
+          sideStateLoadedRef.current = true;
+        }
+      });
+
+      if (!force && !conversationId) {
+        sideStateLoadPromiseRef.current = loadPromise.finally(() => {
+          sideStateLoadPromiseRef.current = null;
+        });
+        await sideStateLoadPromiseRef.current;
+        return;
+      }
+
+      await loadPromise;
+    },
+    [loadEvents, loadRecurringReminders, loadScheduledMessages],
+  );
+
+  const fetchFriends = useCallback(
+    async ({ ensureSaved = false, showLoading = false } = {}) => {
+      try {
+        if (showLoading || conversationsRef.current.length === 0) setIsFriendsLoading(true);
+        setFriendsError('');
+        if (ensureSaved) {
+          await ensureSavedConversation();
+        }
+        const response = await api.get('/conversations');
+        if (response.data.success) {
+          const formattedFriends = response.data.conversations
+            .map(formatConversationSummary)
+            .filter((conversation) => conversation.id);
+          setConversations(sortConversations(formattedFriends));
+          if (isValidDateString(response.data.serverNow)) {
+            conversationSyncCursorRef.current = response.data.serverNow;
+            writeStoredCursor(OFFLINE_SYNC_CONVERSATION_CURSOR_KEY, response.data.serverNow);
+          }
+        }
+      } catch (error) {
+        console.error('Lỗi khi lấy danh sách bạn bè:', error);
+        setFriendsError('Không thể tải danh sách trò chuyện');
+      } finally {
+        setIsFriendsLoading(false);
+      }
+    },
+    [ensureSavedConversation],
+  );
 
   const upsertConversation = useCallback(
     (conversation, options = {}) => {
@@ -1994,16 +2043,7 @@ const Chat = () => {
   const refreshOfflineSyncSideState = useCallback(
     async (conversationId = null) => {
       const tasks = [
-        api
-          .get('/conversations/drafts')
-          .then((response) => {
-            if (response.data.success) {
-              setDraftsByConversationId(formatDraftsByConversationId(response.data.drafts));
-            }
-          }),
-        loadScheduledMessages(conversationId || null),
-        loadEvents(conversationId || null),
-        loadRecurringReminders(conversationId || null),
+        loadConversationSideState({ conversationId: conversationId || null, force: true }),
         api
           .get('/notifications', { params: { limit: 1 } })
           .then((response) => setNotificationUnreadCount(response.data.unreadCount || 0)),
@@ -2012,7 +2052,7 @@ const Chat = () => {
 
       await Promise.allSettled(tasks);
     },
-    [fetchFriendRequestCount, loadEvents, loadRecurringReminders, loadScheduledMessages],
+    [fetchFriendRequestCount, loadConversationSideState],
   );
 
   const syncConversationsFromServer = useCallback(async () => {
@@ -2245,8 +2285,12 @@ const Chat = () => {
   }, [isConnected, selectedConversationId, syncConversationFromServer, user?.id]);
 
   useEffect(() => {
-    if (user) fetchFriends();
-  }, [user, fetchFriends]);
+    if (!user?.id) return;
+
+    void fetchFriends({ ensureSaved: true, showLoading: true }).then(() => {
+      void loadConversationSideState();
+    });
+  }, [fetchFriends, loadConversationSideState, user?.id]);
 
   useEffect(() => {
     let isActive = true;
@@ -4004,16 +4048,12 @@ const Chat = () => {
     setShowDetails(false);
     setActiveRailItem('messages');
     socket.emit('join_conversation', { conversationId });
-    void loadScheduledMessages(conversationId);
-    void loadEvents(conversationId);
-    void loadRecurringReminders(conversationId);
+    void loadConversationSideState({ conversationId });
     setConversations((prev) =>
       prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)),
     );
   }, [
-    loadEvents,
-    loadRecurringReminders,
-    loadScheduledMessages,
+    loadConversationSideState,
     resetMessageWindow,
     selectedConversationId,
   ]);
@@ -4260,58 +4300,84 @@ const Chat = () => {
       {profileTarget && (
         <div className="fixed inset-0 z-[9990] flex items-end justify-center bg-[#1f1d1a]/40 px-3 pb-3 backdrop-blur-sm md:items-center md:p-6">
           <div className="no-scrollbar max-h-[min(86dvh,720px)] w-full overflow-y-auto rounded-[14px] border border-outline bg-surface-container-lowest p-4 shadow-sm md:max-w-[430px]">
-            <ProfileViewer
-              pingId={profileTarget.pingId}
-              userId={profileTarget.id}
-              initialProfile={profileTarget}
-              onClose={() => setProfileTarget(null)}
-            />
+            <Suspense fallback={<LazyPanelFallback />}>
+              <ProfileViewer
+                pingId={profileTarget.pingId}
+                userId={profileTarget.id}
+                initialProfile={profileTarget}
+                onClose={() => setProfileTarget(null)}
+              />
+            </Suspense>
           </div>
         </div>
       )}
-      <ForwardMessageModal
-        open={Boolean(forwardingMessage)}
-        message={forwardingMessage}
-        conversations={conversations}
-        currentConversationId={selectedConversationId}
-        onForward={handleForwardMessages}
-        onClose={() => setForwardingMessage(null)}
-      />
-      <MessageEvolutionModal
-        open={evolutionMode === 'choose'}
-        sourceMessage={evolutionSourceSnapshot}
-        conversation={currentChatUser}
-        onClose={closeEvolutionFlow}
-        onSelect={setEvolutionMode}
-      />
-      <CreatePollModal
-        open={evolutionMode === 'poll'}
-        initialQuestion={evolutionInitialText}
-        onCreatePoll={handleCreateEvolutionPoll}
-        onClose={closeEvolutionFlow}
-      />
-      <CreateEventModal
-        open={evolutionMode === 'event'}
-        initialTitle={evolutionInitialText}
-        onCreateEvent={handleCreateEvolutionEvent}
-        onClose={closeEvolutionFlow}
-      />
-      <CreateChecklistModal
-        open={evolutionMode === 'checklist'}
-        members={currentChatUser?.members || []}
-        initialTitle={evolutionInitialText}
-        initialItems={evolutionChecklistInitialItems}
-        onCreateChecklist={handleCreateEvolutionChecklist}
-        onClose={closeEvolutionFlow}
-      />
-      <AddChecklistItemModal
-        open={evolutionMode === 'checklist-item'}
-        conversationId={selectedConversationId}
-        sourceMessage={evolutionSourceSnapshot}
-        members={currentChatUser?.members || []}
-        onAddChecklistItem={handleAddChecklistItem}
-        onClose={closeEvolutionFlow}
-      />
+      {forwardingMessage && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <ForwardMessageModal
+            open
+            message={forwardingMessage}
+            conversations={conversations}
+            currentConversationId={selectedConversationId}
+            onForward={handleForwardMessages}
+            onClose={() => setForwardingMessage(null)}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'choose' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <MessageEvolutionModal
+            open
+            sourceMessage={evolutionSourceSnapshot}
+            conversation={currentChatUser}
+            onClose={closeEvolutionFlow}
+            onSelect={setEvolutionMode}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'poll' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <CreatePollModal
+            open
+            initialQuestion={evolutionInitialText}
+            onCreatePoll={handleCreateEvolutionPoll}
+            onClose={closeEvolutionFlow}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'event' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <CreateEventModal
+            open
+            initialTitle={evolutionInitialText}
+            onCreateEvent={handleCreateEvolutionEvent}
+            onClose={closeEvolutionFlow}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'checklist' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <CreateChecklistModal
+            open
+            members={currentChatUser?.members || []}
+            initialTitle={evolutionInitialText}
+            initialItems={evolutionChecklistInitialItems}
+            onCreateChecklist={handleCreateEvolutionChecklist}
+            onClose={closeEvolutionFlow}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'checklist-item' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <AddChecklistItemModal
+            open
+            conversationId={selectedConversationId}
+            sourceMessage={evolutionSourceSnapshot}
+            members={currentChatUser?.members || []}
+            onAddChecklistItem={handleAddChecklistItem}
+            onClose={closeEvolutionFlow}
+          />
+        </Suspense>
+      )}
 
       <div className="flex h-full w-full overflow-hidden bg-surface">
         <AppRail
@@ -4324,27 +4390,33 @@ const Chat = () => {
 
         <main className="relative flex min-w-0 flex-1 overflow-hidden bg-surface">
           {activeRailItem === 'settings' ? (
-            <SettingsPanel
-              onBack={() => setActiveRailItem('messages')}
-              onNavigate={setActiveRailItem}
-              connectionRequestCount={friendRequestCount}
-            />
+            <Suspense fallback={<LazyPanelFallback />}>
+              <SettingsPanel
+                onBack={() => setActiveRailItem('messages')}
+                onNavigate={setActiveRailItem}
+                connectionRequestCount={friendRequestCount}
+              />
+            </Suspense>
           ) : activeRailItem === 'notifications' ? (
-            <NotificationPanel
-              onBack={() => setActiveRailItem('messages')}
-              onNavigate={setActiveRailItem}
-              onUnreadCountChange={setNotificationUnreadCount}
-              onOpen={handleOpenMessageTarget}
-              connectionRequestCount={friendRequestCount}
-            />
+            <Suspense fallback={<LazyPanelFallback />}>
+              <NotificationPanel
+                onBack={() => setActiveRailItem('messages')}
+                onNavigate={setActiveRailItem}
+                onUnreadCountChange={setNotificationUnreadCount}
+                onOpen={handleOpenMessageTarget}
+                connectionRequestCount={friendRequestCount}
+              />
+            </Suspense>
           ) : activeRailItem === 'search' ? (
-            <GlobalSearchPanel
-              conversations={conversations}
-              onBack={() => setActiveRailItem('messages')}
-              onNavigate={setActiveRailItem}
-              onOpenResult={handleOpenMessageTarget}
-              connectionRequestCount={friendRequestCount}
-            />
+            <Suspense fallback={<LazyPanelFallback />}>
+              <GlobalSearchPanel
+                conversations={conversations}
+                onBack={() => setActiveRailItem('messages')}
+                onNavigate={setActiveRailItem}
+                onOpenResult={handleOpenMessageTarget}
+                connectionRequestCount={friendRequestCount}
+              />
+            </Suspense>
           ) : (
             <>
               <Sidebar
@@ -4438,31 +4510,33 @@ const Chat = () => {
                     syncStatus={offlineSyncStatus}
                   />
                   {showDetails && currentChatUser && (
-                    <ChatDetailsPanel
-                      user={currentChatUser}
-                      messages={messages}
-                      currentUserId={user?.id}
-                      friendOptions={conversations.filter(
-                        (conversation) => !conversation.isGroup && conversation.peerId,
-                      )}
-                      onAddGroupMembers={handleAddGroupMembers}
-                      onRemoveGroupMember={handleRemoveGroupMember}
-                      onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
-                      onUpdateConversationNotifications={handleUpdateConversationNotifications}
-                      reactionUsersById={reactionUsersById}
-                      onPollVote={handlePollVote}
-                      onEventRsvp={handleEventRsvp}
-                      onCancelEvent={handleCancelEvent}
-                      onChecklistToggle={handleChecklistToggle}
-                      onOpenProfile={handleOpenSenderProfile}
-                      onJumpToMessage={handleWorkspaceJumpToMessage}
-                      onBlocked={() => {
-                        setSelectedConversationId(null);
-                        setShowDetails(false);
-                        fetchFriends();
-                      }}
-                      onClose={() => setShowDetails(false)}
-                    />
+                    <Suspense fallback={<LazyPanelFallback />}>
+                      <ChatDetailsPanel
+                        user={currentChatUser}
+                        messages={messages}
+                        currentUserId={user?.id}
+                        friendOptions={conversations.filter(
+                          (conversation) => !conversation.isGroup && conversation.peerId,
+                        )}
+                        onAddGroupMembers={handleAddGroupMembers}
+                        onRemoveGroupMember={handleRemoveGroupMember}
+                        onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
+                        onUpdateConversationNotifications={handleUpdateConversationNotifications}
+                        reactionUsersById={reactionUsersById}
+                        onPollVote={handlePollVote}
+                        onEventRsvp={handleEventRsvp}
+                        onCancelEvent={handleCancelEvent}
+                        onChecklistToggle={handleChecklistToggle}
+                        onOpenProfile={handleOpenSenderProfile}
+                        onJumpToMessage={handleWorkspaceJumpToMessage}
+                        onBlocked={() => {
+                          setSelectedConversationId(null);
+                          setShowDetails(false);
+                          fetchFriends();
+                        }}
+                        onClose={() => setShowDetails(false)}
+                      />
+                    </Suspense>
                   )}
                 </>
               ) : (

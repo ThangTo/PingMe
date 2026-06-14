@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import api from '../../config/api';
 import socket from '../../socket';
 import { getPresenceText } from '../../utils/presence';
@@ -7,7 +8,8 @@ import Avatar from '../ui/Avatar';
 import { ListSkeleton } from '../ui/LoadingState';
 import PingMeLogo from '../ui/PingMeLogo';
 import PingMeWordmark from '../ui/PingMeWordmark';
-import ProfileViewer from '../profile/ProfileViewer';
+
+const ProfileViewer = lazy(() => import('../profile/ProfileViewer'));
 
 const inboxTabs = [
   { key: 'all', label: 'Tất cả' },
@@ -17,6 +19,12 @@ const inboxTabs = [
 ];
 
 const DIRECTORY_PAGE_SIZE = 20;
+
+const ProfileViewerFallback = () => (
+  <div className="rounded-[14px] border border-outline-variant bg-surface px-5 py-8 text-center text-sm text-on-surface-variant">
+    Dang tai ho so...
+  </div>
+);
 
 const formatConversationTime = (value) => {
   if (!value) return '';
@@ -572,6 +580,153 @@ const Sidebar = ({
     );
   };
 
+  const renderFriendConversationRow = (friend) => {
+    const friendPresenceText = getPresenceText(friend, {
+      onlineText: 'Đang hoạt động',
+      fallbackText: 'Bắt đầu trò chuyện',
+      hiddenText: 'Bắt đầu trò chuyện',
+    });
+
+    return (
+      <button
+        type="button"
+        onClick={() => onSelectConversation(friend.id)}
+        className="flex w-full items-center gap-3 border-b border-outline-variant px-5 py-3 text-left hover:bg-surface-container-low"
+      >
+        <Avatar
+          src={friend.avatar}
+          name={friend.name}
+          online={friend.isOnline}
+          size="contact"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-semibold text-on-surface">
+            {friend.name}
+          </span>
+          {friend.pingId && (
+            <span className="mt-0.5 block truncate text-[11px] font-medium text-secondary">
+              @{friend.pingId}
+            </span>
+          )}
+          <span className="mt-1 block truncate text-[11px] text-on-surface-variant">
+            {friendPresenceText}
+          </span>
+        </span>
+        <span className="grid h-9 w-9 place-items-center rounded-[8px] border border-outline text-on-surface-variant">
+          <AppIcon name="chat_bubble" className="text-[16px]" />
+        </span>
+      </button>
+    );
+  };
+
+  const renderConversationRow = (conv) => {
+    const isSelected = selectedConversationId === conv.id;
+    const draftPreview = conv.draftContent?.trim() || '';
+
+    return (
+      <button
+        type="button"
+        onClick={() => onSelectConversation(conv.id)}
+        className={`group relative grid w-full grid-cols-[48px_minmax(0,1fr)_auto] gap-3 border-b border-outline-variant px-4 py-3 text-left transition-colors ${
+          isSelected ? 'bg-surface-container-high' : 'hover:bg-surface-container-low'
+        }`}
+      >
+        {isSelected && (
+          <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-secondary" />
+        )}
+        {conv.isSaved ? (
+          <span className="flex h-12 w-12 items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
+            <AppIcon name="archive" className="text-[21px]" />
+          </span>
+        ) : (
+          <Avatar src={conv.avatar} name={conv.name} online={conv.isOnline} size="lg" />
+        )}
+
+        <div className="min-w-0 self-center">
+          <p
+            className={`truncate text-[15px] tracking-tight ${conv.unreadCount > 0 ? 'font-medium text-on-surface' : 'text-on-surface'}`}
+          >
+            {conv.name}
+          </p>
+          <p
+            className={`mt-0.5 truncate text-[14px] ${
+              conv.unreadCount > 0
+                ? 'font-medium text-on-surface'
+                : 'text-on-surface-variant group-hover:text-on-surface'
+            }`}
+          >
+            {draftPreview ? (
+              <>
+                <span className="font-medium text-secondary">Nháp: </span>
+                {draftPreview}
+              </>
+            ) : (
+              conv.lastMessage || 'Bắt đầu trò chuyện'
+            )}
+          </p>
+        </div>
+
+        <div className="flex min-w-[44px] flex-col items-end gap-1.5 self-center">
+          <span className="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            {conv.notificationsMuted && (
+              <AppIcon name="notifications_off" className="text-[13px]" />
+            )}
+            <span>{conv.hasLastMessage ? formatConversationTime(conv.lastMessageAt) : ''}</span>
+          </span>
+          {conv.unreadCount > 0 ? (
+            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-semibold text-white">
+              {conv.unreadCount}
+            </span>
+          ) : (
+            <span className="h-5 text-[13px] text-on-surface-variant">
+              {conv.hasLastMessage ? '✓✓' : ''}
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  };
+
+  const renderGroupFriendRow = (friend) => {
+    const isSelected = selectedGroupMemberIds.includes(friend.peerId);
+    const friendPresenceText = getPresenceText(friend, {
+      fallbackText: 'Bắt đầu trò chuyện',
+      hiddenText: 'Bắt đầu trò chuyện',
+    });
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleGroupMember(friend.peerId)}
+        className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-3 text-left transition-colors hover:bg-surface-container-low"
+      >
+        <Avatar
+          src={friend.avatar}
+          name={friend.name}
+          online={friend.isOnline}
+          size="md"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-on-surface">
+            {friend.name}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+            {friendPresenceText}
+          </span>
+        </span>
+        <span
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+            isSelected
+              ? 'border-accent bg-accent text-white'
+              : 'border-outline-variant text-transparent'
+          }`}
+        >
+          <AppIcon name="check" className="text-[18px]" />
+        </span>
+      </button>
+    );
+  };
+
   const resetGroupComposer = () => {
     setGroupTitle('');
     setGroupMemberQuery('');
@@ -864,45 +1019,13 @@ const Sidebar = ({
                       Nhập ít nhất 2 ký tự để tìm người dùng.
                     </p>
                   ) : (
-                    friendOptions.map((friend) => {
-                      const friendPresenceText = getPresenceText(friend, {
-                        onlineText: 'Đang hoạt động',
-                        fallbackText: 'Bắt đầu trò chuyện',
-                        hiddenText: 'Bắt đầu trò chuyện',
-                      });
-
-                      return (
-                        <button
-                          key={friend.id}
-                          type="button"
-                          onClick={() => onSelectConversation(friend.id)}
-                          className="flex w-full items-center gap-3 border-b border-outline-variant px-5 py-3 text-left hover:bg-surface-container-low"
-                        >
-                          <Avatar
-                            src={friend.avatar}
-                            name={friend.name}
-                            online={friend.isOnline}
-                            size="contact"
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-semibold text-on-surface">
-                              {friend.name}
-                            </span>
-                            {friend.pingId && (
-                              <span className="mt-0.5 block truncate text-[11px] font-medium text-secondary">
-                                @{friend.pingId}
-                              </span>
-                            )}
-                            <span className="mt-1 block truncate text-[11px] text-on-surface-variant">
-                              {friendPresenceText}
-                            </span>
-                          </span>
-                          <span className="grid h-9 w-9 place-items-center rounded-[8px] border border-outline text-on-surface-variant">
-                            <AppIcon name="chat_bubble" className="text-[16px]" />
-                          </span>
-                        </button>
-                      );
-                    })
+                    <div className="h-[min(560px,calc(100dvh-260px))] min-h-[180px]">
+                      <Virtuoso
+                        data={friendOptions}
+                        computeItemKey={(_, friend) => friend.id}
+                        itemContent={(_, friend) => renderFriendConversationRow(friend)}
+                      />
+                    </div>
                   )}
                 </section>
               </div>
@@ -1001,7 +1124,7 @@ const Sidebar = ({
             )}
           </div>
         ) : (
-          <div className="divide-y divide-outline-variant">
+          <div className="h-full min-h-0">
             {isLoading ? (
               <ListSkeleton rows={5} className="px-5 py-5" />
             ) : error ? (
@@ -1021,74 +1144,12 @@ const Sidebar = ({
                 </p>
               </div>
             ) : (
-              filteredConversations.map((conv) => {
-                const isSelected = selectedConversationId === conv.id;
-                const draftPreview = conv.draftContent?.trim() || '';
-
-                return (
-                  <button
-                    key={conv.id}
-                    type="button"
-                    onClick={() => onSelectConversation(conv.id)}
-                    className={`group relative grid w-full grid-cols-[48px_minmax(0,1fr)_auto] gap-3 px-4 py-3 text-left transition-colors ${
-                      isSelected ? 'bg-surface-container-high' : 'hover:bg-surface-container-low'
-                    }`}
-                  >
-                    {isSelected && (
-                      <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-secondary" />
-                    )}
-                    {conv.isSaved ? (
-                      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-secondary/25 bg-secondary-container text-secondary">
-                        <AppIcon name="archive" className="text-[21px]" />
-                      </span>
-                    ) : (
-                      <Avatar src={conv.avatar} name={conv.name} online={conv.isOnline} size="lg" />
-                    )}
-
-                    <div className="min-w-0 self-center">
-                      <p
-                        className={`truncate text-[15px] tracking-tight ${conv.unreadCount > 0 ? 'font-medium text-on-surface' : 'text-on-surface'}`}
-                      >
-                        {conv.name}
-                      </p>
-                      <p
-                        className={`mt-0.5 truncate text-[14px] ${
-                          conv.unreadCount > 0
-                            ? 'font-medium text-on-surface'
-                            : 'text-on-surface-variant group-hover:text-on-surface'
-                        }`}
-                      >
-                        {draftPreview ? (
-                          <>
-                            <span className="font-medium text-secondary">Nháp: </span>
-                            {draftPreview}
-                          </>
-                        ) : (
-                          conv.lastMessage || 'Bắt đầu trò chuyện'
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="flex min-w-[44px] flex-col items-end gap-1.5 self-center">
-                      <span className="flex items-center gap-1 text-[12px] text-on-surface-variant">
-                        {conv.notificationsMuted && (
-                          <AppIcon name="notifications_off" className="text-[13px]" />
-                        )}
-                        <span>{conv.hasLastMessage ? formatConversationTime(conv.lastMessageAt) : ''}</span>
-                      </span>
-                      {conv.unreadCount > 0 ? (
-                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-semibold text-white">
-                          {conv.unreadCount}
-                        </span>
-                      ) : (
-                        <span className="h-5 text-[13px] text-on-surface-variant">
-                          {conv.hasLastMessage ? '✓✓' : ''}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })
+              <Virtuoso
+                className="h-full"
+                data={filteredConversations}
+                computeItemKey={(_, conv) => conv.id}
+                itemContent={(_, conv) => renderConversationRow(conv)}
+              />
             )}
           </div>
         )}
@@ -1123,13 +1184,15 @@ const Sidebar = ({
 
             <div className="no-scrollbar flex-1 overflow-y-auto px-6 py-5">
               {selectedConnectionUser ? (
-                <ProfileViewer
-                  pingId={selectedConnectionUser.pingId}
-                  initialProfile={selectedConnectionUser}
-                  compact
-                  onRelationshipChange={handleProfileRelationshipChange}
-                  onFriendAdded={onFriendAdded}
-                />
+                <Suspense fallback={<ProfileViewerFallback />}>
+                  <ProfileViewer
+                    pingId={selectedConnectionUser.pingId}
+                    initialProfile={selectedConnectionUser}
+                    compact
+                    onRelationshipChange={handleProfileRelationshipChange}
+                    onFriendAdded={onFriendAdded}
+                  />
+                </Suspense>
               ) : (
                 <div className="rounded-[14px] border border-outline-variant bg-surface px-5 py-8 text-center">
                   <AppIcon name="person_add" className="text-[30px] text-on-surface-variant" />
@@ -1348,52 +1411,18 @@ const Sidebar = ({
                   </span>
                 </div>
 
-                <div className="max-h-[340px] flex-1 overflow-y-auto border-y border-outline-variant bg-surface">
+                <div className="h-[min(340px,calc(100dvh-360px))] max-h-[340px] min-h-[180px] flex-1 border-y border-outline-variant bg-surface">
                   {filteredGroupFriends.length === 0 ? (
                     <div className="px-4 py-8 text-center text-sm text-on-surface-variant">
                       Không tìm thấy bạn bè phù hợp.
                     </div>
                   ) : (
-                    filteredGroupFriends.map((friend) => {
-                      const isSelected = selectedGroupMemberIds.includes(friend.peerId);
-                      const friendPresenceText = getPresenceText(friend, {
-                        fallbackText: 'Bắt đầu trò chuyện',
-                        hiddenText: 'Bắt đầu trò chuyện',
-                      });
-
-                      return (
-                        <button
-                          key={friend.peerId}
-                          type="button"
-                          onClick={() => toggleGroupMember(friend.peerId)}
-                          className="flex w-full items-center gap-3 border-b border-outline-variant px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-container-low"
-                        >
-                          <Avatar
-                            src={friend.avatar}
-                            name={friend.name}
-                            online={friend.isOnline}
-                            size="md"
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-on-surface">
-                              {friend.name}
-                            </span>
-                            <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
-                              {friendPresenceText}
-                            </span>
-                          </span>
-                          <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                              isSelected
-                                ? 'border-accent bg-accent text-white'
-                                : 'border-outline-variant text-transparent'
-                            }`}
-                          >
-                            <AppIcon name="check" className="text-[18px]" />
-                          </span>
-                        </button>
-                      );
-                    })
+                    <Virtuoso
+                      className="h-full"
+                      data={filteredGroupFriends}
+                      computeItemKey={(_, friend) => friend.peerId}
+                      itemContent={(_, friend) => renderGroupFriendRow(friend)}
+                    />
                   )}
                 </div>
               </div>

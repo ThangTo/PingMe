@@ -2,13 +2,13 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
-import ScheduleMessageModal from './ScheduleMessageModal';
-import CreatePollModal from './CreatePollModal';
-import CreateEventModal from './CreateEventModal';
-import CreateChecklistModal from './CreateChecklistModal';
-import CreateRecurringReminderModal from './CreateRecurringReminderModal';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
+const ScheduleMessageModal = lazy(() => import('./ScheduleMessageModal'));
+const CreatePollModal = lazy(() => import('./CreatePollModal'));
+const CreateEventModal = lazy(() => import('./CreateEventModal'));
+const CreateChecklistModal = lazy(() => import('./CreateChecklistModal'));
+const CreateRecurringReminderModal = lazy(() => import('./CreateRecurringReminderModal'));
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 const MAX_ATTACHMENTS = 5;
@@ -1105,34 +1105,54 @@ const MessageInput = ({
 
   return (
     <footer className="shrink-0 border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
-      <ScheduleMessageModal
-        open={isScheduleOpen}
-        contentPreview={message}
-        onClose={() => setIsScheduleOpen(false)}
-        onSchedule={handleScheduleSubmit}
-      />
-      <CreatePollModal
-        open={isPollOpen}
-        onClose={() => setIsPollOpen(false)}
-        onCreatePoll={onCreatePoll}
-      />
-      <CreateEventModal
-        open={isEventOpen}
-        onClose={() => setIsEventOpen(false)}
-        onCreateEvent={onCreateEvent}
-      />
-      <CreateChecklistModal
-        open={isChecklistOpen}
-        onClose={() => setIsChecklistOpen(false)}
-        onCreateChecklist={onCreateChecklist}
-        members={conversationMembers}
-      />
-      <CreateRecurringReminderModal
-        open={isReminderOpen}
-        initialTitle={message}
-        onClose={() => setIsReminderOpen(false)}
-        onCreateReminder={handleCreateReminderSubmit}
-      />
+      {isScheduleOpen && (
+        <Suspense fallback={null}>
+          <ScheduleMessageModal
+            open
+            contentPreview={message}
+            onClose={() => setIsScheduleOpen(false)}
+            onSchedule={handleScheduleSubmit}
+          />
+        </Suspense>
+      )}
+      {isPollOpen && (
+        <Suspense fallback={null}>
+          <CreatePollModal
+            open
+            onClose={() => setIsPollOpen(false)}
+            onCreatePoll={onCreatePoll}
+          />
+        </Suspense>
+      )}
+      {isEventOpen && (
+        <Suspense fallback={null}>
+          <CreateEventModal
+            open
+            onClose={() => setIsEventOpen(false)}
+            onCreateEvent={onCreateEvent}
+          />
+        </Suspense>
+      )}
+      {isChecklistOpen && (
+        <Suspense fallback={null}>
+          <CreateChecklistModal
+            open
+            onClose={() => setIsChecklistOpen(false)}
+            onCreateChecklist={onCreateChecklist}
+            members={conversationMembers}
+          />
+        </Suspense>
+      )}
+      {isReminderOpen && (
+        <Suspense fallback={null}>
+          <CreateRecurringReminderModal
+            open
+            initialTitle={message}
+            onClose={() => setIsReminderOpen(false)}
+            onCreateReminder={handleCreateReminderSubmit}
+          />
+        </Suspense>
+      )}
 
       {hasPreviews && (
         <div className="mb-2 w-full rounded-[16px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm md:rounded-[12px] md:p-3.5">

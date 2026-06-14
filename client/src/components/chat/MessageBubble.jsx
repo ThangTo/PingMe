@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import EmojiPicker from './EmojiPicker';
 import PollMessageCard from './PollMessageCard';
@@ -108,6 +108,11 @@ const formatVoiceDuration = (seconds = 0) => {
   const minutes = Math.floor(safeSeconds / 60);
   const remainingSeconds = safeSeconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const formatMessageTime = (timestamp) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 };
 
 const normalizeLinkHref = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
@@ -434,6 +439,23 @@ const MessageBubble = ({
   const isChecklistMessage = !isRevoked && message.messageType === 'checklist' && message.checklist;
   const isStickerMessage =
     !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
+  const evolutionSourceText = useMemo(() => getEvolutionSourceText(message), [message]);
+  const attachments = useMemo(() => getMessageAttachments(message), [message]);
+  const { imageAttachments, audioAttachments, fileAttachments } = useMemo(
+    () => ({
+      imageAttachments: attachments.filter((attachment) => attachment.type === 'image'),
+      audioAttachments: attachments.filter((attachment) => attachment.type === 'audio'),
+      fileAttachments: attachments.filter(
+        (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
+      ),
+    }),
+    [attachments],
+  );
+  const formattedTime = useMemo(() => formatMessageTime(message.timestamp), [message.timestamp]);
+  const renderedMessageContent = useMemo(
+    () => renderMessageContent(message.content),
+    [message.content],
+  );
   const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
   const canEvolve =
     Boolean(onEvolveMessage) &&
@@ -441,13 +463,7 @@ const MessageBubble = ({
     !isRevoked &&
     !isCallMessage &&
     message.status !== 'sending' &&
-    Boolean(getEvolutionSourceText(message));
-  const attachments = getMessageAttachments(message);
-  const imageAttachments = attachments.filter((attachment) => attachment.type === 'image');
-  const audioAttachments = attachments.filter((attachment) => attachment.type === 'audio');
-  const fileAttachments = attachments.filter(
-    (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
-  );
+    Boolean(evolutionSourceText);
   const hasAttachments = attachments.length > 0;
   const canForward =
     Boolean(onForwardMessage) &&
@@ -470,11 +486,6 @@ const MessageBubble = ({
   const activeLightboxImage =
     lightboxIndex === null ? null : imageAttachments[lightboxIndex] || null;
   const showActions = isActionMenuOpen;
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  };
 
   const openLightbox = (index) => {
     setLightboxIndex(index);
@@ -531,13 +542,13 @@ const MessageBubble = ({
       }
 
       setShowPicker(false);
-      onCloseActionMenu?.();
+      onCloseActionMenu?.(message.id);
     };
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setShowPicker(false);
-        onCloseActionMenu?.();
+        onCloseActionMenu?.(message.id);
       }
     };
 
@@ -548,7 +559,7 @@ const MessageBubble = ({
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onCloseActionMenu, showActions, showPicker]);
+  }, [message.id, onCloseActionMenu, showActions, showPicker]);
 
   useEffect(() => {
     if (!activeReactionEmoji) return undefined;
@@ -634,7 +645,7 @@ const MessageBubble = ({
 
   const closeMenus = () => {
     setShowPicker(false);
-    onCloseActionMenu?.();
+    onCloseActionMenu?.(message.id);
     setActiveReactionEmoji(null);
   };
 
@@ -647,7 +658,7 @@ const MessageBubble = ({
     event.preventDefault();
     event.stopPropagation();
     if (!canReact) return;
-    onCloseActionMenu?.();
+    onCloseActionMenu?.(message.id);
     setShowPicker((current) => !current);
   };
 
@@ -656,14 +667,14 @@ const MessageBubble = ({
     event.stopPropagation();
     if (!canReact) return;
     setShowPicker(false);
-    onOpenActionMenu?.();
+    onOpenActionMenu?.(message.id);
   };
 
   const handleTouchStart = () => {
     if (!canReact) return;
     longPressTimer.current = setTimeout(() => {
       setShowPicker(true);
-      onOpenActionMenu?.();
+      onOpenActionMenu?.(message.id);
     }, 520);
   };
 
@@ -828,7 +839,7 @@ const MessageBubble = ({
             <span className="min-w-0 truncate font-medium">{callMeta.title}</span>
             {showMeta && (
               <span className="shrink-0 text-[11px] text-on-surface-variant">
-                {formatTime(message.timestamp)}
+                {formattedTime}
               </span>
             )}
           </div>
@@ -1259,7 +1270,7 @@ const MessageBubble = ({
                     }`}
                   >
                     <span className="block whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                      {renderMessageContent(message.content)}
+                      {renderedMessageContent}
                     </span>
                   </div>
                 ) : null}
@@ -1363,7 +1374,7 @@ const MessageBubble = ({
           <span
             className={`px-1 text-[11px] text-on-surface-variant ${showMeta ? '' : 'hidden'} ${isOwn ? 'text-right' : ''}`}
           >
-            {formatTime(message.timestamp)}
+            {formattedTime}
             {!isRevoked && message.isEdited && <span className="ml-1">đã sửa</span>}
             {deliveryText && <span className="ml-1">{deliveryText}</span>}
           </span>
@@ -1447,4 +1458,68 @@ const MessageBubble = ({
   );
 };
 
-export default MessageBubble;
+const stringifyComparable = (value) => {
+  try {
+    return JSON.stringify(value) || '';
+  } catch {
+    return String(value || '');
+  }
+};
+
+const getMessageCompareKey = (message = {}) =>
+  stringifyComparable({
+    id: message.id,
+    conversationId: message.conversationId,
+    senderId: message.senderId,
+    senderName: message.senderName,
+    senderPingId: message.senderPingId,
+    senderAvatar: message.senderAvatar,
+    content: message.content,
+    messageType: message.messageType,
+    sticker: message.sticker,
+    poll: message.poll,
+    event: message.event,
+    checklist: message.checklist,
+    sourceMessage: message.sourceMessage,
+    callDetails: message.callDetails,
+    timestamp: message.timestamp,
+    status: message.status,
+    reactions: message.reactions,
+    attachment: message.attachment,
+    attachments: message.attachments,
+    linkPreview: message.linkPreview,
+    isEdited: message.isEdited,
+    editedAt: message.editedAt,
+    isDeleted: message.isDeleted,
+    deletedAt: message.deletedAt,
+    replyTo: message.replyTo,
+  });
+
+const hasSameActionSurface = (prevProps, nextProps) =>
+  Boolean(prevProps.onReaction) === Boolean(nextProps.onReaction) &&
+  Boolean(prevProps.onPollVote) === Boolean(nextProps.onPollVote) &&
+  Boolean(prevProps.onEventRsvp) === Boolean(nextProps.onEventRsvp) &&
+  Boolean(prevProps.onChecklistToggle) === Boolean(nextProps.onChecklistToggle) &&
+  Boolean(prevProps.onCancelEvent) === Boolean(nextProps.onCancelEvent) &&
+  Boolean(prevProps.onEditMessage) === Boolean(nextProps.onEditMessage) &&
+  Boolean(prevProps.onDeleteMessage) === Boolean(nextProps.onDeleteMessage) &&
+  Boolean(prevProps.onReplyMessage) === Boolean(nextProps.onReplyMessage) &&
+  Boolean(prevProps.onPinMessage) === Boolean(nextProps.onPinMessage) &&
+  Boolean(prevProps.onEvolveMessage) === Boolean(nextProps.onEvolveMessage) &&
+  Boolean(prevProps.onForwardMessage) === Boolean(nextProps.onForwardMessage) &&
+  Boolean(prevProps.onJumpToMessage) === Boolean(nextProps.onJumpToMessage) &&
+  Boolean(prevProps.onOpenSenderProfile) === Boolean(nextProps.onOpenSenderProfile);
+
+const areMessageBubblePropsEqual = (prevProps, nextProps) =>
+  getMessageCompareKey(prevProps.message) === getMessageCompareKey(nextProps.message) &&
+  prevProps.isOwn === nextProps.isOwn &&
+  prevProps.showAvatar === nextProps.showAvatar &&
+  prevProps.currentUserId === nextProps.currentUserId &&
+  prevProps.isPinned === nextProps.isPinned &&
+  prevProps.showMeta === nextProps.showMeta &&
+  prevProps.isActionMenuOpen === nextProps.isActionMenuOpen &&
+  prevProps.reactionUsersById === nextProps.reactionUsersById &&
+  stringifyComparable(prevProps.readReceipts) === stringifyComparable(nextProps.readReceipts) &&
+  hasSameActionSurface(prevProps, nextProps);
+
+export default memo(MessageBubble, areMessageBubblePropsEqual);

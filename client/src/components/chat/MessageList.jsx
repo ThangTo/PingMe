@@ -135,6 +135,7 @@ const MessageList = ({
   const isSearchMode = Boolean(normalizedSearchQuery);
   const visibleMessages = messages;
   const searchMatchIdSet = useMemo(() => new Set(searchMatchIds), [searchMatchIds]);
+  const pinnedMessageIdSet = useMemo(() => new Set(pinnedMessageIds), [pinnedMessageIds]);
   const messageIndexById = useMemo(() => {
     const next = new Map();
     visibleMessages.forEach((message, index) => {
@@ -429,13 +430,13 @@ const MessageList = ({
               onEvolveMessage={onEvolveMessage}
               onForwardMessage={onForwardMessage}
               onOpenSenderProfile={onOpenSenderProfile}
-              isPinned={pinnedMessageIds.includes(message.id)}
+              isPinned={pinnedMessageIdSet.has(message.id)}
               showMeta={showMeta}
               onToggleMeta={toggleMessageMeta}
               onJumpToMessage={handleJumpToMessage}
               isActionMenuOpen={isActionMenuOpen}
-              onOpenActionMenu={() => openActionMenu(message.id)}
-              onCloseActionMenu={() => closeActionMenu(message.id)}
+              onOpenActionMenu={openActionMenu}
+              onCloseActionMenu={closeActionMenu}
             />
           </div>
         </div>
@@ -463,7 +464,7 @@ const MessageList = ({
       onReplyMessage,
       openActionMenu,
       closeActionMenu,
-      pinnedMessageIds,
+      pinnedMessageIdSet,
       reactionUsersById,
       readReceiptsByMessageId,
       searchMatchIdSet,

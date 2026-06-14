@@ -11,11 +11,13 @@ const getInitials = (name = '') =>
     .join('') || '?';
 
 const getMessageAttachments = (message = {}) => {
+  if (!message) return [];
   if (Array.isArray(message.attachments) && message.attachments.length > 0) return message.attachments;
   return message.attachment ? [message.attachment] : [];
 };
 
 const getForwardPreview = (message = {}) => {
+  if (!message) return '';
   if (message.messageType === 'poll') return `Bình chọn: ${message.poll?.question || message.content || ''}`;
   if (message.messageType === 'event') return `Sự kiện: ${message.event?.title || message.content || ''}`;
   if (message.messageType === 'checklist') return `Checklist: ${message.checklist?.title || message.content || ''}`;
