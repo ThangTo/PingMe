@@ -101,6 +101,8 @@ const MessageList = ({
   onDeleteMessage,
   onReplyMessage,
   onPinMessage,
+  onEvolveMessage,
+  onForwardMessage,
   onOpenSenderProfile,
   isLoading = false,
   isLoadingOlderMessages = false,
@@ -424,6 +426,8 @@ const MessageList = ({
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
               onPinMessage={onPinMessage}
+              onEvolveMessage={onEvolveMessage}
+              onForwardMessage={onForwardMessage}
               onOpenSenderProfile={onOpenSenderProfile}
               isPinned={pinnedMessageIds.includes(message.id)}
               showMeta={showMeta}
@@ -450,6 +454,8 @@ const MessageList = ({
       onEventRsvp,
       onChecklistToggle,
       onCancelEvent,
+      onEvolveMessage,
+      onForwardMessage,
       onPinMessage,
       onOpenSenderProfile,
       onPollVote,

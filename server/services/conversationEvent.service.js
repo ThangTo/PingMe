@@ -24,6 +24,10 @@ import {
   toIdString,
 } from './conversation.service.js';
 import { isDirectConversationBlocked } from './messageDelivery.service.js';
+import {
+  formatSourceMessageForPayload,
+  resolveSourceMessageSnapshot,
+} from './messageSource.service.js';
 
 export const EVENT_REMINDER_JOB = 'event_reminder';
 export const EVENT_MIN_DELAY_MS = 60_000;
@@ -258,6 +262,7 @@ const buildEventMessagePayload = ({ event, message, conversation, senderUser }) 
     timestamp: message.createdAt,
     status: message.status || 'sent',
     replyTo: null,
+    sourceMessage: formatSourceMessageForPayload(message.sourceMessage),
     isGroup: conversation.type === 'group',
     isSaved: false,
     mentions: [],
@@ -381,6 +386,7 @@ export const createConversationEvent = async ({
   endsAt = null,
   timezone = '',
   reminderOffsetMinutes,
+  sourceMessageId = null,
 }) => {
   const normalizedCreatorId = toIdString(creatorId);
   const conversation = await validateEventConversation({
@@ -397,6 +403,11 @@ export const createConversationEvent = async ({
     reminderOffsetMinutes,
   });
   const memberIds = getConversationMemberIds(conversation);
+  const sourceMessage = await resolveSourceMessageSnapshot({
+    sourceMessageId,
+    conversation,
+    userId: normalizedCreatorId,
+  });
   const senderUser = await User.findById(normalizedCreatorId).select('username avatar').lean();
 
   const event = await ConversationEvent.create({
@@ -429,6 +440,7 @@ export const createConversationEvent = async ({
     content: input.title,
     messageType: 'event',
     event: formatEventForMessage(event),
+    sourceMessage,
     status: 'sent',
     mentions: [],
   });

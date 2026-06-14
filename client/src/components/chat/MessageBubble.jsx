@@ -53,6 +53,51 @@ const getReplyPreviewText = (replyTo) => {
   return 'Tệp đính kèm';
 };
 
+const getEvolutionSourceText = (message = {}) => {
+  if (message.isDeleted) return '';
+  if (message.messageType === 'poll') return message.poll?.question || message.content || '';
+  if (message.messageType === 'event') return message.event?.title || message.content || '';
+  if (message.messageType === 'checklist') return message.checklist?.title || message.content || '';
+  if (message.messageType === 'sticker' || message.sticker?.url) {
+    return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Nhãn dán';
+  }
+  if (typeof message.content === 'string' && message.content.trim()) return message.content.trim();
+
+  const attachment = getMessageAttachments(message)[0];
+  if (!attachment) return '';
+  if (attachment.filename) return attachment.filename;
+  if (attachment.type === 'image') return 'Ảnh';
+  if (attachment.type === 'audio') return 'Tin nhắn thoại';
+  if (attachment.type === 'video') return 'Video';
+  return 'Tệp đính kèm';
+};
+
+const SourceMessageLink = ({ sourceMessage, onJumpToMessage }) => {
+  if (!sourceMessage?.messageId) return null;
+
+  const preview = sourceMessage.content || 'Tin nhắn nguồn';
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onJumpToMessage?.(sourceMessage.messageId);
+      }}
+      className="mb-2 flex w-full min-w-0 items-start gap-2 rounded-[9px] border border-outline-variant bg-surface px-2.5 py-2 text-left text-xs text-on-surface-variant transition hover:bg-surface-container-low hover:text-on-surface"
+      title="Xem tin nhắn gốc"
+    >
+      <AppIcon name="reply" className="mt-0.5 shrink-0 text-[14px]" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold text-on-surface">
+          Từ tin nhắn của {sourceMessage.senderName || 'người dùng'}
+        </span>
+        <span className="line-clamp-2 break-words [overflow-wrap:anywhere]">{preview}</span>
+      </span>
+    </button>
+  );
+};
+
 const formatFileSize = (size = 0) => {
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
@@ -359,6 +404,8 @@ const MessageBubble = ({
   onDeleteMessage,
   onReplyMessage,
   onPinMessage,
+  onEvolveMessage,
+  onForwardMessage,
   onJumpToMessage,
   onOpenSenderProfile,
   isPinned = false,
@@ -388,6 +435,13 @@ const MessageBubble = ({
   const isStickerMessage =
     !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
   const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
+  const canEvolve =
+    Boolean(onEvolveMessage) &&
+    Boolean(message.id) &&
+    !isRevoked &&
+    !isCallMessage &&
+    message.status !== 'sending' &&
+    Boolean(getEvolutionSourceText(message));
   const attachments = getMessageAttachments(message);
   const imageAttachments = attachments.filter((attachment) => attachment.type === 'image');
   const audioAttachments = attachments.filter((attachment) => attachment.type === 'audio');
@@ -395,6 +449,18 @@ const MessageBubble = ({
     (attachment) => attachment.type !== 'image' && attachment.type !== 'audio',
   );
   const hasAttachments = attachments.length > 0;
+  const canForward =
+    Boolean(onForwardMessage) &&
+    Boolean(message.id) &&
+    !isRevoked &&
+    !isCallMessage &&
+    message.status !== 'sending' &&
+    (Boolean(message.content?.trim?.()) ||
+      hasAttachments ||
+      isStickerMessage ||
+      isPollMessage ||
+      isEventMessage ||
+      isChecklistMessage);
   const shouldRenderTextBubble =
     !isPollMessage &&
     !isEventMessage &&
@@ -662,7 +728,32 @@ const MessageBubble = ({
           },
         ]
       : []),
-    { key: 'forward', label: 'Chuyển tiếp', icon: 'forward' },
+    ...(canEvolve
+      ? [
+          {
+            key: 'evolve',
+            label: 'Biến thành...',
+            icon: 'sparkles',
+            onClick: () => {
+              onEvolveMessage?.(message);
+              closeMenus();
+            },
+          },
+        ]
+      : []),
+    ...(canForward
+      ? [
+          {
+            key: 'forward',
+            label: 'Chuyển tiếp',
+            icon: 'forward',
+            onClick: () => {
+              onForwardMessage?.(message);
+              closeMenus();
+            },
+          },
+        ]
+      : []),
   ];
 
   const visibleActionItems = isPollMessage || isEventMessage || isChecklistMessage
@@ -898,6 +989,12 @@ const MessageBubble = ({
                 className={`relative flex min-w-0 max-w-[min(350px,76vw)] flex-col gap-1 md:max-w-[min(560px,70vw)] ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
+                {message.sourceMessage && (isPollMessage || isEventMessage || isChecklistMessage) && (
+                  <SourceMessageLink
+                    sourceMessage={message.sourceMessage}
+                    onJumpToMessage={onJumpToMessage}
+                  />
+                )}
                 {isPollMessage && (
                   <PollMessageCard
                     poll={message.poll}
@@ -928,6 +1025,7 @@ const MessageBubble = ({
                       reactionUsersById={reactionUsersById}
                       disabled={message.status === 'sending'}
                       onToggle={onChecklistToggle}
+                      onJumpToMessage={onJumpToMessage}
                       isOwn={isOwn}
                     />
                   )}

@@ -15,6 +15,7 @@ import {
 } from '../services/conversation.service.js';
 import { formatEventForMessage } from '../services/conversationEvent.service.js';
 import { getConversationWorkspace } from '../services/conversationWorkspace.service.js';
+import { formatSourceMessageForPayload } from '../services/messageSource.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
 
 const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
@@ -69,6 +70,7 @@ const formatChecklistPayload = (checklist) => {
     completedAt: item.completedAt || null,
     lastChangedBy: toIdString(item.lastChangedBy) || null,
     lastChangedAt: item.lastChangedAt || null,
+    sourceMessage: formatSourceMessageForPayload(item.sourceMessage),
   }));
   const completedItems = formattedItems.filter((item) => item.isDone).length;
 
@@ -122,6 +124,7 @@ const formatPinnedMessage = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: getMessageAttachments(message),
     isDeleted: Boolean(message.isDeleted),

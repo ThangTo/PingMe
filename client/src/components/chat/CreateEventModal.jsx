@@ -52,7 +52,13 @@ const getEventBounds = () => {
 const getErrorMessage = (error) =>
   error?.response?.data?.error || error?.message || 'Không thể tạo sự kiện';
 
-function CreateEventModal({ open, onClose, onCreateEvent }) {
+function CreateEventModal({
+  open,
+  onClose,
+  onCreateEvent,
+  initialTitle = '',
+  initialDescription = '',
+}) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -69,8 +75,8 @@ function CreateEventModal({ open, onClose, onCreateEvent }) {
 
     const nextBounds = getEventBounds();
     const defaultEnd = new Date(nextBounds.minDate.getTime() + 60 * 60 * 1000);
-    setTitle('');
-    setDescription('');
+    setTitle((initialTitle || '').slice(0, TITLE_MAX_LENGTH));
+    setDescription((initialDescription || '').slice(0, DESCRIPTION_MAX_LENGTH));
     setLocation('');
     setStartsAt(nextBounds.minValue);
     setHasEndTime(false);
@@ -79,7 +85,7 @@ function CreateEventModal({ open, onClose, onCreateEvent }) {
     setBounds(nextBounds);
     setError('');
     setIsSubmitting(false);
-  }, [open]);
+  }, [open, initialDescription, initialTitle]);
 
   const cleanTitle = title.trim();
   const cleanDescription = description.trim();

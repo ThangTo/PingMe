@@ -1,6 +1,7 @@
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import { toIdString } from '../services/conversation.service.js';
+import { formatSourceMessageForPayload } from '../services/messageSource.service.js';
 
 const getPaginationParams = (query = {}) => {
   const limit = Math.min(Math.max(Number(query.limit) || 40, 1), 100);
@@ -124,6 +125,7 @@ const searchController = {
         poll: message.poll || null,
         event: message.event || null,
         checklist: message.checklist || null,
+        sourceMessage: formatSourceMessageForPayload(message.sourceMessage),
         attachment: message.attachment || null,
         attachments: message.attachments || [],
         createdAt: message.createdAt,

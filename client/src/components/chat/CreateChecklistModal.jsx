@@ -7,16 +7,23 @@ const ITEM_MAX_LENGTH = 120;
 const MIN_ITEMS = 1;
 const MAX_ITEMS = 20;
 
-const createItem = () => ({
+const createItem = (item = {}) => ({
   id: crypto.randomUUID(),
-  text: '',
-  assigneeId: '',
+  text: item.text || '',
+  assigneeId: item.assigneeId || '',
 });
 
 const getErrorMessage = (error) =>
   error?.response?.data?.error || error?.message || 'Không thể tạo checklist';
 
-function CreateChecklistModal({ open, onClose, onCreateChecklist, members = [] }) {
+function CreateChecklistModal({
+  open,
+  onClose,
+  onCreateChecklist,
+  members = [],
+  initialTitle = '',
+  initialItems = null,
+}) {
   const [title, setTitle] = useState('');
   const [items, setItems] = useState(() => [createItem(), createItem()]);
   const [error, setError] = useState('');
@@ -47,11 +54,18 @@ function CreateChecklistModal({ open, onClose, onCreateChecklist, members = [] }
   useEffect(() => {
     if (!open) return;
 
-    setTitle('');
-    setItems([createItem(), createItem()]);
+    const seededItems = Array.isArray(initialItems)
+      ? initialItems
+          .map((item) => createItem(item))
+          .filter((item) => item.text || item.assigneeId)
+          .slice(0, MAX_ITEMS)
+      : [];
+
+    setTitle((initialTitle || '').slice(0, TITLE_MAX_LENGTH));
+    setItems(seededItems.length > 0 ? seededItems : [createItem(), createItem()]);
     setError('');
     setIsSubmitting(false);
-  }, [open]);
+  }, [initialItems, initialTitle, open]);
 
   const updateItem = (itemId, patch) => {
     setItems((current) =>

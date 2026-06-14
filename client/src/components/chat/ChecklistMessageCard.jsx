@@ -49,6 +49,30 @@ const UserPill = ({ user }) => {
   );
 };
 
+const getSourcePreview = (sourceMessage = {}) =>
+  sourceMessage.content || sourceMessage.filename || 'Tin nhắn nguồn';
+
+const ChecklistItemSourceLink = ({ sourceMessage, onJumpToMessage }) => {
+  if (!sourceMessage?.messageId) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onJumpToMessage?.(sourceMessage.messageId);
+      }}
+      className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[7px] border border-outline-variant bg-surface-container-lowest px-2 py-1 text-left text-[11px] font-medium text-on-surface-variant transition hover:bg-surface-container-low hover:text-on-surface"
+      title="Xem tin nhắn gốc"
+    >
+      <AppIcon name="reply" className="shrink-0 text-[13px]" />
+      <span className="truncate">
+        Từ tin nhắn: {getSourcePreview(sourceMessage)}
+      </span>
+    </button>
+  );
+};
+
 function ChecklistMessageCard({
   checklist,
   messageId,
@@ -56,6 +80,7 @@ function ChecklistMessageCard({
   reactionUsersById = {},
   disabled = false,
   onToggle,
+  onJumpToMessage,
   isOwn = false,
   variant = 'message',
 }) {
@@ -155,6 +180,10 @@ function ChecklistMessageCard({
                   >
                     {item.text}
                   </p>
+                  <ChecklistItemSourceLink
+                    sourceMessage={item.sourceMessage}
+                    onJumpToMessage={onJumpToMessage}
+                  />
 
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     {assignee && <UserPill user={assignee} />}

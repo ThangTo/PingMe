@@ -49,7 +49,7 @@ const createOption = () => ({
 const getErrorMessage = (error) =>
   error?.response?.data?.error || error?.message || 'Không thể tạo bình chọn';
 
-function CreatePollModal({ open, onClose, onCreatePoll }) {
+function CreatePollModal({ open, onClose, onCreatePoll, initialQuestion = '' }) {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(() => [createOption(), createOption()]);
   const [hasDeadline, setHasDeadline] = useState(false);
@@ -62,14 +62,14 @@ function CreatePollModal({ open, onClose, onCreatePoll }) {
     if (!open) return;
 
     const nextBounds = getDeadlineBounds();
-    setQuestion('');
+    setQuestion((initialQuestion || '').slice(0, QUESTION_MAX_LENGTH));
     setOptions([createOption(), createOption()]);
     setHasDeadline(false);
     setDeadline(nextBounds.minValue);
     setBounds(nextBounds);
     setError('');
     setIsSubmitting(false);
-  }, [open]);
+  }, [open, initialQuestion]);
 
   const trimmedOptions = useMemo(
     () => options.map((option) => option.text.trim()).filter(Boolean),

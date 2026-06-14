@@ -145,6 +145,47 @@ const pollSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const sourceMessageSnapshotSchema = new mongoose.Schema(
+  {
+    messageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      required: true,
+    },
+    senderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    senderName: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 120,
+    },
+    senderAvatar: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    content: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 5000,
+    },
+    messageType: {
+      type: String,
+      default: 'text',
+    },
+    createdAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
 const checklistItemSchema = new mongoose.Schema(
   {
     id: {
@@ -182,6 +223,10 @@ const checklistItemSchema = new mongoose.Schema(
     },
     lastChangedAt: {
       type: Date,
+      default: null,
+    },
+    sourceMessage: {
+      type: sourceMessageSnapshotSchema,
       default: null,
     },
   },
@@ -373,6 +418,11 @@ const messageSchema = new mongoose.Schema(
       default: null,
     },
 
+    sourceMessage: {
+      type: sourceMessageSnapshotSchema,
+      default: null,
+    },
+
     // Room ID (nếu là chat nhóm)
     roomId: {
       type: String,
@@ -467,6 +517,8 @@ messageSchema.index(
     'event.location': 'text',
     'checklist.title': 'text',
     'checklist.items.text': 'text',
+    'sourceMessage.content': 'text',
+    'checklist.items.sourceMessage.content': 'text',
   },
   { name: 'message_text_search' },
 );
@@ -484,7 +536,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -498,7 +550,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -513,7 +565,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

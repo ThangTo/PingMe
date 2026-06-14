@@ -19,6 +19,7 @@ const eventController = {
         endsAt: req.body?.endsAt || null,
         timezone: req.body?.timezone || '',
         reminderOffsetMinutes: req.body?.reminderOffsetMinutes,
+        sourceMessageId: req.body?.sourceMessageId || null,
       });
 
       return res.status(201).json({

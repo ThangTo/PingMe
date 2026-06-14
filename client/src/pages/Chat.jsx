@@ -12,6 +12,12 @@ import GlobalSearchPanel from '../components/layout/GlobalSearchPanel';
 import IncomingCallModal from '../components/call/IncomingCallModal';
 import CallOverlay from '../components/call/CallOverlay';
 import ProfileViewer from '../components/profile/ProfileViewer';
+import AddChecklistItemModal from '../components/chat/AddChecklistItemModal';
+import CreateChecklistModal from '../components/chat/CreateChecklistModal';
+import CreateEventModal from '../components/chat/CreateEventModal';
+import ForwardMessageModal from '../components/chat/ForwardMessageModal';
+import CreatePollModal from '../components/chat/CreatePollModal';
+import MessageEvolutionModal from '../components/chat/MessageEvolutionModal';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import socket from '../socket';
@@ -76,6 +82,21 @@ const writeStoredCursor = (key, value) => {
 const getMessageSyncCursorKey = (conversationId) =>
   `${OFFLINE_SYNC_MESSAGE_CURSOR_PREFIX}${conversationId}`;
 
+const normalizeSourceMessage = (sourceMessage) => {
+  const messageId = getIdString(sourceMessage?.messageId || sourceMessage?.message || sourceMessage?._id);
+  if (!messageId) return null;
+
+  return {
+    messageId,
+    senderId: getIdString(sourceMessage.senderId || sourceMessage.sender),
+    senderName: sourceMessage.senderName || sourceMessage.sender?.username || '',
+    senderAvatar: sourceMessage.senderAvatar || sourceMessage.sender?.avatar || '',
+    content: sourceMessage.content || '',
+    messageType: sourceMessage.messageType || 'text',
+    createdAt: sourceMessage.createdAt || null,
+  };
+};
+
 const normalizeReactions = (reactions = []) =>
   reactions.map((reaction) => ({
     ...reaction,
@@ -127,6 +148,7 @@ const normalizeChecklist = (checklist) => {
     completedAt: item.completedAt || null,
     lastChangedBy: getIdString(item.lastChangedBy) || null,
     lastChangedAt: item.lastChangedAt || null,
+    sourceMessage: normalizeSourceMessage(item.sourceMessage),
   }));
   const completedItems = Number.isFinite(checklist.completedItems)
     ? checklist.completedItems
@@ -314,6 +336,111 @@ const getMessagePreview = (
   return `${messageAttachments.length} tệp đính kèm`;
 };
 
+const getEvolutionSourceText = (message = {}) => {
+  if (message.isDeleted) return '';
+  if (message.messageType === 'poll') return message.poll?.question || message.content || '';
+  if (message.messageType === 'event') return message.event?.title || message.content || '';
+  if (message.messageType === 'checklist') return message.checklist?.title || message.content || '';
+  if (message.messageType === 'sticker' || message.sticker?.url) {
+    return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Nhãn dán';
+  }
+  if (typeof message.content === 'string' && message.content.trim()) return message.content.trim();
+
+  const attachment = getMessageAttachments(message)[0];
+  if (!attachment) return '';
+  if (attachment.filename) return attachment.filename;
+  if (attachment.type === 'image') return 'Ảnh';
+  if (attachment.type === 'audio') return 'Tin nhắn thoại';
+  if (attachment.type === 'video') return 'Video';
+  return 'Tệp đính kèm';
+};
+
+const cloneForwardAttachment = (attachment = {}) => ({
+  url: attachment.url || '',
+  filename: attachment.filename || '',
+  type: attachment.type || 'file',
+  mimeType: attachment.mimeType || '',
+  size: attachment.size || 0,
+  duration: attachment.duration || 0,
+  width: attachment.width || null,
+  height: attachment.height || null,
+  publicId: attachment.publicId || '',
+});
+
+const cloneForwardSticker = (sticker = null) =>
+  sticker?.url
+    ? {
+        source: sticker.source || '',
+        assetType: sticker.assetType || 'image',
+        packId: sticker.packId || '',
+        stickerId: sticker.stickerId || '',
+        name: sticker.name || '',
+        url: sticker.url,
+        previewUrl: sticker.previewUrl || sticker.url,
+        animated: Boolean(sticker.animated),
+        width: sticker.width || null,
+        height: sticker.height || null,
+      }
+    : null;
+
+const getForwardTextFromMessage = (message = {}) => {
+  if (message.messageType === 'poll') {
+    return `Bình chọn: ${message.poll?.question || message.content || 'Bình chọn'}`;
+  }
+  if (message.messageType === 'event') {
+    return `Sự kiện: ${message.event?.title || message.content || 'Sự kiện'}`;
+  }
+  if (message.messageType === 'checklist') {
+    return `Checklist: ${message.checklist?.title || message.content || 'Checklist'}`;
+  }
+  return typeof message.content === 'string' ? message.content.trim() : '';
+};
+
+const getForwardMessageType = ({ attachments = [], sticker = null } = {}) => {
+  if (sticker?.url) return 'sticker';
+  const firstAttachment = attachments[0];
+  if (!firstAttachment) return 'text';
+  if (['image', 'audio', 'video'].includes(firstAttachment.type)) return firstAttachment.type;
+  return 'file';
+};
+
+const buildForwardPayloadFromMessage = (message = {}) => {
+  if (!message || message.isDeleted || message.status === 'sending' || message.messageType === 'call') {
+    return null;
+  }
+
+  const attachments = getMessageAttachments(message)
+    .map(cloneForwardAttachment)
+    .filter((attachment) => attachment.url);
+  const sticker = cloneForwardSticker(message.sticker);
+  const content = getForwardTextFromMessage(message);
+
+  if (!content && attachments.length === 0 && !sticker?.url) return null;
+
+  return {
+    content,
+    attachment: attachments[0] || null,
+    attachments,
+    sticker,
+    messageType: getForwardMessageType({ attachments, sticker }),
+  };
+};
+
+const buildSourceSnapshotFromMessage = (message) => {
+  const messageId = message?.id || message?._id || '';
+  if (!messageId) return null;
+
+  return {
+    messageId,
+    senderId: message.senderId || getIdString(message.sender),
+    senderName: message.senderName || message.sender?.username || '',
+    senderAvatar: message.senderAvatar || message.sender?.avatar || '',
+    content: getEvolutionSourceText(message),
+    messageType: message.messageType || 'text',
+    createdAt: message.timestamp || message.createdAt || null,
+  };
+};
+
 const truncateNotificationText = (value = '', maxLength = 90) => {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1)}...`;
@@ -407,6 +534,7 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     poll: isDeleted ? null : normalizePoll(message.poll),
     event: isDeleted ? null : normalizeEvent(message.event),
     checklist: isDeleted ? null : normalizeChecklist(message.checklist),
+    sourceMessage: isDeleted ? null : normalizeSourceMessage(message.sourceMessage),
     attachment: isDeleted ? null : message.attachment || null,
     attachments: isDeleted ? [] : getMessageAttachments(message),
     isDeleted,
@@ -429,6 +557,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   poll: normalizePoll(msg.poll),
   event: normalizeEvent(msg.event),
   checklist: normalizeChecklist(msg.checklist),
+  sourceMessage: normalizeSourceMessage(msg.sourceMessage),
   callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
   status: msg.status,
@@ -732,6 +861,9 @@ const Chat = () => {
   const [jumpToMessageSignal, setJumpToMessageSignal] = useState(null);
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
   const [profileTarget, setProfileTarget] = useState(null);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [evolutionSourceMessage, setEvolutionSourceMessage] = useState(null);
+  const [evolutionMode, setEvolutionMode] = useState(null);
   const [appNotifications, setAppNotifications] = useState([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [friendRequestCount, setFriendRequestCount] = useState(0);
@@ -2344,6 +2476,7 @@ const Chat = () => {
         poll: incomingPoll,
         event: incomingEvent,
         checklist: incomingChecklist,
+        sourceMessage: normalizeSourceMessage(data.sourceMessage),
         callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
         attachments: incomingAttachments,
@@ -2613,6 +2746,7 @@ const Chat = () => {
                 poll: savedPoll || msg.poll || null,
                 event: savedEvent || msg.event || null,
                 checklist: savedChecklist || msg.checklist || null,
+                sourceMessage: normalizeSourceMessage(data.sourceMessage) || msg.sourceMessage || null,
                 callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
                 senderAvatar: data.senderAvatar || msg.senderAvatar,
@@ -3246,6 +3380,7 @@ const Chat = () => {
     const response = await api.post('/events', {
       conversationId: selectedConversationId,
       ...eventInput,
+      sourceMessageId: eventInput?.sourceMessageId || null,
     });
     const event = normalizeEvent(response.data?.event);
     const message = response.data?.message
@@ -3399,7 +3534,101 @@ const Chat = () => {
     });
   };
 
-  const handleCreatePoll = ({ question, options, closesAt = null }) => {
+  const handleOpenForwardMessage = (message) => {
+    if (!buildForwardPayloadFromMessage(message)) return;
+    setForwardingMessage(message);
+  };
+
+  const handleForwardMessages = async (conversationIds = []) => {
+    if (!user) throw new Error('Bạn cần đăng nhập để chuyển tiếp tin nhắn');
+
+    const payload = buildForwardPayloadFromMessage(forwardingMessage);
+    if (!payload) throw new Error('Tin nhắn này chưa thể chuyển tiếp');
+
+    const uniqueConversationIds = [...new Set(conversationIds.filter(Boolean))];
+    const targets = uniqueConversationIds
+      .map((conversationId) => conversationsRef.current.find((conversation) => conversation.id === conversationId))
+      .filter(Boolean);
+
+    if (targets.length === 0) {
+      throw new Error('Chọn ít nhất một cuộc trò chuyện');
+    }
+
+    const sentAt = new Date().toISOString();
+
+    targets.forEach((targetConversation) => {
+      const tempId = crypto.randomUUID();
+      const messageData = {
+        tempId,
+        conversationId: targetConversation.id,
+        recipientId: targetConversation.isGroup || targetConversation.isSaved ? null : targetConversation.peerId || null,
+        content: payload.content,
+        attachment: payload.attachment,
+        attachments: payload.attachments,
+        sticker: payload.sticker,
+        replyToId: null,
+      };
+
+      socket.emit('send_message', messageData);
+
+      const optimisticMessage = {
+        id: tempId,
+        conversationId: targetConversation.id,
+        senderId: user.id,
+        senderName: user.username || 'Bạn',
+        senderAvatar: user.avatar || '',
+        content: payload.content,
+        messageType: payload.messageType,
+        sticker: payload.sticker,
+        poll: null,
+        event: null,
+        checklist: null,
+        sourceMessage: null,
+        callDetails: null,
+        timestamp: sentAt,
+        status: 'sending',
+        attachment: payload.attachment,
+        attachments: payload.attachments,
+        linkPreview: null,
+        replyTo: null,
+        reactions: [],
+      };
+
+      if (targetConversation.id === selectedConversationId) {
+        setMessages((prev) => [...prev, optimisticMessage]);
+      }
+
+      setConversations((prev) => {
+        const targetConv = prev.find((conversation) => conversation.id === targetConversation.id);
+        if (!targetConv) return prev;
+
+        const updatedTarget = {
+          ...targetConv,
+          lastMessage: getMessagePreview(
+            payload.content,
+            payload.attachment,
+            false,
+            payload.attachments,
+            payload.messageType,
+            null,
+            payload.sticker,
+          ),
+          hasLastMessage: true,
+          lastMessageAt: sentAt,
+        };
+        const otherConvs = prev.filter((conversation) => conversation.id !== targetConversation.id);
+        return sortConversations([updatedTarget, ...otherConvs]);
+      });
+    });
+
+    showAppNotification({
+      title: 'Đã chuyển tiếp',
+      body: targets.length === 1 ? targets[0].name || '1 cuộc trò chuyện' : `${targets.length} cuộc trò chuyện`,
+      conversationId: targets[0]?.id || selectedConversationId,
+    });
+  };
+
+  const handleCreatePoll = ({ question, options, closesAt = null, sourceMessageId = null, sourceMessage = null }) => {
     if (!selectedConversationId || !user) {
       return Promise.reject(new Error('Chưa chọn cuộc trò chuyện'));
     }
@@ -3449,6 +3678,7 @@ const Chat = () => {
       attachments: [],
       linkPreview: null,
       replyTo: null,
+      sourceMessage: normalizeSourceMessage(sourceMessage),
       reactions: [],
     };
 
@@ -3492,6 +3722,7 @@ const Chat = () => {
         question: cleanQuestion,
         options: cleanOptions,
         closesAt,
+        sourceMessageId,
       });
     });
   };
@@ -3505,7 +3736,7 @@ const Chat = () => {
     });
   };
 
-  const handleCreateChecklist = ({ title, items }) => {
+  const handleCreateChecklist = ({ title, items, sourceMessageId = null, sourceMessage = null }) => {
     if (!selectedConversationId || !user) {
       return Promise.reject(new Error('Chưa chọn cuộc trò chuyện'));
     }
@@ -3566,6 +3797,7 @@ const Chat = () => {
       attachments: [],
       linkPreview: null,
       replyTo: null,
+      sourceMessage: normalizeSourceMessage(sourceMessage),
       reactions: [],
     };
 
@@ -3610,6 +3842,7 @@ const Chat = () => {
         conversationId: selectedConversationId,
         title: cleanTitle,
         items: cleanItems,
+        sourceMessageId,
       });
     });
   };
@@ -3621,6 +3854,72 @@ const Chat = () => {
       messageId,
       itemId,
       isDone,
+    });
+  };
+
+  const closeEvolutionFlow = useCallback(() => {
+    setEvolutionSourceMessage(null);
+    setEvolutionMode(null);
+  }, []);
+
+  const handleOpenMessageEvolution = useCallback(
+    (message) => {
+      if (!message || message.isDeleted || message.status === 'sending' || currentChatUser?.isSaved) {
+        return;
+      }
+
+      const sourceSnapshot = buildSourceSnapshotFromMessage(message);
+      if (!sourceSnapshot?.content) return;
+
+      setEvolutionSourceMessage({
+        ...message,
+        sourceSnapshot,
+      });
+      setEvolutionMode('choose');
+    },
+    [currentChatUser?.isSaved],
+  );
+
+  const getEvolutionSourceSnapshot = useCallback(
+    () =>
+      evolutionSourceMessage?.sourceSnapshot ||
+      buildSourceSnapshotFromMessage(evolutionSourceMessage),
+    [evolutionSourceMessage],
+  );
+
+  const handleCreateEvolutionPoll = (pollInput) => {
+    const sourceSnapshot = getEvolutionSourceSnapshot();
+    return handleCreatePoll({
+      ...pollInput,
+      sourceMessageId: sourceSnapshot?.messageId || null,
+      sourceMessage: sourceSnapshot,
+    });
+  };
+
+  const handleCreateEvolutionEvent = (eventInput) => {
+    const sourceSnapshot = getEvolutionSourceSnapshot();
+    return handleCreateEvent({
+      ...eventInput,
+      sourceMessageId: sourceSnapshot?.messageId || null,
+    });
+  };
+
+  const handleCreateEvolutionChecklist = (checklistInput) => {
+    const sourceSnapshot = getEvolutionSourceSnapshot();
+    return handleCreateChecklist({
+      ...checklistInput,
+      sourceMessageId: sourceSnapshot?.messageId || null,
+      sourceMessage: sourceSnapshot,
+    });
+  };
+
+  const handleAddChecklistItem = async ({ checklistMessageId, text, assigneeId = null }) => {
+    const sourceSnapshot = getEvolutionSourceSnapshot();
+    socket.emit('add_checklist_item', {
+      checklistMessageId,
+      text,
+      assigneeId,
+      sourceMessageId: sourceSnapshot?.messageId || null,
     });
   };
 
@@ -3942,6 +4241,13 @@ const Chat = () => {
     [currentChatUser, user],
   );
 
+  const evolutionSourceSnapshot = getEvolutionSourceSnapshot();
+  const evolutionInitialText = evolutionSourceSnapshot?.content || '';
+  const evolutionChecklistInitialItems = useMemo(
+    () => (evolutionInitialText ? [{ text: evolutionInitialText.slice(0, 120) }] : []),
+    [evolutionInitialText],
+  );
+
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-background font-body text-on-surface">
       <IncomingCallModal />
@@ -3963,6 +4269,49 @@ const Chat = () => {
           </div>
         </div>
       )}
+      <ForwardMessageModal
+        open={Boolean(forwardingMessage)}
+        message={forwardingMessage}
+        conversations={conversations}
+        currentConversationId={selectedConversationId}
+        onForward={handleForwardMessages}
+        onClose={() => setForwardingMessage(null)}
+      />
+      <MessageEvolutionModal
+        open={evolutionMode === 'choose'}
+        sourceMessage={evolutionSourceSnapshot}
+        conversation={currentChatUser}
+        onClose={closeEvolutionFlow}
+        onSelect={setEvolutionMode}
+      />
+      <CreatePollModal
+        open={evolutionMode === 'poll'}
+        initialQuestion={evolutionInitialText}
+        onCreatePoll={handleCreateEvolutionPoll}
+        onClose={closeEvolutionFlow}
+      />
+      <CreateEventModal
+        open={evolutionMode === 'event'}
+        initialTitle={evolutionInitialText}
+        onCreateEvent={handleCreateEvolutionEvent}
+        onClose={closeEvolutionFlow}
+      />
+      <CreateChecklistModal
+        open={evolutionMode === 'checklist'}
+        members={currentChatUser?.members || []}
+        initialTitle={evolutionInitialText}
+        initialItems={evolutionChecklistInitialItems}
+        onCreateChecklist={handleCreateEvolutionChecklist}
+        onClose={closeEvolutionFlow}
+      />
+      <AddChecklistItemModal
+        open={evolutionMode === 'checklist-item'}
+        conversationId={selectedConversationId}
+        sourceMessage={evolutionSourceSnapshot}
+        members={currentChatUser?.members || []}
+        onAddChecklistItem={handleAddChecklistItem}
+        onClose={closeEvolutionFlow}
+      />
 
       <div className="flex h-full w-full overflow-hidden bg-surface">
         <AppRail
@@ -4071,6 +4420,8 @@ const Chat = () => {
                     onStartReplyMessage={handleStartReplyMessage}
                     onPinMessage={handlePinMessage}
                     onUnpinMessage={handleUnpinPinnedMessage}
+                    onEvolveMessage={currentChatUser?.isSaved ? undefined : handleOpenMessageEvolution}
+                    onForwardMessage={handleOpenForwardMessage}
                     onOpenSenderProfile={handleOpenSenderProfile}
                     onJumpToPinnedMessage={handleJumpToPinnedMessage}
                     jumpToMessageSignal={jumpToMessageSignal}

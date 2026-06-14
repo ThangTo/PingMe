@@ -33,6 +33,10 @@ import {
   getVisibleAvatar,
   getVisiblePresence,
 } from '../services/privacy.service.js';
+import {
+  formatSourceMessageForPayload,
+  resolveSourceMessageSnapshot,
+} from '../services/messageSource.service.js';
 
 /**
  * Socket.io Event Handler
@@ -745,6 +749,7 @@ const formatChecklistPayload = (checklist) => {
     completedAt: item.completedAt || null,
     lastChangedBy: toIdString(item.lastChangedBy) || null,
     lastChangedAt: item.lastChangedAt || null,
+    sourceMessage: formatSourceMessageForPayload(item.sourceMessage),
   }));
   const completedItems = formattedItems.filter((item) => item.isDone).length;
 
@@ -770,6 +775,7 @@ const formatReplyPreview = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -794,6 +800,7 @@ const formatPinnedMessage = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []
@@ -1712,6 +1719,11 @@ const socketHandler = (io) => {
         }
 
         const memberIds = getConversationMemberIds(conversation);
+        const sourceMessage = await resolveSourceMessageSnapshot({
+          sourceMessageId: data.sourceMessageId,
+          conversation,
+          userId: senderId,
+        });
         const senderUser = await User.findById(senderId).select('username avatar').lean();
         const options = pollInput.options.map((text) => ({
           id: randomUUID(),
@@ -1731,6 +1743,7 @@ const socketHandler = (io) => {
             allowMultiple: false,
             closesAt: pollInput.closesAt,
           },
+          sourceMessage,
           status: 'sent',
           mentions: [],
         });
@@ -1757,6 +1770,7 @@ const socketHandler = (io) => {
           linkPreview: null,
           callDetails: null,
           replyTo: null,
+          sourceMessage: formatSourceMessageForPayload(newMessage.sourceMessage),
           mentions: [],
           isSaved: false,
         };
@@ -1830,6 +1844,11 @@ const socketHandler = (io) => {
           items: data.items,
           memberIds,
         });
+        const sourceMessage = await resolveSourceMessageSnapshot({
+          sourceMessageId: data.sourceMessageId,
+          conversation,
+          userId: senderId,
+        });
         const senderUser = await User.findById(senderId).select('username avatar').lean();
 
         const newMessage = await Message.create({
@@ -1842,6 +1861,7 @@ const socketHandler = (io) => {
             title: checklistInput.title,
             items: checklistInput.items,
           },
+          sourceMessage,
           status: 'sent',
           mentions: [],
         });
@@ -1870,6 +1890,7 @@ const socketHandler = (io) => {
           linkPreview: null,
           callDetails: null,
           replyTo: null,
+          sourceMessage: formatSourceMessageForPayload(newMessage.sourceMessage),
           mentions: [],
           isSaved: false,
         };
@@ -2346,6 +2367,88 @@ const socketHandler = (io) => {
           messageId,
           itemId,
           error: error.message || 'Không thể cập nhật checklist',
+        });
+      }
+    });
+
+    socket.on('add_checklist_item', async (data = {}) => {
+      const { checklistMessageId, text, assigneeId, sourceMessageId } = data || {};
+
+      try {
+        const actorId = socket.userId;
+
+        if (!mongoose.Types.ObjectId.isValid(checklistMessageId)) {
+          throw new Error('checklistMessageId không hợp lệ');
+        }
+
+        const cleanText = normalizeChecklistText(text);
+        if (!cleanText) {
+          throw new Error('Mục checklist không được rỗng');
+        }
+        if (cleanText.length > CHECKLIST_ITEM_MAX_LENGTH) {
+          throw new Error('Mỗi mục checklist tối đa 120 ký tự');
+        }
+
+        const message = await Message.findById(checklistMessageId);
+        if (!message || message.isDeleted || message.messageType !== 'checklist') {
+          throw new Error('Checklist không tồn tại');
+        }
+
+        const conversation = await Conversation.findById(message.conversation).select('type members');
+        if (!conversation || conversation.type !== 'group') {
+          throw new Error('Checklist chỉ hỗ trợ trong nhóm');
+        }
+
+        if (!isConversationMember(conversation, actorId)) {
+          throw new Error('Bạn không thuộc cuộc trò chuyện này');
+        }
+
+        const currentItems = Array.isArray(message.checklist?.items) ? message.checklist.items : [];
+        if (currentItems.length >= CHECKLIST_MAX_ITEMS) {
+          throw new Error('Checklist tối đa 20 mục');
+        }
+
+        const memberIds = getConversationMemberIds(conversation);
+        const normalizedAssigneeId = toIdString(assigneeId);
+        const memberIdSet = new Set(memberIds.map((memberId) => toIdString(memberId)));
+        if (normalizedAssigneeId && !memberIdSet.has(normalizedAssigneeId)) {
+          throw new Error('Người được giao phải là thành viên nhóm');
+        }
+
+        const sourceMessage = await resolveSourceMessageSnapshot({
+          sourceMessageId,
+          conversation,
+          userId: actorId,
+        });
+        const newItem = {
+          id: randomUUID(),
+          text: cleanText,
+          assigneeId: normalizedAssigneeId || null,
+          isDone: false,
+          completedBy: null,
+          completedAt: null,
+          lastChangedBy: actorId,
+          lastChangedAt: new Date(),
+          sourceMessage,
+        };
+
+        message.checklist.items.push(newItem);
+        message.markModified('checklist.items');
+        await message.save();
+
+        emitToUsers(io, memberIds, 'checklist_updated', {
+          conversationId: toIdString(conversation),
+          messageId: message.id,
+          checklist: formatChecklistPayload(message.checklist),
+          updatedItemId: newItem.id,
+          actorId: actorId.toString(),
+          updatedAt: newItem.lastChangedAt,
+        });
+      } catch (error) {
+        console.warn('Không thể thêm mục checklist:', error.message || error);
+        socket.emit('checklist_update_failed', {
+          messageId: checklistMessageId,
+          error: error.message || 'Không thể thêm mục checklist',
         });
       }
     });

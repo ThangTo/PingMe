@@ -10,6 +10,7 @@ import {
   toIdString,
 } from './conversation.service.js';
 import { updateMessageLinkPreview } from './linkPreview.service.js';
+import { formatSourceMessageForPayload } from './messageSource.service.js';
 import { createNotification } from './notification.service.js';
 import { sendMessagePushToUsers } from './pushNotification.service.js';
 
@@ -101,6 +102,7 @@ const formatChecklistPayload = (checklist) => {
     completedAt: item.completedAt || null,
     lastChangedBy: toIdString(item.lastChangedBy) || null,
     lastChangedAt: item.lastChangedAt || null,
+    sourceMessage: formatSourceMessageForPayload(item.sourceMessage),
   }));
   const completedItems = formattedItems.filter((item) => item.isDone).length;
 
@@ -147,6 +149,7 @@ const formatReplyPreview = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : event,
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
       ? []

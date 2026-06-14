@@ -411,6 +411,8 @@ const ChatArea = ({
   onStartReplyMessage,
   onPinMessage,
   onUnpinMessage,
+  onEvolveMessage,
+  onForwardMessage,
   onOpenSenderProfile,
   onJumpToPinnedMessage,
   jumpToMessageSignal,
@@ -805,6 +807,8 @@ const ChatArea = ({
           onDeleteMessage={onDeleteMessage}
           onReplyMessage={onStartReplyMessage}
           onPinMessage={onPinMessage}
+          onEvolveMessage={onEvolveMessage}
+          onForwardMessage={onForwardMessage}
           onOpenSenderProfile={onOpenSenderProfile}
         />
       </div>

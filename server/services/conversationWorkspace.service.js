@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import { isConversationMember, toIdString } from './conversation.service.js';
+import { formatSourceMessageForPayload } from './messageSource.service.js';
 
 const WORKSPACE_TYPES = ['poll', 'event', 'checklist'];
 const WORKSPACE_STATUSES = ['active', 'archived'];
@@ -76,6 +77,7 @@ const formatChecklist = (checklist) => {
     completedAt: item.completedAt || null,
     lastChangedBy: toIdString(item.lastChangedBy) || null,
     lastChangedAt: item.lastChangedAt || null,
+    sourceMessage: formatSourceMessageForPayload(item.sourceMessage),
   }));
   const completedItems = items.filter((item) => item.isDone).length;
 
@@ -173,6 +175,7 @@ const formatWorkspaceItem = (message, now) => {
     status: getWorkspaceItemStatus(message, now),
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
+    sourceMessage: formatSourceMessageForPayload(message.sourceMessage),
     poll: type === 'poll' ? formatPoll(message.poll, now) : null,
     event: type === 'event' ? formatEvent(message.event, message, now) : null,
     checklist: type === 'checklist' ? formatChecklist(message.checklist) : null,

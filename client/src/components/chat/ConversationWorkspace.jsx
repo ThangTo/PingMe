@@ -29,6 +29,44 @@ const workspaceCacheStore = new Map();
 const makeCacheKey = (conversationId, status, type) => `${conversationId}:${status}:${type}`;
 const getIdString = (value) => value?._id?.toString?.() || value?.id?.toString?.() || value?.toString?.() || '';
 
+const normalizeSourceMessage = (sourceMessage) => {
+  const messageId = getIdString(sourceMessage?.messageId || sourceMessage?.message || sourceMessage?._id);
+  if (!messageId) return null;
+
+  return {
+    messageId,
+    senderId: getIdString(sourceMessage.senderId || sourceMessage.sender),
+    senderName: sourceMessage.senderName || sourceMessage.sender?.username || '',
+    senderAvatar: sourceMessage.senderAvatar || sourceMessage.sender?.avatar || '',
+    content: sourceMessage.content || '',
+    messageType: sourceMessage.messageType || 'text',
+    createdAt: sourceMessage.createdAt || null,
+  };
+};
+
+const SourceMessageLink = ({ sourceMessage, onJumpToMessage }) => {
+  if (!sourceMessage?.messageId) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onJumpToMessage?.(sourceMessage.messageId)}
+      className="mb-2 flex w-full min-w-0 items-start gap-2 rounded-[9px] border border-outline-variant bg-surface px-2.5 py-2 text-left text-xs text-on-surface-variant transition hover:bg-surface-container-low hover:text-on-surface"
+      title="Xem tin nhắn gốc"
+    >
+      <AppIcon name="reply" className="mt-0.5 shrink-0 text-[14px]" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold text-on-surface">
+          Từ tin nhắn của {sourceMessage.senderName || 'người dùng'}
+        </span>
+        <span className="line-clamp-2 break-words [overflow-wrap:anywhere]">
+          {sourceMessage.content || 'Tin nhắn nguồn'}
+        </span>
+      </span>
+    </button>
+  );
+};
+
 const formatCreatedAt = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -83,7 +121,12 @@ const normalizePoll = (poll) => {
 
 const normalizeChecklist = (checklist) => {
   if (!checklist?.title) return null;
-  const items = Array.isArray(checklist.items) ? checklist.items : [];
+  const items = Array.isArray(checklist.items)
+    ? checklist.items.map((item) => ({
+        ...item,
+        sourceMessage: normalizeSourceMessage(item.sourceMessage),
+      }))
+    : [];
   const completedItems = items.filter((item) => item.isDone).length;
 
   return {
@@ -107,6 +150,18 @@ const normalizeEvent = (event) => {
     rsvps: Array.isArray(event.rsvps) ? event.rsvps : [],
     isCancelled: event.status === 'cancelled' || Boolean(event.isCancelled),
     isPast: event.startsAt ? new Date(event.startsAt).getTime() <= Date.now() : false,
+  };
+};
+
+const normalizeWorkspaceItem = (item) => {
+  if (!item?.id || !item?.messageId || !item?.type) return null;
+
+  return {
+    ...item,
+    sourceMessage: normalizeSourceMessage(item.sourceMessage),
+    poll: normalizePoll(item.poll),
+    event: normalizeEvent(item.event),
+    checklist: normalizeChecklist(item.checklist),
   };
 };
 
@@ -190,7 +245,9 @@ function ConversationWorkspace({
               : {}),
           },
         });
-        const nextItems = Array.isArray(response.data?.items) ? response.data.items : [];
+        const nextItems = Array.isArray(response.data?.items)
+          ? response.data.items.map(normalizeWorkspaceItem).filter(Boolean)
+          : [];
 
         commitCacheEntry(key, (latest) => {
           const merged = new Map();
@@ -422,6 +479,8 @@ function ConversationWorkspace({
         <span className="shrink-0">{formatCreatedAt(item.createdAt)}</span>
       </div>
 
+      <SourceMessageLink sourceMessage={item.sourceMessage} onJumpToMessage={onJumpToMessage} />
+
       {item.type === 'poll' && (
         <PollMessageCard
           poll={item.poll}
@@ -452,6 +511,7 @@ function ConversationWorkspace({
           reactionUsersById={reactionUsersById}
           disabled={!canInteract}
           onToggle={onChecklistToggle}
+          onJumpToMessage={onJumpToMessage}
           variant="workspace"
         />
       )}
