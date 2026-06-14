@@ -424,6 +424,7 @@ const ChatArea = ({
   onLoadOlderMessages,
   messageFirstItemIndex = 100000,
   error = '',
+  syncStatus = 'idle',
 }) => {
   const { confirm } = useConfirmDialog();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -761,6 +762,18 @@ const ChatArea = ({
           >
             <AppIcon name="close" className="text-[21px]" />
           </button>
+        </div>
+      )}
+
+      {syncStatus === 'syncing' && (
+        <div className="shrink-0 border-b border-outline-variant bg-surface-container-low px-4 py-1.5 text-center text-xs font-medium text-on-surface-variant md:px-5">
+          Đang đồng bộ...
+        </div>
+      )}
+
+      {syncStatus === 'error' && (
+        <div className="shrink-0 border-b border-outline-variant bg-error-container px-4 py-1.5 text-center text-xs font-medium text-error md:px-5">
+          Chưa đồng bộ được, PingMe sẽ thử lại khi kết nối ổn định.
         </div>
       )}
 

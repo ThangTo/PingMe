@@ -271,7 +271,7 @@ Mục tiêu: nhiều thiết bị của cùng user đồng bộ tin nhắn, read
 | A1.3 Sync read state across devices | READY_TO_TEST | `readThroughMessageId`, read cursor sync tới mọi socket của cùng user và các member |
 | A1.4 Draft sync | READY_TO_TEST | Text draft theo conversation, persist REST và sync realtime giữa tab/device |
 | A1.5 Per-device notification settings | PLANNED | Mute device riêng |
-| A1.6 Offline sync queue | PLANNED | Khi reconnect fetch missed events |
+| A1.6 Offline sync queue | READY_TO_TEST | Khi reconnect fetch missed events |
 
 ## Pipeline A2 - Channels And Broadcast
 

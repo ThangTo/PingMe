@@ -15,14 +15,14 @@ import {
 } from '../services/scheduledMessage.service.js';
 import { uploadFileToStorage } from '../services/storage.service.js';
 
-const populateMessageQuery = (query) =>
+export const populateMessageQuery = (query) =>
   query
-    .populate('sender', 'username avatar')
-    .populate('recipient', 'username avatar')
+    .populate('sender', 'username pingId avatar')
+    .populate('recipient', 'username pingId avatar')
     .populate({
       path: 'replyTo',
       select: 'content attachment attachments sticker poll event checklist messageType sender isDeleted',
-      populate: { path: 'sender', select: 'username avatar' },
+      populate: { path: 'sender', select: 'username pingId avatar' },
     });
 
 const getUploadedFiles = (req) => {
@@ -233,7 +233,7 @@ const getMessageWindowAroundTarget = async (conversationId, targetMessageId, lim
   };
 };
 
-const serializeMessagesForReader = (messages, conversation, currentUserId) => {
+export const serializeMessagesForReader = (messages, conversation, currentUserId) => {
   if (conversation.type !== 'group') return messages;
 
   const currentMember = getConversationMember(conversation, currentUserId);
@@ -384,6 +384,7 @@ const messageController = {
 
       res.status(200).json({
         success: true,
+        serverNow: new Date().toISOString(),
         conversation: {
           _id: conversation._id,
           type: conversation.type,

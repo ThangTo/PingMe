@@ -198,7 +198,7 @@ const formatReadStates = (conversation, currentUserId) =>
     };
   });
 
-const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
+export const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
   const isSaved = conversation.type === 'saved';
   const currentMember = getConversationMember(conversation, currentUserId);
   const peerMember = getPeerMember(conversation, currentUserId);
@@ -275,7 +275,7 @@ const canRemoveGroupMember = (actorRole, targetRole) => {
   return actorRole === 'admin' && targetRole === 'member';
 };
 
-const populateConversationSummary = (conversationId) =>
+export const populateConversationSummary = (conversationId) =>
   Conversation.findById(conversationId)
     .populate('members.user', 'username pingId email avatar isOnline lastSeen friends privacySettings')
     .populate('lastMessage')
@@ -928,7 +928,11 @@ const conversationController = {
           return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
         });
 
-      res.status(200).json({ success: true, conversations: formattedConversations });
+      res.status(200).json({
+        success: true,
+        serverNow: new Date().toISOString(),
+        conversations: formattedConversations,
+      });
     } catch (error) {
       console.error('Lỗi lấy danh sách cuộc trò chuyện:', error);
       res.status(500).json({ error: 'Không thể lấy danh sách cuộc trò chuyện' });

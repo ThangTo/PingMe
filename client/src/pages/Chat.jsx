@@ -29,6 +29,11 @@ const MESSAGE_PAGE_LIMIT = 40;
 const MESSAGE_VIRTUAL_INDEX_BASE = 100000;
 const TYPING_USER_EXPIRE_MS = 4500;
 const DRAFT_SYNC_DEBOUNCE_MS = 700;
+const OFFLINE_SYNC_CONVERSATION_CURSOR_KEY = 'pingme_offline_sync_conversation_cursor';
+const OFFLINE_SYNC_MESSAGE_CURSOR_PREFIX = 'pingme_offline_sync_message_cursor:';
+const OFFLINE_SYNC_MESSAGE_LIMIT = 200;
+const OFFLINE_SYNC_CONVERSATION_LIMIT = 100;
+const OFFLINE_SYNC_MAX_PAGES = 5;
 const EMPTY_MESSAGE_PAGINATION = {
   hasMoreBefore: false,
   nextBefore: null,
@@ -41,6 +46,35 @@ const getMessageAttachments = ({ attachment, attachments } = {}) => {
 };
 
 const getIdString = (value) => value?._id?.toString?.() || value?.id || value?.toString?.() || '';
+
+const isValidDateString = (value) => {
+  if (typeof value !== 'string' || !value) return false;
+  return !Number.isNaN(new Date(value).getTime());
+};
+
+const readStoredCursor = (key) => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const value = window.localStorage.getItem(key);
+    return isValidDateString(value) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredCursor = (key, value) => {
+  if (typeof window === 'undefined' || !isValidDateString(value)) return;
+
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // localStorage co the bi khoa o private mode; sync van chay trong memory.
+  }
+};
+
+const getMessageSyncCursorKey = (conversationId) =>
+  `${OFFLINE_SYNC_MESSAGE_CURSOR_PREFIX}${conversationId}`;
 
 const normalizeReactions = (reactions = []) =>
   reactions.map((reaction) => ({
@@ -701,6 +735,7 @@ const Chat = () => {
   const [appNotifications, setAppNotifications] = useState([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [friendRequestCount, setFriendRequestCount] = useState(0);
+  const [offlineSyncStatus, setOfflineSyncStatus] = useState('idle');
   const [, setPresenceClock] = useState(0);
   const messagesRef = useRef(messages);
   const conversationsRef = useRef(conversations);
@@ -710,6 +745,16 @@ const Chat = () => {
   const draftPersistTimersRef = useRef(new Map());
   const pollCreateResolversRef = useRef(new Map());
   const checklistCreateResolversRef = useRef(new Map());
+  const conversationSyncCursorRef = useRef(
+    readStoredCursor(OFFLINE_SYNC_CONVERSATION_CURSOR_KEY),
+  );
+  const messageSyncCursorsRef = useRef(new Map());
+  const offlineSyncInFlightRef = useRef({
+    conversations: false,
+    conversationsById: new Set(),
+  });
+  const offlineSyncActiveCountRef = useRef(0);
+  const hasSeenConnectedSocketRef = useRef(false);
 
   useEffect(() => {
     const draftPersistTimers = draftPersistTimersRef.current;
@@ -736,6 +781,35 @@ const Chat = () => {
       checklistCreateResolvers.forEach(({ timeoutId }) => clearTimeout(timeoutId));
       checklistCreateResolvers.clear();
     };
+  }, []);
+
+  const getMessageSyncCursor = useCallback((conversationId) => {
+    if (!conversationId) return null;
+    const cachedCursor = messageSyncCursorsRef.current.get(conversationId);
+    if (cachedCursor) return cachedCursor;
+
+    const storedCursor = readStoredCursor(getMessageSyncCursorKey(conversationId));
+    if (storedCursor) {
+      messageSyncCursorsRef.current.set(conversationId, storedCursor);
+    }
+    return storedCursor;
+  }, []);
+
+  const setMessageSyncCursor = useCallback((conversationId, cursor) => {
+    if (!conversationId || !isValidDateString(cursor)) return;
+    messageSyncCursorsRef.current.set(conversationId, cursor);
+    writeStoredCursor(getMessageSyncCursorKey(conversationId), cursor);
+  }, []);
+
+  const markOfflineSyncStarted = useCallback(() => {
+    offlineSyncActiveCountRef.current += 1;
+    setOfflineSyncStatus('syncing');
+  }, []);
+
+  const markOfflineSyncFinished = useCallback((success = true) => {
+    offlineSyncActiveCountRef.current = Math.max(0, offlineSyncActiveCountRef.current - 1);
+    if (offlineSyncActiveCountRef.current > 0) return;
+    setOfflineSyncStatus(success ? 'idle' : 'error');
   }, []);
 
   const resetMessageWindow = useCallback((nextMessages = []) => {
@@ -1603,6 +1677,10 @@ const Chat = () => {
           };
         });
         setConversations(sortConversations(formattedFriends));
+        if (isValidDateString(response.data.serverNow)) {
+          conversationSyncCursorRef.current = response.data.serverNow;
+          writeStoredCursor(OFFLINE_SYNC_CONVERSATION_CURSOR_KEY, response.data.serverNow);
+        }
 
         try {
           const draftsResponse = await api.get('/conversations/drafts');
@@ -1781,6 +1859,259 @@ const Chat = () => {
     return () => window.removeEventListener('focus', handleWindowFocus);
   }, [markChatAsRead]);
 
+  const refreshOfflineSyncSideState = useCallback(
+    async (conversationId = null) => {
+      const tasks = [
+        api
+          .get('/conversations/drafts')
+          .then((response) => {
+            if (response.data.success) {
+              setDraftsByConversationId(formatDraftsByConversationId(response.data.drafts));
+            }
+          }),
+        loadScheduledMessages(conversationId || null),
+        loadEvents(conversationId || null),
+        loadRecurringReminders(conversationId || null),
+        api
+          .get('/notifications', { params: { limit: 1 } })
+          .then((response) => setNotificationUnreadCount(response.data.unreadCount || 0)),
+        fetchFriendRequestCount(),
+      ];
+
+      await Promise.allSettled(tasks);
+    },
+    [fetchFriendRequestCount, loadEvents, loadRecurringReminders, loadScheduledMessages],
+  );
+
+  const syncConversationsFromServer = useCallback(async () => {
+    if (!user?.id || offlineSyncInFlightRef.current.conversations) return false;
+
+    let cursor =
+      conversationSyncCursorRef.current ||
+      readStoredCursor(OFFLINE_SYNC_CONVERSATION_CURSOR_KEY);
+    if (!cursor) return false;
+
+    offlineSyncInFlightRef.current.conversations = true;
+    markOfflineSyncStarted();
+
+    try {
+      let nextCursor = cursor;
+
+      for (let page = 0; page < OFFLINE_SYNC_MAX_PAGES; page += 1) {
+        const response = await api.get('/sync/conversations', {
+          params: {
+            since: nextCursor,
+            limit: OFFLINE_SYNC_CONVERSATION_LIMIT,
+          },
+        });
+
+        if (!response.data?.success) break;
+
+        const formattedConversations = (response.data.conversations || [])
+          .map(formatConversationSummary)
+          .filter((conversation) => conversation.id);
+
+        if (formattedConversations.length > 0) {
+          setConversations((prev) => {
+            const conversationsById = new Map(prev.map((conversation) => [conversation.id, conversation]));
+
+            formattedConversations.forEach((conversation) => {
+              const existingConversation = conversationsById.get(conversation.id);
+              conversationsById.set(conversation.id, {
+                ...(existingConversation || {}),
+                ...conversation,
+              });
+            });
+
+            return sortConversations([...conversationsById.values()]);
+          });
+        }
+
+        const responseCursor = response.data.nextCursor;
+        if (!isValidDateString(responseCursor) || responseCursor === nextCursor) break;
+
+        nextCursor = responseCursor;
+        if (!response.data.hasMore) break;
+      }
+
+      conversationSyncCursorRef.current = nextCursor;
+      writeStoredCursor(OFFLINE_SYNC_CONVERSATION_CURSOR_KEY, nextCursor);
+      markOfflineSyncFinished(true);
+      return true;
+    } catch (error) {
+      console.error('Khong the dong bo danh sach conversation:', error);
+      markOfflineSyncFinished(false);
+      return false;
+    } finally {
+      offlineSyncInFlightRef.current.conversations = false;
+    }
+  }, [markOfflineSyncFinished, markOfflineSyncStarted, user?.id]);
+
+  const syncConversationFromServer = useCallback(
+    async (conversationId, options = {}) => {
+      if (!user?.id || !conversationId) return false;
+      if (offlineSyncInFlightRef.current.conversationsById.has(conversationId)) return false;
+
+      let cursor = getMessageSyncCursor(conversationId);
+      if (!cursor) return false;
+
+      offlineSyncInFlightRef.current.conversationsById.add(conversationId);
+      markOfflineSyncStarted();
+
+      try {
+        let nextCursor = cursor;
+
+        for (let page = 0; page < OFFLINE_SYNC_MAX_PAGES; page += 1) {
+          const response = await api.get(`/sync/conversations/${conversationId}`, {
+            params: {
+              since: nextCursor,
+              limit: OFFLINE_SYNC_MESSAGE_LIMIT,
+            },
+          });
+
+          if (!response.data?.success) break;
+
+          if (response.data.conversation) {
+            const formattedConversation = formatConversationSummary(response.data.conversation);
+            if (formattedConversation.id) {
+              setConversations((prev) => {
+                const existingConversation = prev.find(
+                  (conversation) => conversation.id === formattedConversation.id,
+                );
+                const otherConversations = prev.filter(
+                  (conversation) => conversation.id !== formattedConversation.id,
+                );
+                return sortConversations([
+                  { ...(existingConversation || {}), ...formattedConversation },
+                  ...otherConversations,
+                ]);
+              });
+            }
+          }
+
+          const conversationContext =
+            conversationsRef.current.find((conversation) => conversation.id === conversationId) ||
+            response.data.conversation ||
+            { name: '' };
+          const normalizedMessages = (response.data.messages || []).map((message) =>
+            normalizeMessage(message, conversationId, user, conversationContext),
+          );
+
+          if (normalizedMessages.length > 0 && conversationId === selectedConversationId) {
+            mergeMessageWindow(normalizedMessages);
+          }
+
+          const responseCursor = response.data.nextCursor;
+          if (!isValidDateString(responseCursor) || responseCursor === nextCursor) break;
+
+          nextCursor = responseCursor;
+          if (!response.data.hasMore) break;
+        }
+
+        setMessageSyncCursor(conversationId, nextCursor);
+        if (options.refreshSideState) {
+          await refreshOfflineSyncSideState(conversationId);
+        }
+        if (conversationId === selectedConversationId && document.hasFocus()) {
+          window.setTimeout(markChatAsRead, 0);
+        }
+        markOfflineSyncFinished(true);
+        return true;
+      } catch (error) {
+        const status = error.response?.status;
+        if (status === 403 || status === 404) {
+          setConversations((prev) =>
+            prev.filter((conversation) => conversation.id !== conversationId),
+          );
+          if (selectedConversationId === conversationId) {
+            setSelectedConversationId(null);
+            setShowDetails(false);
+            resetMessageWindow();
+          }
+        }
+
+        console.error('Khong the dong bo conversation:', error);
+        markOfflineSyncFinished(false);
+        return false;
+      } finally {
+        offlineSyncInFlightRef.current.conversationsById.delete(conversationId);
+      }
+    },
+    [
+      getMessageSyncCursor,
+      markChatAsRead,
+      markOfflineSyncFinished,
+      markOfflineSyncStarted,
+      mergeMessageWindow,
+      refreshOfflineSyncSideState,
+      resetMessageWindow,
+      selectedConversationId,
+      setMessageSyncCursor,
+      user,
+    ],
+  );
+
+  const runOfflineSync = useCallback(
+    async ({ refreshSideState = false } = {}) => {
+      if (!user?.id) return;
+
+      await syncConversationsFromServer();
+      if (selectedConversationId) {
+        await syncConversationFromServer(selectedConversationId, { refreshSideState });
+      } else if (refreshSideState) {
+        await refreshOfflineSyncSideState(null);
+      }
+    },
+    [
+      refreshOfflineSyncSideState,
+      selectedConversationId,
+      syncConversationFromServer,
+      syncConversationsFromServer,
+      user?.id,
+    ],
+  );
+
+  useEffect(() => {
+    if (!user?.id) {
+      hasSeenConnectedSocketRef.current = false;
+      return;
+    }
+
+    if (!isConnected) return;
+
+    const hasReconnected = hasSeenConnectedSocketRef.current;
+    hasSeenConnectedSocketRef.current = true;
+
+    if (hasReconnected) {
+      void runOfflineSync({ refreshSideState: true });
+    }
+  }, [isConnected, runOfflineSync, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    const syncWhenOnline = () => {
+      void runOfflineSync({ refreshSideState: true });
+    };
+    const syncWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void runOfflineSync({ refreshSideState: true });
+    };
+
+    window.addEventListener('online', syncWhenOnline);
+    document.addEventListener('visibilitychange', syncWhenVisible);
+
+    return () => {
+      window.removeEventListener('online', syncWhenOnline);
+      document.removeEventListener('visibilitychange', syncWhenVisible);
+    };
+  }, [runOfflineSync, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !selectedConversationId || !isConnected) return;
+    void syncConversationFromServer(selectedConversationId);
+  }, [isConnected, selectedConversationId, syncConversationFromServer, user?.id]);
+
   useEffect(() => {
     if (user) fetchFriends();
   }, [user, fetchFriends]);
@@ -1811,6 +2142,10 @@ const Chat = () => {
         if (!isActive) return;
 
         if (response.data.success) {
+          if (isValidDateString(response.data.serverNow)) {
+            setMessageSyncCursor(selectedConversationId, response.data.serverNow);
+          }
+
           const normalizedMessages = response.data.messages.map((msg) =>
             normalizeMessage(msg, selectedConversationId, user, { name: currentChatUserName }),
           );
@@ -1872,7 +2207,7 @@ const Chat = () => {
     return () => {
       isActive = false;
     };
-  }, [selectedConversationId, user, currentChatUserName, resetMessageWindow]);
+  }, [selectedConversationId, user, currentChatUserName, resetMessageWindow, setMessageSyncCursor]);
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -3749,6 +4084,7 @@ const Chat = () => {
                     onLoadOlderMessages={loadOlderMessages}
                     messageFirstItemIndex={messageFirstItemIndex}
                     error={messagesError}
+                    syncStatus={offlineSyncStatus}
                   />
                   {showDetails && currentChatUser && (
                     <ChatDetailsPanel

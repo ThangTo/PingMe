@@ -150,7 +150,7 @@ Mục tiêu: làm PingMe trở thành nơi người dùng muốn mở mỗi ngà
 | 1.3 Scheduled Messages | READY_TO_TEST | P1 | `#retention #notification #queue` | Gửi sau theo thời điểm user chọn | Job gửi đúng giờ, trạng thái pending/sent/failed rõ |
 | 1.4 Recurring Reminders | READY_TO_TEST | P1 | `#retention #notification` | Nhắc định kỳ trong Saved Messages hoặc conversation | Reminder daily/weekly/monthly, có snooze/dismiss |
 | 1.5 QR/Profile Sharing | READY_TO_TEST | P1 | `#growth #mobile` | Share PingMe ID bằng QR/link, mở ra profile hoặc add friend | Người mới join từ link có flow rõ, không bị rơi vào màn hình trống |
-| 1.6 Offline Sync Queue | PLANNED | P1 | `#sync #realtime #scale` | Khi reconnect, fetch missed messages/events/settings | Không mất unread/read state sau mất mạng |
+| 1.6 Offline Sync Queue | READY_TO_TEST | P1 | `#sync #realtime #scale` | Khi reconnect, fetch missed messages/events/settings | Không mất unread/read state sau mất mạng |
 
 Realtime notes:
 
