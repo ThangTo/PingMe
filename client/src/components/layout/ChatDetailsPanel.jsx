@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import { useCall } from '../../context/CallContext';
 import { getPresenceText } from '../../utils/presence';
@@ -9,6 +9,8 @@ import AppModal from '../ui/AppModal';
 import Avatar from '../ui/Avatar';
 import { useConfirmDialog } from '../ui/confirmDialogContext';
 import { useToast } from '../ui/toastContext';
+
+const ConversationAppearanceModal = lazy(() => import('../chat/ConversationAppearanceModal'));
 
 const fallbackAvatar =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBahpFjkcHIiXnez71G-AraliNtmi5v8RquQh32J3n6EOHz1qvVsa2SYxXapR9iaamKNqQ30JzpziX2OAreG_C-9h3wCctRkHorqJ01Yo1MdgqGjvfPRhctrnu7ARwCdwvHK1fl42HCqMJ1A8sbW5bbHtGPpcdjeETYrHqW5A8y82nlhgH6kIfDZUHoGLWDZh1CnnzHQXHoYKEVy3EPNv_qviB9kBtZtTURL2tkJ8kXPpmPaIssR1Y1sPBi9mqbn6eO6qnCSw6q6xLP';
@@ -147,6 +149,8 @@ const ChatDetailsPanel = ({
   onRemoveGroupMember,
   onUpdateGroupMemberRole,
   onUpdateConversationNotifications,
+  onUpdateConversationAppearance,
+  onUploadConversationBackground,
   reactionUsersById = {},
   onPollVote,
   onEventRsvp,
@@ -180,6 +184,7 @@ const ChatDetailsPanel = ({
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportDetails, setReportDetails] = useState('');
   const [isReporting, setIsReporting] = useState(false);
+  const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
   const memberMenuRef = useRef(null);
   const isGroup = Boolean(user?.isGroup);
   const isSaved = Boolean(user?.isSaved);
@@ -243,9 +248,10 @@ const ChatDetailsPanel = ({
       onClick: () => handleStartCall('video'),
     },
     { icon: 'search', label: 'Tìm kiếm', onClick: () => setActiveTab('media') },
+    { icon: 'palette', label: 'Giao diện', onClick: () => setIsAppearanceOpen(true) },
     { icon: 'notifications_off', label: 'Tắt thông báo', hideForSaved: true },
   ].filter((item) => !((isGroup || isSaved) && item.directOnly) && !(isSaved && item.hideForSaved));
-  const actionGridColumns = isSaved ? 'grid-cols-1' : isGroup ? 'grid-cols-2' : 'grid-cols-4';
+  const actionGridColumns = isSaved ? 'grid-cols-2' : isGroup ? 'grid-cols-3' : 'grid-cols-3';
 
   const handleToggleConversationNotifications = async () => {
     if (!user?.id) return;
@@ -603,6 +609,18 @@ const ChatDetailsPanel = ({
         </div>
       )}
 
+      {isAppearanceOpen && (
+        <Suspense fallback={null}>
+          <ConversationAppearanceModal
+            open
+            appearance={user?.appearance}
+            onSave={(payload) => onUpdateConversationAppearance?.(user.id, payload)}
+            onUploadBackground={(file) => onUploadConversationBackground?.(user.id, file)}
+            onClose={() => setIsAppearanceOpen(false)}
+          />
+        </Suspense>
+      )}
+
       <AppModal
         open={isReportModalOpen}
         title={`Báo cáo ${user?.name || 'người dùng'}`}
@@ -893,7 +911,7 @@ const ChatDetailsPanel = ({
                     type="button"
                     onClick={handleAddMembers}
                     disabled={isAddingMembers || selectedMemberIds.length === 0}
-                    className="h-9 flex-1 rounded-lg bg-primary text-xs font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-55"
+                    className="h-9 flex-1 rounded-lg bg-primary text-xs font-semibold text-on-primary transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-55"
                   >
                     {isAddingMembers ? 'Đang thêm...' : 'Thêm'}
                   </button>

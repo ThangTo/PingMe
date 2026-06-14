@@ -22,6 +22,7 @@
   --color-outline-variant: #EEECE6;
 
   --color-primary: #222320;
+  --color-on-primary: #FBFAF7;
   --color-secondary: #2F8A63;
   --color-secondary-container: #E1F1E8;
   --color-error: #D85E4A;
@@ -43,6 +44,7 @@
   .bg-accent-soft { background-color: var(--color-accent-soft); }
 
   .text-primary { color: var(--color-primary); }
+  .text-on-primary { color: var(--color-on-primary); }
   .text-secondary { color: var(--color-secondary); }
   .text-accent { color: var(--color-accent); }
 
@@ -77,6 +79,7 @@
     --color-outline-variant: #262B27;
 
     --color-primary: #F2F1EC;
+    --color-on-primary: #171A17;
     --color-secondary: #5BC18D;
     --color-secondary-container: #1E3B2C;
     --color-error: #F07A68;
@@ -161,6 +164,69 @@
     background: linear-gradient(90deg, transparent, var(--color-outline), transparent);
   }
 
+  .appearance-range {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    height: 22px;
+    cursor: pointer;
+    accent-color: var(--color-secondary);
+  }
+
+  .appearance-range:focus-visible {
+    outline: none;
+  }
+
+  .appearance-range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background:
+      linear-gradient(
+        90deg,
+        var(--color-secondary) 0 var(--range-progress, 0%),
+        var(--color-surface-container-high) var(--range-progress, 0%) 100%
+      );
+    border: 1px solid var(--color-outline-variant);
+  }
+
+  .appearance-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border-radius: 999px;
+    border: 3px solid var(--color-surface-container-lowest);
+    background: var(--color-secondary);
+    box-shadow: 0 2px 8px rgba(31, 32, 29, 0.16);
+  }
+
+  .appearance-range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-secondary) 22%, transparent);
+  }
+
+  .appearance-range::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-surface-container-high);
+    border: 1px solid var(--color-outline-variant);
+  }
+
+  .appearance-range::-moz-range-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-secondary);
+  }
+
+  .appearance-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    border: 3px solid var(--color-surface-container-lowest);
+    background: var(--color-secondary);
+    box-shadow: 0 2px 8px rgba(31, 32, 29, 0.16);
+  }
+
   /* Giữ nguyên Animation của bạn vì nó xử lý UX rất tốt */
   @keyframes messagePop {
     0% { opacity: 0; transform: translateY(4px); }
@@ -178,6 +244,184 @@
 
   .animate-fade-in {
     animation: fadeIn 0.2s ease-out forwards;
+  }
+
+  .chat-bg-preset-default {
+    background:
+      radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--color-surface) 84%, transparent), transparent 34%),
+      var(--color-background);
+  }
+
+  .chat-bg-preset-paper-doodles {
+    background-color: #fff8ed;
+    background-image:
+      radial-gradient(circle at 18px 16px, rgba(235, 128, 58, 0.16) 0 2px, transparent 2.5px),
+      radial-gradient(circle at 74px 52px, rgba(47, 138, 99, 0.12) 0 2px, transparent 2.5px),
+      linear-gradient(135deg, rgba(235, 128, 58, 0.08) 0 8%, transparent 8% 50%, rgba(235, 128, 58, 0.06) 50% 58%, transparent 58%);
+    background-size: 96px 96px, 112px 112px, 72px 72px;
+  }
+
+  .chat-bg-preset-soft-stars {
+    background-color: #eef6fb;
+    background-image:
+      radial-gradient(circle at 24px 24px, rgba(53, 111, 146, 0.18) 0 1.5px, transparent 2px),
+      radial-gradient(circle at 84px 54px, rgba(47, 138, 99, 0.12) 0 2px, transparent 2.5px);
+    background-size: 92px 92px, 124px 124px;
+  }
+
+  .chat-bg-preset-warm-grid {
+    background-color: #f4ecdd;
+    background-image:
+      linear-gradient(rgba(34, 35, 32, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 35, 32, 0.045) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+
+  .chat-bg-preset-playful-clouds {
+    background-color: #edf8f4;
+    background-image:
+      radial-gradient(ellipse at 22px 26px, rgba(255, 255, 255, 0.9) 0 14px, transparent 15px),
+      radial-gradient(ellipse at 54px 26px, rgba(255, 255, 255, 0.86) 0 18px, transparent 19px),
+      radial-gradient(ellipse at 38px 18px, rgba(255, 255, 255, 0.72) 0 15px, transparent 16px);
+    background-size: 156px 98px;
+  }
+
+  html[data-theme='dark'] .chat-bg-preset-paper-doodles {
+    background-color: #181511;
+    background-image:
+      radial-gradient(circle at 18px 16px, rgba(240, 160, 92, 0.16) 0 2px, transparent 2.5px),
+      radial-gradient(circle at 74px 52px, rgba(91, 193, 141, 0.13) 0 2px, transparent 2.5px),
+      linear-gradient(135deg, rgba(240, 160, 92, 0.06) 0 8%, transparent 8% 50%, rgba(240, 160, 92, 0.045) 50% 58%, transparent 58%);
+  }
+
+  html[data-theme='dark'] .chat-bg-preset-soft-stars {
+    background-color: #101923;
+    background-image:
+      radial-gradient(circle at 24px 24px, rgba(119, 180, 213, 0.22) 0 1.5px, transparent 2px),
+      radial-gradient(circle at 84px 54px, rgba(91, 193, 141, 0.14) 0 2px, transparent 2.5px);
+  }
+
+  html[data-theme='dark'] .chat-bg-preset-warm-grid {
+    background-color: #17140f;
+    background-image:
+      linear-gradient(rgba(242, 241, 236, 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(242, 241, 236, 0.055) 1px, transparent 1px);
+  }
+
+  html[data-theme='dark'] .chat-bg-preset-playful-clouds {
+    background-color: #102019;
+    background-image:
+      radial-gradient(ellipse at 22px 26px, rgba(242, 241, 236, 0.14) 0 14px, transparent 15px),
+      radial-gradient(ellipse at 54px 26px, rgba(242, 241, 236, 0.12) 0 18px, transparent 19px),
+      radial-gradient(ellipse at 38px 18px, rgba(91, 193, 141, 0.12) 0 15px, transparent 16px);
+  }
+
+  .chat-bubble-themed {
+    position: relative;
+  }
+
+  .chat-bubble-themed::before,
+  .chat-bubble-themed::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .chat-bubble-themed > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .chat-bubble-theme-cloud {
+    border-radius: 18px;
+  }
+
+  .chat-bubble-theme-cloud::before {
+    width: 38px;
+    height: 20px;
+    top: -8px;
+    left: 18px;
+    border-radius: 999px;
+    background: inherit;
+    border: inherit;
+    border-bottom: 0;
+  }
+
+  .chat-bubble-theme-cloud::after {
+    width: 28px;
+    height: 16px;
+    bottom: -5px;
+    right: 20px;
+    border-radius: 999px;
+    background: inherit;
+    border: inherit;
+    border-top: 0;
+  }
+
+  .chat-bubble-theme-cat::before,
+  .chat-bubble-theme-bear::before,
+  .chat-bubble-theme-bunny::before {
+    background: inherit;
+    border: inherit;
+  }
+
+  .chat-bubble-theme-cat::before {
+    width: 18px;
+    height: 18px;
+    top: -8px;
+    left: 16px;
+    border-radius: 4px 16px 4px 16px;
+    transform: rotate(45deg);
+  }
+
+  .chat-bubble-theme-cat::after {
+    width: 18px;
+    height: 18px;
+    top: -8px;
+    right: 16px;
+    border-radius: 16px 4px 16px 4px;
+    transform: rotate(45deg);
+    background: inherit;
+    border: inherit;
+  }
+
+  .chat-bubble-theme-bear::before,
+  .chat-bubble-theme-bear::after {
+    width: 19px;
+    height: 19px;
+    top: -8px;
+    border-radius: 999px;
+    background: inherit;
+    border: inherit;
+  }
+
+  .chat-bubble-theme-bear::before {
+    left: 14px;
+  }
+
+  .chat-bubble-theme-bear::after {
+    right: 14px;
+  }
+
+  .chat-bubble-theme-bunny::before,
+  .chat-bubble-theme-bunny::after {
+    width: 14px;
+    height: 28px;
+    top: -18px;
+    border-radius: 999px 999px 8px 8px;
+    background: inherit;
+    border: inherit;
+  }
+
+  .chat-bubble-theme-bunny::before {
+    left: 18px;
+    transform: rotate(-10deg);
+  }
+
+  .chat-bubble-theme-bunny::after {
+    left: 36px;
+    transform: rotate(10deg);
   }
 
   @media (max-width: 767px) {

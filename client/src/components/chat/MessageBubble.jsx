@@ -218,6 +218,29 @@ const LinkPreviewCard = ({ preview }) => {
   );
 };
 
+const getSafeBubbleThemeId = (themeId = 'classic') =>
+  ['classic', 'cloud', 'cat', 'bear', 'bunny'].includes(themeId) ? themeId : 'classic';
+
+const ThemedTextBubble = ({ isOwn = false, themeId = 'classic', children }) => {
+  const safeThemeId = getSafeBubbleThemeId(themeId);
+  const isClassic = safeThemeId === 'classic';
+  const themeClass = isClassic ? '' : `chat-bubble-themed chat-bubble-theme-${safeThemeId}`;
+
+  return (
+    <div
+      className={`min-w-0 max-w-[min(320px,64vw)] px-3.5 py-2.5 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere] md:max-w-[min(520px,68vw)] ${
+        isClassic ? 'rounded-[12px]' : 'mt-2 rounded-[16px]'
+      } ${
+        isOwn
+          ? 'bg-surface-container-high text-on-surface rounded-br-[4px]'
+          : 'border border-outline-variant bg-surface-container-lowest text-on-surface rounded-bl-[4px]'
+      } ${themeClass}`}
+    >
+      {children}
+    </div>
+  );
+};
+
 const CompactVoicePlayer = ({ src, duration = 0 }) => {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -413,6 +436,7 @@ const MessageBubble = ({
   onForwardMessage,
   onJumpToMessage,
   onOpenSenderProfile,
+  bubbleThemeId = 'classic',
   isPinned = false,
   showMeta = true,
   onToggleMeta,
@@ -1262,17 +1286,11 @@ const MessageBubble = ({
                 )}
 
                 {shouldRenderTextBubble ? (
-                  <div
-                    className={`min-w-0 max-w-[min(320px,64vw)] rounded-[12px] px-3.5 py-2.5 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere] md:max-w-[min(520px,68vw)] ${
-                      isOwn
-                        ? 'bg-surface-container-high text-on-surface rounded-br-[4px]'
-                        : 'border border-outline-variant bg-surface-container-lowest text-on-surface rounded-bl-[4px]'
-                    }`}
-                  >
+                  <ThemedTextBubble isOwn={isOwn} themeId={bubbleThemeId}>
                     <span className="block whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                       {renderedMessageContent}
                     </span>
-                  </div>
+                  </ThemedTextBubble>
                 ) : null}
 
                 {linkPreview && <LinkPreviewCard preview={linkPreview} />}
@@ -1517,6 +1535,7 @@ const areMessageBubblePropsEqual = (prevProps, nextProps) =>
   prevProps.currentUserId === nextProps.currentUserId &&
   prevProps.isPinned === nextProps.isPinned &&
   prevProps.showMeta === nextProps.showMeta &&
+  prevProps.bubbleThemeId === nextProps.bubbleThemeId &&
   prevProps.isActionMenuOpen === nextProps.isActionMenuOpen &&
   prevProps.reactionUsersById === nextProps.reactionUsersById &&
   stringifyComparable(prevProps.readReceipts) === stringifyComparable(nextProps.readReceipts) &&

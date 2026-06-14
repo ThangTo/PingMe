@@ -4,6 +4,7 @@ import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
 import AppIcon from '../ui/AppIcon';
 import { useConfirmDialog } from '../ui/confirmDialogContext';
+import { normalizeConversationAppearance } from '../../utils/conversationAppearance';
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
@@ -441,6 +442,26 @@ const ChatArea = ({
     currentUser?.latestPinnedMessage || currentUser?.pinnedMessage || pinnedMessages[0] || null;
   const pinnedMessageCount = currentUser?.pinnedMessageCount ?? pinnedMessages.length;
   const pinnedMessageIds = pinnedMessages.map((message) => message.id).filter(Boolean);
+  const appearance = useMemo(
+    () => normalizeConversationAppearance(currentUser?.appearance),
+    [currentUser?.appearance],
+  );
+  const background = appearance.background;
+  const bubbleThemeId = appearance.bubbleTheme.presetId;
+  const backgroundClass =
+    background.type === 'uploaded'
+      ? 'bg-surface-container-low'
+      : `chat-bg-preset-${background.presetId}`;
+  const uploadedBackgroundStyle = background.type === 'uploaded'
+    ? {
+        backgroundImage: `url(${background.imageUrl})`,
+        backgroundSize: background.fit,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        filter: background.blur ? `blur(${background.blur}px)` : undefined,
+        transform: background.blur ? 'scale(1.03)' : undefined,
+      }
+    : undefined;
   const readReceiptsByMessageId = useMemo(() => {
     const membersById = new Map(
       (currentUser?.members || []).map((member) => [
@@ -779,38 +800,51 @@ const ChatArea = ({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 bg-background">
-        <MessageList
-          messages={messages}
-          conversationId={currentUser?.id}
-          currentUserId={currentUserId}
-          reactionUsersById={reactionUsersById}
-          onReaction={onReaction}
-          onPollVote={onPollVote}
-          onEventRsvp={onEventRsvp}
-          onChecklistToggle={onChecklistToggle}
-          onCancelEvent={onCancelEvent}
-          isLoading={isLoading}
-          isLoadingOlderMessages={isLoadingOlderMessages}
-          hasOlderMessages={hasOlderMessages}
-          onLoadOlderMessages={requestOlderMessages}
-          firstItemIndex={messageFirstItemIndex}
-          error={error}
-          searchQuery={searchQuery}
-          searchMatchIds={searchMatchIds}
-          activeSearchMessageId={activeSearchMessageId}
-          pinnedMessageIds={pinnedMessageIds}
-          readReceiptsByMessageId={readReceiptsByMessageId}
-          jumpToMessageSignal={jumpToMessageSignal}
-          typingUsers={typingUsers}
-          onEditMessage={onStartEditMessage}
-          onDeleteMessage={onDeleteMessage}
-          onReplyMessage={onStartReplyMessage}
-          onPinMessage={onPinMessage}
-          onEvolveMessage={onEvolveMessage}
-          onForwardMessage={onForwardMessage}
-          onOpenSenderProfile={onOpenSenderProfile}
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
+        <div className={`pointer-events-none absolute inset-0 ${backgroundClass}`} style={uploadedBackgroundStyle} />
+        <div
+          className="pointer-events-none absolute inset-0 bg-background"
+          style={{
+            opacity: background.dim,
+            backdropFilter: background.type !== 'uploaded' && background.blur
+              ? `blur(${background.blur}px)`
+              : undefined,
+          }}
         />
+        <div className="relative z-10 h-full">
+          <MessageList
+            messages={messages}
+            conversationId={currentUser?.id}
+            currentUserId={currentUserId}
+            reactionUsersById={reactionUsersById}
+            onReaction={onReaction}
+            onPollVote={onPollVote}
+            onEventRsvp={onEventRsvp}
+            onChecklistToggle={onChecklistToggle}
+            onCancelEvent={onCancelEvent}
+            isLoading={isLoading}
+            isLoadingOlderMessages={isLoadingOlderMessages}
+            hasOlderMessages={hasOlderMessages}
+            onLoadOlderMessages={requestOlderMessages}
+            firstItemIndex={messageFirstItemIndex}
+            error={error}
+            searchQuery={searchQuery}
+            searchMatchIds={searchMatchIds}
+            activeSearchMessageId={activeSearchMessageId}
+            pinnedMessageIds={pinnedMessageIds}
+            readReceiptsByMessageId={readReceiptsByMessageId}
+            jumpToMessageSignal={jumpToMessageSignal}
+            typingUsers={typingUsers}
+            bubbleThemeId={bubbleThemeId}
+            onEditMessage={onStartEditMessage}
+            onDeleteMessage={onDeleteMessage}
+            onReplyMessage={onStartReplyMessage}
+            onPinMessage={onPinMessage}
+            onEvolveMessage={onEvolveMessage}
+            onForwardMessage={onForwardMessage}
+            onOpenSenderProfile={onOpenSenderProfile}
+          />
+        </div>
       </div>
 
       <ScheduledMessagesStrip

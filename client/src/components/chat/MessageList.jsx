@@ -117,6 +117,7 @@ const MessageList = ({
   readReceiptsByMessageId = {},
   jumpToMessageSignal,
   typingUsers = [],
+  bubbleThemeId = 'classic',
 }) => {
   const virtuosoRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
@@ -430,6 +431,7 @@ const MessageList = ({
               onEvolveMessage={onEvolveMessage}
               onForwardMessage={onForwardMessage}
               onOpenSenderProfile={onOpenSenderProfile}
+              bubbleThemeId={bubbleThemeId}
               isPinned={pinnedMessageIdSet.has(message.id)}
               showMeta={showMeta}
               onToggleMeta={toggleMessageMeta}
@@ -464,6 +466,7 @@ const MessageList = ({
       onReplyMessage,
       openActionMenu,
       closeActionMenu,
+      bubbleThemeId,
       pinnedMessageIdSet,
       reactionUsersById,
       readReceiptsByMessageId,
@@ -505,12 +508,12 @@ const MessageList = ({
   }
 
   return (
-    <div className="relative h-full bg-background">
+    <div className="relative h-full bg-transparent">
       <Virtuoso
         key={conversationId || 'conversation'}
         ref={virtuosoRef}
         data={visibleMessages}
-        className="no-scrollbar h-full bg-background"
+        className="no-scrollbar h-full bg-transparent"
         data-message-total={visibleMessages.length}
         firstItemIndex={safeFirstItemIndex}
         initialTopMostItemIndex={{ index: 'LAST', align: 'end' }}

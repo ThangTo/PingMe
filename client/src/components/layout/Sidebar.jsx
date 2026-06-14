@@ -1021,6 +1021,7 @@ const Sidebar = ({
                   ) : (
                     <div className="h-[min(560px,calc(100dvh-260px))] min-h-[180px]">
                       <Virtuoso
+                        className="h-full no-scrollbar"
                         data={friendOptions}
                         computeItemKey={(_, friend) => friend.id}
                         itemContent={(_, friend) => renderFriendConversationRow(friend)}
@@ -1145,7 +1146,7 @@ const Sidebar = ({
               </div>
             ) : (
               <Virtuoso
-                className="h-full"
+                className="h-full no-scrollbar"
                 data={filteredConversations}
                 computeItemKey={(_, conv) => conv.id}
                 itemContent={(_, conv) => renderConversationRow(conv)}
@@ -1292,6 +1293,28 @@ const Sidebar = ({
         )}
       </div>
 
+      {isDirectoryMode && selectedConnectionUserId && selectedConnectionUser && (
+        <div
+          className="fixed inset-0 z-[9970] flex items-center justify-center bg-[#1f1d1a]/45 px-3 py-6 backdrop-blur-sm md:hidden"
+          onClick={() => setSelectedConnectionUserId('')}
+        >
+          <div
+            className="no-scrollbar max-h-[min(80dvh,640px)] w-full max-w-[440px] overflow-y-auto"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Suspense fallback={<ProfileViewerFallback />}>
+              <ProfileViewer
+                pingId={selectedConnectionUser.pingId}
+                initialProfile={selectedConnectionUser}
+                onClose={() => setSelectedConnectionUserId('')}
+                onRelationshipChange={handleProfileRelationshipChange}
+                onFriendAdded={onFriendAdded}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
+
       {isGroupComposerOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end bg-[#1f1d1a]/45 md:items-center md:justify-center"
@@ -1418,7 +1441,7 @@ const Sidebar = ({
                     </div>
                   ) : (
                     <Virtuoso
-                      className="h-full"
+                      className="h-full no-scrollbar"
                       data={filteredGroupFriends}
                       computeItemKey={(_, friend) => friend.peerId}
                       itemContent={(_, friend) => renderGroupFriendRow(friend)}
@@ -1447,7 +1470,7 @@ const Sidebar = ({
                 disabled={
                   isCreatingGroup || !groupTitle.trim() || selectedGroupMemberIds.length === 0
                 }
-                className="h-11 flex-1 rounded-lg bg-primary text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-55"
+                className="h-11 flex-1 rounded-lg bg-primary text-sm font-semibold text-on-primary transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
               </button>

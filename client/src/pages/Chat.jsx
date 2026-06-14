@@ -14,6 +14,7 @@ import api from '../config/api';
 import AppIcon from '../components/ui/AppIcon';
 import { useConfirmDialog } from '../components/ui/confirmDialogContext';
 import { showClientNotification } from '../services/pushNotifications';
+import { normalizeConversationAppearance } from '../utils/conversationAppearance';
 
 const ChatDetailsPanel = lazy(() => import('../components/layout/ChatDetailsPanel'));
 const SettingsPanel = lazy(() => import('../components/layout/SettingsPanel'));
@@ -661,6 +662,7 @@ const formatConversationSummary = (conversation) => {
     unreadCount: isSaved ? 0 : conversation.unreadCount || 0,
     mutedUntil: conversation.mutedUntil || null,
     notificationsMuted: !isSaved && Boolean(conversation.notificationsMuted),
+    appearance: normalizeConversationAppearance(conversation.appearance),
     readState: conversation.readState || null,
     readStates: normalizeReadStates(conversation.readStates),
     pinnedMessages,
@@ -2005,6 +2007,57 @@ const Chat = () => {
     return response.data;
   }, []);
 
+  const patchConversationAppearance = useCallback((conversationId, appearance) => {
+    if (!conversationId || !appearance) return;
+    const normalizedAppearance = normalizeConversationAppearance(appearance);
+
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              appearance: normalizedAppearance,
+            }
+          : conv,
+      ),
+    );
+  }, []);
+
+  const handleUpdateConversationAppearance = useCallback(
+    async (conversationId, payload) => {
+      const response = await api.patch(`/conversations/${conversationId}/appearance`, payload);
+
+      if (response.data.success) {
+        patchConversationAppearance(conversationId, response.data.appearance);
+      }
+
+      return response.data;
+    },
+    [patchConversationAppearance],
+  );
+
+  const handleUploadConversationBackground = useCallback(
+    async (conversationId, file) => {
+      const formData = new FormData();
+      formData.append('background', file);
+
+      const response = await api.post(
+        `/conversations/${conversationId}/appearance/background`,
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        },
+      );
+
+      if (response.data.success) {
+        patchConversationAppearance(conversationId, response.data.appearance);
+      }
+
+      return normalizeConversationAppearance(response.data.appearance);
+    },
+    [patchConversationAppearance],
+  );
+
   const markChatAsRead = useCallback(() => {
     if (selectedConversationId && user && document.hasFocus()) {
       const currentMessages = messagesRef.current;
@@ -2685,6 +2738,13 @@ const Chat = () => {
       handleConversationNotificationSettingsUpdated,
     );
 
+    const handleConversationAppearanceUpdated = (data) => {
+      if (!data?.conversationId || !data.appearance) return;
+      patchConversationAppearance(data.conversationId, data.appearance);
+    };
+
+    socket.on('conversation_appearance_updated', handleConversationAppearanceUpdated);
+
     const handleMessagesRead = (data) => {
       console.log('Người kia đã đọc tin nhắn:', data);
 
@@ -3236,6 +3296,7 @@ const Chat = () => {
         'conversation_notification_settings_updated',
         handleConversationNotificationSettingsUpdated,
       );
+      socket.off('conversation_appearance_updated', handleConversationAppearanceUpdated);
       socket.off('messages_were_read', handleMessagesRead);
       socket.off('conversation_read_state_updated', handleConversationReadStateUpdated);
       socket.off('reaction_added', handleAddReaction);
@@ -3265,6 +3326,7 @@ const Chat = () => {
     fetchFriends,
     upsertConversation,
     applyConversationMembersUpdate,
+    patchConversationAppearance,
     removeTypingUser,
     showAppNotification,
     shouldNotifyConversation,
@@ -4522,6 +4584,8 @@ const Chat = () => {
                         onRemoveGroupMember={handleRemoveGroupMember}
                         onUpdateGroupMemberRole={handleUpdateGroupMemberRole}
                         onUpdateConversationNotifications={handleUpdateConversationNotifications}
+                        onUpdateConversationAppearance={handleUpdateConversationAppearance}
+                        onUploadConversationBackground={handleUploadConversationBackground}
                         reactionUsersById={reactionUsersById}
                         onPollVote={handlePollVote}
                         onEventRsvp={handleEventRsvp}

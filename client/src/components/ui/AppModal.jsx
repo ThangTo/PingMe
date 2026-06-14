@@ -12,7 +12,7 @@ function AppModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9980] flex items-end justify-center bg-[#1f1d1a]/40 px-3 pb-3 backdrop-blur-sm md:items-center md:p-6">
+    <div className="fixed inset-0 z-[9980] flex items-center justify-center bg-[#1f1d1a]/40 p-4 backdrop-blur-sm md:p-6">
       <div className={`w-full overflow-hidden rounded-[18px] border border-outline-variant bg-surface-container-lowest shadow-sm ${maxWidth}`}>
         <header className="flex items-start gap-3 border-b border-outline-variant px-5 py-4">
           <div className="min-w-0 flex-1">

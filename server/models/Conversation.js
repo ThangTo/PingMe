@@ -57,6 +57,75 @@ const pinnedMessageSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const appearanceBackgroundSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['preset', 'uploaded'],
+      default: 'preset',
+    },
+    presetId: {
+      type: String,
+      trim: true,
+      default: 'default',
+    },
+    imageUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    storageKey: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    dim: {
+      type: Number,
+      default: 0.08,
+      min: 0,
+      max: 0.6,
+    },
+    blur: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 12,
+    },
+    fit: {
+      type: String,
+      enum: ['cover', 'contain'],
+      default: 'cover',
+    },
+  },
+  { _id: false },
+);
+
+const appearanceSchema = new mongoose.Schema(
+  {
+    background: {
+      type: appearanceBackgroundSchema,
+      default: () => ({}),
+    },
+    bubbleTheme: {
+      presetId: {
+        type: String,
+        trim: true,
+        default: 'classic',
+      },
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    updatedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
 const conversationSchema = new mongoose.Schema(
   {
     type: {
@@ -97,6 +166,10 @@ const conversationSchema = new mongoose.Schema(
     pinnedMessages: {
       type: [pinnedMessageSchema],
       default: [],
+    },
+    appearance: {
+      type: appearanceSchema,
+      default: () => ({}),
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

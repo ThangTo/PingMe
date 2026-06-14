@@ -14,6 +14,12 @@ import {
   toIdString,
 } from '../services/conversation.service.js';
 import { formatEventForMessage } from '../services/conversationEvent.service.js';
+import {
+  buildAppearancePatch,
+  deleteConversationBackgroundLater,
+  formatConversationAppearance,
+  uploadConversationBackground,
+} from '../services/conversationAppearance.service.js';
 import { getConversationWorkspace } from '../services/conversationWorkspace.service.js';
 import { formatSourceMessageForPayload } from '../services/messageSource.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
@@ -241,6 +247,7 @@ export const formatConversation = (conversation, currentUserId, unreadCountByCon
     notificationsMuted: isActiveMute(currentMember?.mutedUntil),
     readState: formatReadState(conversation, currentUserId),
     readStates: formatReadStates(conversation, currentUserId),
+    appearance: formatConversationAppearance(conversation.appearance),
     pinnedMessage: latestPinnedMessage,
     latestPinnedMessage,
     pinnedMessages,
@@ -268,6 +275,13 @@ const emitDraftUpdated = (req, payload) => {
   if (!io) return;
 
   io.to(getUserRoomId(req.user.id)).emit('draft_updated', payload);
+};
+
+const emitConversationAppearanceUpdated = (req, conversation, payload) => {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  io.to(getConversationRoomId(conversation._id)).emit('conversation_appearance_updated', payload);
 };
 
 const canManageGroupMembers = (role) => ['owner', 'admin'].includes(role);
@@ -827,6 +841,109 @@ const conversationController = {
     } catch (error) {
       console.error('Lỗi cập nhật thông báo cuộc trò chuyện:', error);
       return res.status(500).json({ error: 'Không thể cập nhật thông báo cuộc trò chuyện' });
+    }
+  },
+
+  updateAppearance: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId khong hop le' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuoc tro chuyen khong ton tai' });
+      }
+
+      if (!getConversationMember(conversation, currentUserId)) {
+        return res.status(403).json({ error: 'Ban khong nam trong cuoc tro chuyen nay' });
+      }
+
+      const previousStorageKey = conversation.appearance?.background?.storageKey || '';
+      const nextAppearance = buildAppearancePatch(conversation.appearance, req.body || {}, currentUserId);
+      conversation.appearance = nextAppearance;
+      await conversation.save();
+
+      if (
+        previousStorageKey &&
+        previousStorageKey !== conversation.appearance?.background?.storageKey
+      ) {
+        deleteConversationBackgroundLater(previousStorageKey);
+      }
+
+      const appearance = formatConversationAppearance(conversation.appearance);
+      const payload = {
+        conversationId: conversation._id.toString(),
+        appearance,
+        updatedBy: currentUserId,
+        updatedAt: appearance.updatedAt,
+      };
+      emitConversationAppearanceUpdated(req, conversation, payload);
+
+      return res.status(200).json({ success: true, ...payload });
+    } catch (error) {
+      if (error?.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+
+      console.error('Loi cap nhat giao dien cuoc tro chuyen:', error);
+      return res.status(500).json({ error: 'Khong the cap nhat giao dien cuoc tro chuyen' });
+    }
+  },
+
+  uploadAppearanceBackground: async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const { conversationId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: 'conversationId khong hop le' });
+      }
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Cuoc tro chuyen khong ton tai' });
+      }
+
+      if (!getConversationMember(conversation, currentUserId)) {
+        return res.status(403).json({ error: 'Ban khong nam trong cuoc tro chuyen nay' });
+      }
+
+      const { appearance: nextAppearance, previousStorageKey } = await uploadConversationBackground({
+        file: req.file,
+        currentAppearance: conversation.appearance,
+        userId: currentUserId,
+      });
+      conversation.appearance = nextAppearance;
+      await conversation.save();
+
+      if (
+        previousStorageKey &&
+        previousStorageKey !== conversation.appearance?.background?.storageKey
+      ) {
+        deleteConversationBackgroundLater(previousStorageKey);
+      }
+
+      const appearance = formatConversationAppearance(conversation.appearance);
+      const payload = {
+        conversationId: conversation._id.toString(),
+        appearance,
+        updatedBy: currentUserId,
+        updatedAt: appearance.updatedAt,
+      };
+      emitConversationAppearanceUpdated(req, conversation, payload);
+
+      return res.status(200).json({ success: true, ...payload });
+    } catch (error) {
+      if (error?.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+
+      console.error('Loi upload anh nen cuoc tro chuyen:', error);
+      return res.status(500).json({ error: 'Khong the upload anh nen cuoc tro chuyen' });
     }
   },
 
