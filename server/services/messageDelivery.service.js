@@ -149,6 +149,7 @@ const formatReplyPreview = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : event,
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    plan: message.isDeleted ? null : message.plan || null,
     sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted

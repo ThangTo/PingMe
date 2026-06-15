@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const attachmentSchema = new mongoose.Schema(
+export const attachmentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
@@ -145,7 +145,7 @@ const pollSchema = new mongoose.Schema(
   { _id: false },
 );
 
-const sourceMessageSnapshotSchema = new mongoose.Schema(
+export const sourceMessageSnapshotSchema = new mongoose.Schema(
   {
     messageId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -330,6 +330,53 @@ const eventSnapshotSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const planSnapshotSchema = new mongoose.Schema(
+  {
+    planId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ConversationPlan',
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [120, 'Plan title cannot exceed 120 characters'],
+    },
+    status: {
+      type: String,
+      enum: ['active', 'completed', 'cancelled'],
+      default: 'active',
+    },
+    locationOptionCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    checklistTotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    checklistDone: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    expenseTotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    albumCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
+
 const messageSchema = new mongoose.Schema(
   {
     // Người gửi
@@ -375,6 +422,7 @@ const messageSchema = new mongoose.Schema(
         'poll',
         'event',
         'checklist',
+        'plan',
       ],
       default: 'text',
     },
@@ -415,6 +463,11 @@ const messageSchema = new mongoose.Schema(
 
     checklist: {
       type: checklistSchema,
+      default: null,
+    },
+
+    plan: {
+      type: planSnapshotSchema,
       default: null,
     },
 
@@ -517,6 +570,7 @@ messageSchema.index(
     'event.location': 'text',
     'checklist.title': 'text',
     'checklist.items.text': 'text',
+    'plan.title': 'text',
     'sourceMessage.content': 'text',
     'checklist.items.sourceMessage.content': 'text',
   },
@@ -536,7 +590,7 @@ messageSchema.statics.getConversation = function (user1Id, user2Id, limit = 50) 
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist plan sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -550,7 +604,7 @@ messageSchema.statics.getConversationById = function (conversationId, limit = 50
     .populate('recipient', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist plan sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };
@@ -565,7 +619,7 @@ messageSchema.statics.getRoomMessages = function (roomId, limit = 50) {
     .populate('sender', 'username avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist plan sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username avatar' },
     });
 };

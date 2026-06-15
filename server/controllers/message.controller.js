@@ -21,7 +21,7 @@ export const populateMessageQuery = (query) =>
     .populate('recipient', 'username pingId avatar')
     .populate({
       path: 'replyTo',
-      select: 'content attachment attachments sticker poll event checklist sourceMessage messageType sender isDeleted',
+      select: 'content attachment attachments sticker poll event checklist plan sourceMessage messageType sender isDeleted',
       populate: { path: 'sender', select: 'username pingId avatar' },
     });
 

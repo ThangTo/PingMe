@@ -17,6 +17,16 @@ const EVOLUTION_ACTIONS = {
     description: 'Tạo checklist mới và giữ liên kết về tin gốc.',
     icon: 'checklist',
   },
+  plan: {
+    label: 'Kế hoạch',
+    description: 'Tạo kế hoạch chung và giữ link về tin nhắn gốc.',
+    icon: 'plan',
+  },
+  decision: {
+    label: 'Đánh dấu quyết định',
+    description: 'Lưu tin này vào Decision Timeline của cuộc trò chuyện.',
+    icon: 'decision',
+  },
   'checklist-item': {
     label: 'Thêm vào checklist',
     description: 'Đưa tin nhắn này thành một mục trong checklist đang hoạt động.',
@@ -26,8 +36,8 @@ const EVOLUTION_ACTIONS = {
 
 const getAvailableActions = (conversation = {}) => {
   if (conversation?.isSaved) return [];
-  if (conversation?.isGroup) return ['poll', 'event', 'checklist', 'checklist-item'];
-  return ['event'];
+  if (conversation?.isGroup) return ['poll', 'event', 'checklist', 'plan', 'checklist-item', 'decision'];
+  return ['event', 'plan', 'decision'];
 };
 
 function MessageEvolutionModal({ open, onClose, sourceMessage, conversation, onSelect }) {

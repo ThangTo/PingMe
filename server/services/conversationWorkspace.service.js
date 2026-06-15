@@ -4,7 +4,7 @@ import Message from '../models/Message.js';
 import { isConversationMember, toIdString } from './conversation.service.js';
 import { formatSourceMessageForPayload } from './messageSource.service.js';
 
-const WORKSPACE_TYPES = ['poll', 'event', 'checklist'];
+const WORKSPACE_TYPES = ['poll', 'event', 'checklist', 'plan'];
 const WORKSPACE_STATUSES = ['active', 'archived'];
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
@@ -132,6 +132,21 @@ const formatEvent = (event, message, now) => {
   };
 };
 
+const formatPlan = (plan, message) => {
+  if (!plan?.title) return null;
+
+  return {
+    planId: toIdString(plan.planId),
+    title: plan.title || message.content || '',
+    status: plan.status || 'active',
+    locationOptionCount: plan.locationOptionCount || 0,
+    checklistTotal: plan.checklistTotal || 0,
+    checklistDone: plan.checklistDone || 0,
+    expenseTotal: plan.expenseTotal || 0,
+    albumCount: plan.albumCount || 0,
+  };
+};
+
 const getWorkspaceItemStatus = (message, now) => {
   if (message.messageType === 'poll') {
     return message.poll?.closesAt && new Date(message.poll.closesAt).getTime() <= now.getTime()
@@ -149,6 +164,10 @@ const getWorkspaceItemStatus = (message, now) => {
       ? new Date(message.event.startsAt).getTime() <= now.getTime()
       : false;
     return message.event?.status === 'cancelled' || hasStarted ? 'archived' : 'active';
+  }
+
+  if (message.messageType === 'plan') {
+    return message.plan?.status === 'active' ? 'active' : 'archived';
   }
 
   return 'archived';
@@ -171,7 +190,9 @@ const formatWorkspaceItem = (message, now) => {
         ? message.poll?.question || message.content || ''
         : type === 'event'
           ? message.event?.title || message.content || ''
-          : message.checklist?.title || message.content || '',
+          : type === 'checklist'
+            ? message.checklist?.title || message.content || ''
+            : message.plan?.title || message.content || '',
     status: getWorkspaceItemStatus(message, now),
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
@@ -179,11 +200,12 @@ const formatWorkspaceItem = (message, now) => {
     poll: type === 'poll' ? formatPoll(message.poll, now) : null,
     event: type === 'event' ? formatEvent(message.event, message, now) : null,
     checklist: type === 'checklist' ? formatChecklist(message.checklist) : null,
+    plan: type === 'plan' ? formatPlan(message.plan, message) : null,
   };
 };
 
 const getAllowedTypes = (conversationType, requestedType) => {
-  const conversationTypes = conversationType === 'group' ? WORKSPACE_TYPES : ['event'];
+  const conversationTypes = conversationType === 'group' ? WORKSPACE_TYPES : ['event', 'plan'];
   if (requestedType === 'all') return conversationTypes;
   return conversationTypes.includes(requestedType) ? [requestedType] : [];
 };
@@ -230,6 +252,14 @@ const getStatusBranches = ({ types, status, now }) => {
             messageType: 'event',
             $or: [{ 'event.status': 'cancelled' }, { 'event.startsAt': { $lte: now } }],
           },
+    );
+  }
+
+  if (types.includes('plan')) {
+    branches.push(
+      status === 'active'
+        ? { messageType: 'plan', 'plan.status': 'active' }
+        : { messageType: 'plan', 'plan.status': { $in: ['completed', 'cancelled'] } },
     );
   }
 

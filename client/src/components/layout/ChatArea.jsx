@@ -30,6 +30,9 @@ const getPinnedPreviewText = (message) => {
   if (message.messageType === 'checklist') {
     return `Checklist: ${message.checklist?.title || message.content || 'Checklist'}`;
   }
+  if (message.messageType === 'plan') {
+    return `Kế hoạch: ${message.plan?.title || message.content || 'Kế hoạch'}`;
+  }
 
   const attachments = getMessageAttachments(message);
   if (message.content) return message.content;
@@ -385,10 +388,12 @@ const ChatArea = ({
   onCreatePoll,
   onCreateEvent,
   onCreateChecklist,
+  onCreatePlan,
   onCreateReminder,
   onPollVote,
   onEventRsvp,
   onChecklistToggle,
+  onOpenPlan,
   scheduledMessages = [],
   onCancelScheduledMessage,
   events = [],
@@ -522,7 +527,8 @@ const ChatArea = ({
             .map((item) => item.text || '')
             .join(' ')}`
         : '';
-      return `${content} ${filenames} ${stickerName} ${pollText} ${eventText} ${checklistText}`.toLowerCase().includes(query);
+      const planText = message.plan ? `${message.plan.title || ''}` : '';
+      return `${content} ${filenames} ${stickerName} ${pollText} ${eventText} ${checklistText} ${planText}`.toLowerCase().includes(query);
     }).length;
   }, [messages, searchQuery]);
   const searchMatchIds = useMemo(() => {
@@ -549,7 +555,8 @@ const ChatArea = ({
               .map((item) => item.text || '')
               .join(' ')}`
           : '';
-        return `${content} ${filenames} ${stickerName} ${pollText} ${eventText} ${checklistText}`.toLowerCase().includes(query);
+        const planText = message.plan ? `${message.plan.title || ''}` : '';
+        return `${content} ${filenames} ${stickerName} ${pollText} ${eventText} ${checklistText} ${planText}`.toLowerCase().includes(query);
       })
       .map((message) => message.id)
       .filter(Boolean);
@@ -821,6 +828,7 @@ const ChatArea = ({
             onPollVote={onPollVote}
             onEventRsvp={onEventRsvp}
             onChecklistToggle={onChecklistToggle}
+            onOpenPlan={onOpenPlan}
             onCancelEvent={onCancelEvent}
             isLoading={isLoading}
             isLoadingOlderMessages={isLoadingOlderMessages}
@@ -873,10 +881,12 @@ const ChatArea = ({
         onCreatePoll={onCreatePoll}
         onCreateEvent={onCreateEvent}
         onCreateChecklist={onCreateChecklist}
+        onCreatePlan={onCreatePlan}
         onCreateReminder={onCreateReminder}
         canCreatePoll={Boolean(currentUser?.isGroup)}
         canCreateEvent={Boolean(currentUser && !currentUser.isSaved)}
         canCreateChecklist={Boolean(currentUser?.isGroup)}
+        canCreatePlan={Boolean(currentUser && !currentUser.isSaved)}
         canCreateReminder={Boolean(currentUser)}
         conversationMembers={currentUser?.members || []}
         onDraftChange={onDraftChange}

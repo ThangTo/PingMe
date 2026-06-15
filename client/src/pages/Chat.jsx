@@ -25,6 +25,9 @@ const AddChecklistItemModal = lazy(() => import('../components/chat/AddChecklist
 const CreateChecklistModal = lazy(() => import('../components/chat/CreateChecklistModal'));
 const CreateEventModal = lazy(() => import('../components/chat/CreateEventModal'));
 const ForwardMessageModal = lazy(() => import('../components/chat/ForwardMessageModal'));
+const CreatePlanModal = lazy(() => import('../components/chat/CreatePlanModal'));
+const MarkDecisionModal = lazy(() => import('../components/chat/MarkDecisionModal'));
+const PlanDetailModal = lazy(() => import('../components/chat/PlanDetailModal'));
 const CreatePollModal = lazy(() => import('../components/chat/CreatePollModal'));
 const MessageEvolutionModal = lazy(() => import('../components/chat/MessageEvolutionModal'));
 
@@ -230,6 +233,47 @@ const normalizeEvent = (event) => {
   };
 };
 
+const normalizePlan = (plan) => {
+  const planId = getIdString(plan?.planId || plan?.id || plan?._id);
+  if (!planId && !plan?.title) return null;
+  const locationOptions = Array.isArray(plan?.locationPoll?.options)
+    ? plan.locationPoll.options
+    : [];
+  const checklistItems = Array.isArray(plan?.checklist?.items)
+    ? plan.checklist.items
+    : [];
+  const expenseItems = Array.isArray(plan?.expenses) ? plan.expenses : [];
+  const albumItems = Array.isArray(plan?.album) ? plan.album : [];
+  const expenseSummaryTotal = Object.values(plan?.expenseSummary?.totalsByCurrency || {}).reduce(
+    (total, value) => total + Number(value || 0),
+    0,
+  );
+  const expenseItemsTotal = expenseItems.reduce(
+    (total, expense) => total + Number(expense?.amount || 0),
+    0,
+  );
+
+  return {
+    ...plan,
+    planId,
+    id: planId,
+    title: plan?.title || '',
+    status: plan?.status || 'active',
+    locationOptionCount: Number(plan?.locationOptionCount ?? locationOptions.length),
+    checklistTotal: Number(
+      plan?.checklistTotal ?? plan?.checklist?.totalItems ?? checklistItems.length,
+    ),
+    checklistDone: Number(
+      plan?.checklistDone ??
+        plan?.checklist?.completedItems ??
+        checklistItems.filter((item) => item?.isDone).length,
+    ),
+    expenseTotal: Number(plan?.expenseTotal ?? (expenseSummaryTotal || expenseItemsTotal)),
+    albumCount: Number(plan?.albumCount ?? albumItems.length),
+    sourceMessage: normalizeSourceMessage(plan?.sourceMessage),
+  };
+};
+
 const normalizeReadStates = (readStates = []) =>
   readStates
     .map((readState) => {
@@ -314,6 +358,7 @@ const getMessagePreview = (
   poll = null,
   event = null,
   checklist = null,
+  plan = null,
 ) => {
   if (isDeleted) return REVOKED_MESSAGE_TEXT;
   if (messageType === 'call') return getCallPreviewText(callDetails, content);
@@ -325,6 +370,9 @@ const getMessagePreview = (
   }
   if (messageType === 'checklist') {
     return `Checklist: ${checklist?.title || content || 'Checklist'}`;
+  }
+  if (messageType === 'plan') {
+    return `Kế hoạch: ${plan?.title || content || 'Kế hoạch'}`;
   }
   if (messageType === 'sticker' || sticker?.url) {
     return sticker?.name ? `Nhãn dán: ${sticker.name}` : 'Đã gửi nhãn dán';
@@ -351,6 +399,7 @@ const getEvolutionSourceText = (message = {}) => {
   if (message.messageType === 'poll') return message.poll?.question || message.content || '';
   if (message.messageType === 'event') return message.event?.title || message.content || '';
   if (message.messageType === 'checklist') return message.checklist?.title || message.content || '';
+  if (message.messageType === 'plan') return message.plan?.title || message.content || '';
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Nhãn dán';
   }
@@ -544,6 +593,7 @@ const normalizeReplyPreview = (message, currentUser, currentChatUser) => {
     poll: isDeleted ? null : normalizePoll(message.poll),
     event: isDeleted ? null : normalizeEvent(message.event),
     checklist: isDeleted ? null : normalizeChecklist(message.checklist),
+    plan: isDeleted ? null : normalizePlan(message.plan),
     sourceMessage: isDeleted ? null : normalizeSourceMessage(message.sourceMessage),
     attachment: isDeleted ? null : message.attachment || null,
     attachments: isDeleted ? [] : getMessageAttachments(message),
@@ -567,6 +617,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   poll: normalizePoll(msg.poll),
   event: normalizeEvent(msg.event),
   checklist: normalizeChecklist(msg.checklist),
+  plan: normalizePlan(msg.plan),
   sourceMessage: normalizeSourceMessage(msg.sourceMessage),
   callDetails: msg.callDetails || null,
   timestamp: msg.createdAt || msg.timestamp,
@@ -873,6 +924,7 @@ const Chat = () => {
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState(null);
   const [profileTarget, setProfileTarget] = useState(null);
   const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [activePlanTarget, setActivePlanTarget] = useState(null);
   const [evolutionSourceMessage, setEvolutionSourceMessage] = useState(null);
   const [evolutionMode, setEvolutionMode] = useState(null);
   const [appNotifications, setAppNotifications] = useState([]);
@@ -2551,6 +2603,44 @@ const Chat = () => {
     user?.id,
   ]);
 
+  const applyPlanToMessages = useCallback((planInput) => {
+    const nextPlan = normalizePlan(planInput);
+    const messageId = planInput?.messageId || planInput?.message || null;
+    if (!nextPlan || !messageId) return;
+
+    setMessages((prev) =>
+      prev.map((message) => (message.id === messageId ? { ...message, plan: nextPlan } : message)),
+    );
+    setReplyingMessage((prev) =>
+      prev?.id === messageId ? { ...prev, plan: nextPlan } : prev,
+    );
+    setActivePlanTarget((prev) =>
+      prev?.planId === nextPlan.planId || prev?.plan?.id === nextPlan.planId
+        ? { ...prev, planId: nextPlan.planId, plan: { ...(prev.plan || {}), ...planInput } }
+        : prev,
+    );
+    setConversations((prev) =>
+      prev.map((conv) => {
+        if (conv.id !== (planInput?.conversationId || selectedConversationId)) return conv;
+
+        const pinnedMessages = (conv.pinnedMessages || []).map((pinnedMessage) =>
+          pinnedMessage.id === messageId ? { ...pinnedMessage, plan: nextPlan } : pinnedMessage,
+        );
+        const latestPinnedMessage =
+          conv.latestPinnedMessage?.id === messageId
+            ? { ...conv.latestPinnedMessage, plan: nextPlan }
+            : conv.latestPinnedMessage || pinnedMessages[0] || null;
+
+        return {
+          ...conv,
+          pinnedMessages,
+          latestPinnedMessage,
+          pinnedMessage: latestPinnedMessage,
+        };
+      }),
+    );
+  }, [selectedConversationId]);
+
   useEffect(() => {
     const handleReceiveMessage = (data) => {
       const targetConversation = conversationsRef.current.find(
@@ -2566,6 +2656,7 @@ const Chat = () => {
       const incomingPoll = normalizePoll(data.poll);
       const incomingEvent = normalizeEvent(data.event);
       const incomingChecklist = normalizeChecklist(data.checklist);
+      const incomingPlan = normalizePlan(data.plan);
       const incomingMessage = {
         ...data,
         messageType: data.messageType || 'text',
@@ -2573,6 +2664,7 @@ const Chat = () => {
         poll: incomingPoll,
         event: incomingEvent,
         checklist: incomingChecklist,
+        plan: incomingPlan,
         sourceMessage: normalizeSourceMessage(data.sourceMessage),
         callDetails: data.callDetails || null,
         attachment: data.attachment || incomingAttachments[0] || null,
@@ -2615,6 +2707,7 @@ const Chat = () => {
           incomingPoll,
           incomingEvent,
           incomingChecklist,
+          incomingPlan,
         );
         const shouldShowAppToast = !isCurrentConversation;
 
@@ -2667,6 +2760,7 @@ const Chat = () => {
             incomingPoll,
             incomingEvent,
             incomingChecklist,
+            incomingPlan,
           ),
           hasLastMessage: true,
           lastMessageAt: data.timestamp,
@@ -2836,6 +2930,7 @@ const Chat = () => {
       const savedPoll = normalizePoll(data.poll);
       const savedEvent = normalizeEvent(data.event);
       const savedChecklist = normalizeChecklist(data.checklist);
+      const savedPlan = normalizePlan(data.plan);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.tempId
@@ -2850,6 +2945,7 @@ const Chat = () => {
                 poll: savedPoll || msg.poll || null,
                 event: savedEvent || msg.event || null,
                 checklist: savedChecklist || msg.checklist || null,
+                plan: savedPlan || msg.plan || null,
                 sourceMessage: normalizeSourceMessage(data.sourceMessage) || msg.sourceMessage || null,
                 callDetails: data.callDetails || msg.callDetails || null,
                 senderName: data.senderName || msg.senderName,
@@ -3008,12 +3104,27 @@ const Chat = () => {
       });
     };
 
+    const handlePlanUpdated = (data) => {
+      if (data?.plan) {
+        applyPlanToMessages(data.plan);
+        return;
+      }
+      if (data?.messageId && data?.planSnapshot) {
+        applyPlanToMessages({
+          ...data.planSnapshot,
+          messageId: data.messageId,
+          conversationId: data.conversationId,
+        });
+      }
+    };
+
     socket.on('poll_create_failed', handlePollCreateFailed);
     socket.on('poll_vote_updated', handlePollVoteUpdated);
     socket.on('poll_vote_failed', handlePollVoteFailed);
     socket.on('checklist_create_failed', handleChecklistCreateFailed);
     socket.on('checklist_updated', handleChecklistUpdated);
     socket.on('checklist_update_failed', handleChecklistUpdateFailed);
+    socket.on('plan_updated', handlePlanUpdated);
 
     const handleMessageWasDelivered = (data) => {
       setMessages((prev) =>
@@ -3181,6 +3292,7 @@ const Chat = () => {
               poll: null,
               event: null,
               checklist: null,
+              plan: null,
               attachment: null,
               attachments: [],
               linkPreview: null,
@@ -3203,6 +3315,7 @@ const Chat = () => {
                 poll: null,
                 event: null,
                 checklist: null,
+                plan: null,
                 attachment: null,
                 attachments: [],
                 isDeleted: true,
@@ -3224,6 +3337,7 @@ const Chat = () => {
               poll: null,
               event: null,
               checklist: null,
+              plan: null,
               attachment: null,
               attachments: [],
               isDeleted: true,
@@ -3248,6 +3362,7 @@ const Chat = () => {
                       lastMessage.poll,
                       lastMessage.event,
                       lastMessage.checklist,
+                      lastMessage.plan,
                     )
                   : 'Bắt đầu trò chuyện',
                 lastMessageAt: lastMessage?.timestamp || null,
@@ -3308,6 +3423,7 @@ const Chat = () => {
       socket.off('checklist_create_failed', handleChecklistCreateFailed);
       socket.off('checklist_updated', handleChecklistUpdated);
       socket.off('checklist_update_failed', handleChecklistUpdateFailed);
+      socket.off('plan_updated', handlePlanUpdated);
       socket.off('message_was_delivered', handleMessageWasDelivered);
       socket.off('pinned_messages_updated', handlePinnedMessagesUpdated);
       socket.off('message_pinned', handleMessagePinned);
@@ -3331,6 +3447,7 @@ const Chat = () => {
     showAppNotification,
     shouldNotifyConversation,
     upsertConversationEvent,
+    applyPlanToMessages,
   ]);
 
   const handleTypingStart = () => {
@@ -3568,6 +3685,69 @@ const Chat = () => {
       console.error('Không thể hủy sự kiện:', error);
       alert(error?.response?.data?.error || 'Không thể hủy sự kiện');
     }
+  };
+
+  const handleOpenPlan = useCallback(({ planId, messageId, plan } = {}) => {
+    const resolvedPlanId = planId || plan?.planId || plan?.id;
+    if (!resolvedPlanId) return;
+    setActivePlanTarget({
+      planId: resolvedPlanId,
+      messageId: messageId || plan?.messageId || null,
+      plan: plan || null,
+    });
+  }, []);
+
+  const handleCreatePlan = async (planInput) => {
+    if (!selectedConversationId || !user) {
+      throw new Error('Chưa chọn cuộc trò chuyện');
+    }
+
+    if (currentChatUser?.isSaved) {
+      throw new Error('Kế hoạch chung không hỗ trợ trong Saved Messages');
+    }
+
+    const response = await api.post('/plans', {
+      conversationId: selectedConversationId,
+      ...planInput,
+      sourceMessageId: planInput?.sourceMessageId || null,
+    });
+    const plan = response.data?.plan;
+    const message = response.data?.message
+      ? normalizeMessage(response.data.message, selectedConversationId, user, currentChatUser)
+      : null;
+
+    if (message?.id) {
+      mergeMessageWindow([message]);
+      setConversations((prev) => {
+        const targetConv = prev.find((c) => c.id === selectedConversationId);
+        if (!targetConv) return prev;
+
+        const updatedTarget = {
+          ...targetConv,
+          lastMessage: getMessagePreview(
+            message.content,
+            null,
+            false,
+            [],
+            'plan',
+            null,
+            null,
+            null,
+            null,
+            null,
+            message.plan,
+          ),
+          hasLastMessage: true,
+          lastMessageAt: message.timestamp,
+        };
+        const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
+        return sortConversations([updatedTarget, ...otherConvs]);
+      });
+    }
+
+    clearConversationDraft(selectedConversationId);
+    setReplyingMessage(null);
+    return plan || response.data?.plan || null;
   };
 
   const handleSendMessage = (content, attachment, replyTo = replyingMessage, attachments = [], options = {}) => {
@@ -4019,6 +4199,32 @@ const Chat = () => {
     });
   };
 
+  const handleCreateEvolutionPlan = (planInput) => {
+    const sourceSnapshot = getEvolutionSourceSnapshot();
+    return handleCreatePlan({
+      ...planInput,
+      sourceMessageId: sourceSnapshot?.messageId || null,
+      sourceMessage: sourceSnapshot,
+    });
+  };
+
+  const handleCreateDecision = async (decisionInput) => {
+    if (!selectedConversationId || !user) {
+      throw new Error('Chưa chọn cuộc trò chuyện');
+    }
+    if (currentChatUser?.isSaved) {
+      throw new Error('Decision Timeline không hỗ trợ Saved Messages');
+    }
+
+    const response = await api.post(`/conversations/${selectedConversationId}/decisions`, {
+      title: decisionInput?.title,
+      note: decisionInput?.note || '',
+      decidedById: decisionInput?.decidedById || null,
+      sourceMessageId: decisionInput?.sourceMessageId || null,
+    });
+    return response.data?.decision || null;
+  };
+
   const handleAddChecklistItem = async ({ checklistMessageId, text, assigneeId = null }) => {
     const sourceSnapshot = getEvolutionSourceSnapshot();
     socket.emit('add_checklist_item', {
@@ -4385,6 +4591,19 @@ const Chat = () => {
           />
         </Suspense>
       )}
+      {activePlanTarget && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <PlanDetailModal
+            open
+            planId={activePlanTarget.planId}
+            initialPlan={activePlanTarget.plan}
+            currentUserId={user?.id || ''}
+            members={currentChatUser?.members || []}
+            onPlanUpdated={applyPlanToMessages}
+            onClose={() => setActivePlanTarget(null)}
+          />
+        </Suspense>
+      )}
       {evolutionMode === 'choose' && (
         <Suspense fallback={<LazyModalFallback />}>
           <MessageEvolutionModal
@@ -4424,6 +4643,29 @@ const Chat = () => {
             initialTitle={evolutionInitialText}
             initialItems={evolutionChecklistInitialItems}
             onCreateChecklist={handleCreateEvolutionChecklist}
+            onClose={closeEvolutionFlow}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'plan' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <CreatePlanModal
+            open
+            initialTitle={evolutionInitialText}
+            sourceMessage={evolutionSourceSnapshot}
+            onCreatePlan={handleCreateEvolutionPlan}
+            onClose={closeEvolutionFlow}
+          />
+        </Suspense>
+      )}
+      {evolutionMode === 'decision' && (
+        <Suspense fallback={<LazyModalFallback />}>
+          <MarkDecisionModal
+            open
+            initialTitle={evolutionInitialText}
+            sourceMessage={evolutionSourceSnapshot}
+            members={currentChatUser?.members || []}
+            onCreateDecision={handleCreateDecision}
             onClose={closeEvolutionFlow}
           />
         </Suspense>
@@ -4526,6 +4768,8 @@ const Chat = () => {
                     onEventRsvp={handleEventRsvp}
                     onCreateChecklist={handleCreateChecklist}
                     onChecklistToggle={handleChecklistToggle}
+                    onCreatePlan={handleCreatePlan}
+                    onOpenPlan={handleOpenPlan}
                     events={selectedEvents}
                     onCancelEvent={handleCancelEvent}
                     reminders={selectedRecurringReminders}
@@ -4591,6 +4835,7 @@ const Chat = () => {
                         onEventRsvp={handleEventRsvp}
                         onCancelEvent={handleCancelEvent}
                         onChecklistToggle={handleChecklistToggle}
+                        onOpenPlan={handleOpenPlan}
                         onOpenProfile={handleOpenSenderProfile}
                         onJumpToMessage={handleWorkspaceJumpToMessage}
                         onBlocked={() => {

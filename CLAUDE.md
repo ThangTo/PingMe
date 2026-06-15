@@ -106,6 +106,10 @@ GET  /api/users/requests  — Auth      — Pending friend requests
 GET  /api/users/search?q= — Auth      — Search users
 POST /api/users/request   — Auth      — Send friend request
 POST /api/users/accept    — Auth      — Accept friend request
+GET/POST /api/conversations/:id/decisions — Auth — Decision timeline
+PATCH /api/conversations/:id/decisions/:decisionId/revert — Auth — Revert decision
+GET/POST /api/plans       — Auth      — Shared plans list/create
+GET/PATCH/POST/DELETE /api/plans/:planId/... — Auth — Plan detail actions
 GET  /health              — No auth   — Health check
 ```
 
@@ -122,6 +126,7 @@ Server → Client: get_online_friends, user_status_changed, receive_message,
                   friend_request_received, friend_request_accepted,
                   friend_request_rejected, friend_request_cancelled, relationship_updated,
                   notification_created, reaction_added, message_updated, message_deleted,
+                  decision_created, decision_updated, plan_created, plan_updated,
                   call_incoming, call_ringing, call_accepted, call_rejected, call_ended,
                   webrtc_offer, webrtc_answer, webrtc_ice_candidate
 ```

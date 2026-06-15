@@ -4,6 +4,7 @@ import EmojiPicker from './EmojiPicker';
 import PollMessageCard from './PollMessageCard';
 import EventMessageCard from './EventMessageCard';
 import ChecklistMessageCard from './ChecklistMessageCard';
+import PlanMessageCard from './PlanMessageCard';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import StickerArtwork from '../ui/StickerArtwork';
@@ -36,6 +37,10 @@ const getReplyPreviewText = (replyTo) => {
     return `Checklist: ${replyTo.checklist?.title || replyTo.content || 'Checklist'}`;
   }
 
+  if (replyTo.messageType === 'plan') {
+    return `Kế hoạch: ${replyTo.plan?.title || replyTo.content || 'Kế hoạch'}`;
+  }
+
   const attachments = getMessageAttachments(replyTo);
   if (replyTo.content) return replyTo.content;
   if (replyTo.messageType === 'sticker' || replyTo.sticker?.url) {
@@ -58,6 +63,7 @@ const getEvolutionSourceText = (message = {}) => {
   if (message.messageType === 'poll') return message.poll?.question || message.content || '';
   if (message.messageType === 'event') return message.event?.title || message.content || '';
   if (message.messageType === 'checklist') return message.checklist?.title || message.content || '';
+  if (message.messageType === 'plan') return message.plan?.title || message.content || '';
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Nhãn dán';
   }
@@ -427,6 +433,7 @@ const MessageBubble = ({
   onPollVote,
   onEventRsvp,
   onChecklistToggle,
+  onOpenPlan,
   onCancelEvent,
   onEditMessage,
   onDeleteMessage,
@@ -448,6 +455,7 @@ const MessageBubble = ({
   const [showPicker, setShowPicker] = useState(false);
   const [activeReactionEmoji, setActiveReactionEmoji] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [actionMenuPlacement, setActionMenuPlacement] = useState('center');
   const longPressTimer = useRef(null);
   const lightboxTouchStartX = useRef(null);
   const messageRef = useRef(null);
@@ -461,6 +469,7 @@ const MessageBubble = ({
   const isPollMessage = !isRevoked && message.messageType === 'poll' && message.poll;
   const isEventMessage = !isRevoked && message.messageType === 'event' && message.event;
   const isChecklistMessage = !isRevoked && message.messageType === 'checklist' && message.checklist;
+  const isPlanMessage = !isRevoked && message.messageType === 'plan' && message.plan;
   const isStickerMessage =
     !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
   const evolutionSourceText = useMemo(() => getEvolutionSourceText(message), [message]);
@@ -791,9 +800,51 @@ const MessageBubble = ({
       : []),
   ];
 
-  const visibleActionItems = isPollMessage || isEventMessage || isChecklistMessage
+  const visibleActionItems = isPollMessage || isEventMessage || isChecklistMessage || isPlanMessage
     ? actionItems.filter((item) => item.key !== 'edit')
     : actionItems;
+  const actionMenuVerticalClass =
+    actionMenuPlacement === 'above'
+      ? 'bottom-0'
+      : actionMenuPlacement === 'below'
+        ? 'top-0'
+        : 'top-1/2 -translate-y-1/2';
+
+  useEffect(() => {
+    if (!showActions) return undefined;
+
+    const updateActionMenuPlacement = () => {
+      const menuElement = actionsRef.current;
+      const anchorElement = messageRef.current;
+      if (!menuElement || !anchorElement) return;
+
+      const anchorRect = anchorElement.getBoundingClientRect();
+      const menuHeight = menuElement.offsetHeight || visibleActionItems.length * 42;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const topSafeArea = 72;
+      const bottomSafeArea = 112;
+      const anchorCenterY = anchorRect.top + anchorRect.height / 2;
+
+      if (anchorCenterY + menuHeight / 2 > viewportHeight - bottomSafeArea) {
+        setActionMenuPlacement('above');
+        return;
+      }
+
+      if (anchorCenterY - menuHeight / 2 < topSafeArea) {
+        setActionMenuPlacement('below');
+        return;
+      }
+
+      setActionMenuPlacement('center');
+    };
+
+    const frameId = window.requestAnimationFrame(updateActionMenuPlacement);
+    window.addEventListener('resize', updateActionMenuPlacement);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', updateActionMenuPlacement);
+    };
+  }, [showActions, visibleActionItems.length]);
 
   const avatarName = encodeURIComponent(message.senderName || 'User');
   const avatarSrc =
@@ -1024,7 +1075,7 @@ const MessageBubble = ({
                 className={`relative flex min-w-0 max-w-[min(350px,76vw)] flex-col gap-1 md:max-w-[min(560px,70vw)] ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
-                {message.sourceMessage && (isPollMessage || isEventMessage || isChecklistMessage) && (
+                {message.sourceMessage && (isPollMessage || isEventMessage || isChecklistMessage || isPlanMessage) && (
                   <SourceMessageLink
                     sourceMessage={message.sourceMessage}
                     onJumpToMessage={onJumpToMessage}
@@ -1062,6 +1113,14 @@ const MessageBubble = ({
                       onToggle={onChecklistToggle}
                       onJumpToMessage={onJumpToMessage}
                       isOwn={isOwn}
+                    />
+                  )}
+                  {isPlanMessage && (
+                    <PlanMessageCard
+                      plan={message.plan}
+                      messageId={message.id}
+                      disabled={message.status === 'sending'}
+                      onOpen={onOpenPlan}
                     />
                   )}
                   {isStickerMessage && (
@@ -1324,7 +1383,7 @@ const MessageBubble = ({
             {showActions && (
               <div
                 ref={actionsRef}
-                className={`absolute top-1/2 z-[220] hidden w-48 -translate-y-1/2 overflow-hidden rounded-[12px] border border-outline-variant bg-surface-container-lowest py-1 shadow-sm md:block ${
+                className={`no-scrollbar absolute z-[220] hidden max-h-[min(360px,calc(100dvh-128px))] w-48 overflow-y-auto rounded-[12px] border border-outline-variant bg-surface-container-lowest py-1 shadow-sm md:block ${actionMenuVerticalClass} ${
                   isOwn ? 'right-full mr-3' : 'left-full ml-3'
                 }`}
                 onContextMenu={(event) => event.preventDefault()}
@@ -1498,6 +1557,7 @@ const getMessageCompareKey = (message = {}) =>
     poll: message.poll,
     event: message.event,
     checklist: message.checklist,
+    plan: message.plan,
     sourceMessage: message.sourceMessage,
     callDetails: message.callDetails,
     timestamp: message.timestamp,
@@ -1518,6 +1578,7 @@ const hasSameActionSurface = (prevProps, nextProps) =>
   Boolean(prevProps.onPollVote) === Boolean(nextProps.onPollVote) &&
   Boolean(prevProps.onEventRsvp) === Boolean(nextProps.onEventRsvp) &&
   Boolean(prevProps.onChecklistToggle) === Boolean(nextProps.onChecklistToggle) &&
+  Boolean(prevProps.onOpenPlan) === Boolean(nextProps.onOpenPlan) &&
   Boolean(prevProps.onCancelEvent) === Boolean(nextProps.onCancelEvent) &&
   Boolean(prevProps.onEditMessage) === Boolean(nextProps.onEditMessage) &&
   Boolean(prevProps.onDeleteMessage) === Boolean(nextProps.onDeleteMessage) &&

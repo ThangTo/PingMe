@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../../config/api';
 import AppIcon from '../ui/AppIcon';
 import AppModal from '../ui/AppModal';
+import AppSelect from '../ui/AppSelect';
 
 const ITEM_MAX_LENGTH = 120;
 
@@ -168,19 +169,21 @@ function AddChecklistItemModal({
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
             Checklist
           </span>
-          <select
+          <AppSelect
             value={selectedChecklistId}
-            onChange={(event) => setSelectedChecklistId(event.target.value)}
+            onChange={setSelectedChecklistId}
             disabled={isLoading || isSubmitting || checklists.length === 0}
-            className="h-11 w-full rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] text-on-surface outline-none transition focus:border-outline focus:ring-1 focus:ring-outline disabled:opacity-60"
-          >
-            {checklists.length === 0 && <option value="">Không có checklist đang hoạt động</option>}
-            {checklists.map((item) => (
-              <option key={item.messageId} value={item.messageId}>
-                {item.title} ({item.completedItems}/{item.totalItems})
-              </option>
-            ))}
-          </select>
+            className="w-full"
+            buttonClassName="h-11 w-full min-w-0 border-outline-variant bg-surface text-[15px]"
+            options={
+              checklists.length === 0
+                ? [{ value: '', label: 'Không có checklist đang hoạt động' }]
+                : checklists.map((item) => ({
+                    value: item.messageId,
+                    label: `${item.title} (${item.completedItems}/${item.totalItems})`,
+                  }))
+            }
+          />
         </label>
 
         <label className="block">
@@ -204,19 +207,20 @@ function AddChecklistItemModal({
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
             Giao cho
           </span>
-          <select
+          <AppSelect
             value={assigneeId}
-            onChange={(event) => setAssigneeId(event.target.value)}
+            onChange={setAssigneeId}
             disabled={isSubmitting || assignableMembers.length === 0}
-            className="h-11 w-full rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] text-on-surface outline-none transition focus:border-outline focus:ring-1 focus:ring-outline disabled:opacity-60"
-          >
-            <option value="">Không giao</option>
-            {assignableMembers.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
+            className="w-full"
+            buttonClassName="h-11 w-full min-w-0 border-outline-variant bg-surface text-[15px]"
+            options={[
+              { value: '', label: 'Không giao' },
+              ...assignableMembers.map((member) => ({
+                value: member.id,
+                label: member.name,
+              })),
+            ]}
+          />
         </label>
 
         {isLoading && (

@@ -3,7 +3,9 @@ import api from '../../config/api';
 import socket from '../../socket';
 import AppIcon from '../ui/AppIcon';
 import ChecklistMessageCard from './ChecklistMessageCard';
+import DecisionTimeline from './DecisionTimeline';
 import EventMessageCard from './EventMessageCard';
+import PlanMessageCard from './PlanMessageCard';
 import PollMessageCard from './PollMessageCard';
 
 const STATUS_OPTIONS = [
@@ -16,12 +18,15 @@ const TYPE_OPTIONS = [
   { value: 'poll', label: 'Bình chọn' },
   { value: 'event', label: 'Sự kiện' },
   { value: 'checklist', label: 'Checklist' },
+  { value: 'plan', label: 'Kế hoạch' },
+  { value: 'decision', label: 'Quyết định' },
 ];
 
 const SECTION_META = {
   poll: { label: 'Bình chọn', icon: 'poll' },
   event: { label: 'Sự kiện', icon: 'event' },
   checklist: { label: 'Checklist', icon: 'checklist' },
+  plan: { label: 'Kế hoạch', icon: 'plan' },
 };
 
 const workspaceCacheStore = new Map();
@@ -94,6 +99,7 @@ const getWorkspaceStatus = (item, now = Date.now()) => {
   }
 
   const startsAt = item.event?.startsAt ? new Date(item.event.startsAt).getTime() : 0;
+  if (item.type === 'plan') return item.plan?.status === 'active' ? 'active' : 'archived';
   return item.event?.status === 'cancelled' || (startsAt > 0 && startsAt <= now)
     ? 'archived'
     : 'active';
@@ -153,6 +159,46 @@ const normalizeEvent = (event) => {
   };
 };
 
+const normalizePlan = (plan) => {
+  const planId = getIdString(plan?.planId || plan?.id || plan?._id);
+  if (!planId && !plan?.title) return null;
+  const locationOptions = Array.isArray(plan?.locationPoll?.options)
+    ? plan.locationPoll.options
+    : [];
+  const checklistItems = Array.isArray(plan?.checklist?.items)
+    ? plan.checklist.items
+    : [];
+  const expenseItems = Array.isArray(plan?.expenses) ? plan.expenses : [];
+  const albumItems = Array.isArray(plan?.album) ? plan.album : [];
+  const expenseSummaryTotal = Object.values(plan?.expenseSummary?.totalsByCurrency || {}).reduce(
+    (total, value) => total + Number(value || 0),
+    0,
+  );
+  const expenseItemsTotal = expenseItems.reduce(
+    (total, expense) => total + Number(expense?.amount || 0),
+    0,
+  );
+
+  return {
+    ...plan,
+    planId,
+    id: planId,
+    title: plan?.title || '',
+    status: plan?.status || 'active',
+    locationOptionCount: Number(plan?.locationOptionCount ?? locationOptions.length),
+    checklistTotal: Number(
+      plan?.checklistTotal ?? plan?.checklist?.totalItems ?? checklistItems.length,
+    ),
+    checklistDone: Number(
+      plan?.checklistDone ??
+        plan?.checklist?.completedItems ??
+        checklistItems.filter((item) => item?.isDone).length,
+    ),
+    expenseTotal: Number(plan?.expenseTotal ?? (expenseSummaryTotal || expenseItemsTotal)),
+    albumCount: Number(plan?.albumCount ?? albumItems.length),
+  };
+};
+
 const normalizeWorkspaceItem = (item) => {
   if (!item?.id || !item?.messageId || !item?.type) return null;
 
@@ -162,6 +208,7 @@ const normalizeWorkspaceItem = (item) => {
     poll: normalizePoll(item.poll),
     event: normalizeEvent(item.event),
     checklist: normalizeChecklist(item.checklist),
+    plan: normalizePlan(item.plan),
   };
 };
 
@@ -173,6 +220,7 @@ function ConversationWorkspace({
   onEventRsvp,
   onCancelEvent,
   onChecklistToggle,
+  onOpenPlan,
   onJumpToMessage,
 }) {
   const [status, setStatus] = useState('active');
@@ -188,7 +236,7 @@ function ConversationWorkspace({
   const currentEntry = cacheRef.current.get(cacheKey) || null;
   const availableTypes = isGroup
     ? TYPE_OPTIONS
-    : TYPE_OPTIONS.filter((option) => ['all', 'event'].includes(option.value));
+    : TYPE_OPTIONS.filter((option) => ['all', 'event', 'plan', 'decision'].includes(option.value));
   const canInteract = !isSaved && (!isGroup || conversation?.members?.some((member) => member.id === currentUserId));
 
   const commitCacheEntry = useCallback((key, updater) => {
@@ -205,6 +253,20 @@ function ConversationWorkspace({
 
       const key = makeCacheKey(conversationId, status, type);
       const previous = cacheRef.current.get(key);
+      if (type === 'decision') {
+        commitCacheEntry(key, {
+          conversationId,
+          status,
+          type,
+          items: [],
+          pagination: { hasMore: false, nextCursor: null, limit: 30 },
+          loaded: true,
+          loading: false,
+          error: '',
+          fetchedAt: Date.now(),
+        });
+        return;
+      }
       if (isSaved) {
         commitCacheEntry(key, {
           conversationId,
@@ -361,10 +423,10 @@ function ConversationWorkspace({
       const payloadConversationId = getIdString(payload?.conversationId || payload?.conversation);
       const messageType =
         payload?.messageType ||
-        (payload?.poll ? 'poll' : payload?.event ? 'event' : payload?.checklist ? 'checklist' : '');
+        (payload?.poll ? 'poll' : payload?.event ? 'event' : payload?.checklist ? 'checklist' : payload?.plan ? 'plan' : '');
       if (
         payloadConversationId === conversationId &&
-        ['poll', 'event', 'checklist'].includes(messageType)
+        ['poll', 'event', 'checklist', 'plan'].includes(messageType)
       ) {
         scheduleRefresh();
       }
@@ -413,6 +475,22 @@ function ConversationWorkspace({
         : false;
       if (!patched) scheduleRefresh();
     };
+    const handlePlanUpdated = (payload) => {
+      const payloadConversationId = getIdString(payload?.conversationId);
+      if (payloadConversationId !== conversationId) return;
+      const nextPlan = normalizePlan(payload?.planSnapshot || payload?.plan);
+      if (!payload?.messageId || !nextPlan) {
+        scheduleRefresh();
+        return;
+      }
+      const patched = patchWorkspaceItem(payload.messageId, (item) => ({
+        ...item,
+        plan: nextPlan,
+        title: nextPlan.title || item.title,
+        updatedAt: payload.updatedAt || new Date().toISOString(),
+      }));
+      if (!patched) scheduleRefresh();
+    };
     const handleMessageDeleted = (payload) => {
       if (getIdString(payload?.conversationId) !== conversationId) return;
       if (!payload?.messageId) {
@@ -429,6 +507,8 @@ function ConversationWorkspace({
     socket.on('event_created', handleEventUpdated);
     socket.on('event_rsvp_updated', handleEventUpdated);
     socket.on('event_cancelled', handleEventUpdated);
+    socket.on('plan_created', handleMessageCreated);
+    socket.on('plan_updated', handlePlanUpdated);
     socket.on('message_deleted', handleMessageDeleted);
 
     return () => {
@@ -439,6 +519,8 @@ function ConversationWorkspace({
       socket.off('event_created', handleEventUpdated);
       socket.off('event_rsvp_updated', handleEventUpdated);
       socket.off('event_cancelled', handleEventUpdated);
+      socket.off('plan_created', handleMessageCreated);
+      socket.off('plan_updated', handlePlanUpdated);
       socket.off('message_deleted', handleMessageDeleted);
     };
   }, [conversationId, isSaved, patchWorkspaceItem, removeWorkspaceItem, scheduleRefresh]);
@@ -464,7 +546,7 @@ function ConversationWorkspace({
   );
 
   const groupedItems = useMemo(() => {
-    const groups = { poll: [], event: [], checklist: [] };
+    const groups = { poll: [], event: [], checklist: [], plan: [] };
     (currentEntry?.items || []).forEach((item) => {
       if (groups[item.type]) groups[item.type].push(item);
     });
@@ -515,6 +597,17 @@ function ConversationWorkspace({
           variant="workspace"
         />
       )}
+      {item.type === 'plan' && (
+        <PlanMessageCard
+          plan={item.plan}
+          messageId={item.messageId}
+          disabled={!canInteract}
+          onOpen={({ planId }) =>
+            onOpenPlan?.({ planId, messageId: item.messageId, plan: item.plan })
+          }
+          variant="workspace"
+        />
+      )}
 
       <button
         type="button"
@@ -532,9 +625,9 @@ function ConversationWorkspace({
   const showInitialLoading = currentEntry?.loading && items.length === 0;
   const emptyText = isSaved
     ? 'Workspace chưa áp dụng cho Tin nhắn đã lưu.'
-    : isGroup
-      ? 'Chưa có kế hoạch nào. Hãy tạo Bình chọn, Sự kiện hoặc Checklist từ ô soạn tin.'
-      : 'Cuộc trò chuyện này chưa có sự kiện nào.';
+      : isGroup
+        ? 'Chưa có kế hoạch nào. Hãy tạo Bình chọn, Sự kiện, Checklist hoặc Kế hoạch từ ô soạn tin.'
+        : 'Cuộc trò chuyện này chưa có kế hoạch hoặc quyết định nào.';
 
   return (
     <div className="px-5 py-5 md:px-6">
@@ -557,13 +650,13 @@ function ConversationWorkspace({
             ))}
           </div>
 
-          <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+          <div className="flex flex-wrap gap-1.5">
             {availableTypes.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setType(option.value)}
-                className={`h-8 shrink-0 rounded-[8px] border px-3 text-xs font-medium transition-colors ${
+                className={`h-8 rounded-[8px] border px-3 text-xs font-medium transition-colors ${
                   type === option.value
                     ? 'border-secondary/35 bg-secondary-container text-on-surface'
                     : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low'
@@ -576,14 +669,22 @@ function ConversationWorkspace({
         </div>
       )}
 
-      {showInitialLoading && (
+      {!isSaved && type === 'decision' && (
+        <DecisionTimeline
+          conversation={conversation}
+          currentUserId={currentUserId}
+          onJumpToMessage={onJumpToMessage}
+        />
+      )}
+
+      {type !== 'decision' && showInitialLoading && (
         <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-on-surface-variant">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-outline border-t-secondary" />
           <span>Đang tải kế hoạch...</span>
         </div>
       )}
 
-      {!showInitialLoading && currentEntry?.error && items.length === 0 && (
+      {type !== 'decision' && !showInitialLoading && currentEntry?.error && items.length === 0 && (
         <div className="py-12 text-center">
           <p className="text-sm text-error">{currentEntry.error}</p>
           <button
@@ -596,7 +697,7 @@ function ConversationWorkspace({
         </div>
       )}
 
-      {!showInitialLoading && !currentEntry?.error && items.length === 0 && (
+      {type !== 'decision' && !showInitialLoading && !currentEntry?.error && items.length === 0 && (
         <div className="py-12 text-center">
           <span className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-surface-container-high text-on-surface-variant">
             <AppIcon name="checklist" className="text-[21px]" />
@@ -607,7 +708,7 @@ function ConversationWorkspace({
         </div>
       )}
 
-      {items.length > 0 && type === 'all' && (
+      {type !== 'decision' && items.length > 0 && type === 'all' && (
         <div className="space-y-7">
           {Object.entries(groupedItems).map(([sectionType, sectionItems]) => {
             if (sectionItems.length === 0) return null;
@@ -630,11 +731,11 @@ function ConversationWorkspace({
         </div>
       )}
 
-      {items.length > 0 && type !== 'all' && (
+      {type !== 'decision' && items.length > 0 && type !== 'all' && (
         <div className="space-y-5">{items.map(renderWorkspaceItem)}</div>
       )}
 
-      {items.length > 0 && (currentEntry?.error || currentEntry?.pagination?.hasMore) && (
+      {type !== 'decision' && items.length > 0 && (currentEntry?.error || currentEntry?.pagination?.hasMore) && (
         <div className="mt-6 text-center">
           {currentEntry.error && <p className="mb-2 text-xs text-error">{currentEntry.error}</p>}
           <button

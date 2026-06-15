@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../ui/AppIcon';
 import AppModal from '../ui/AppModal';
+import AppSelect from '../ui/AppSelect';
 
 const TITLE_MAX_LENGTH = 160;
 const ITEM_MAX_LENGTH = 120;
@@ -194,19 +195,20 @@ function CreateChecklistModal({
                 className="h-10 min-w-0 rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] text-on-surface outline-none transition focus:border-outline focus:ring-1 focus:ring-outline disabled:opacity-60"
                 placeholder={`Mục ${index + 1}`}
               />
-              <select
+              <AppSelect
                 value={item.assigneeId}
-                onChange={(event) => updateItem(item.id, { assigneeId: event.target.value })}
+                onChange={(value) => updateItem(item.id, { assigneeId: value })}
                 disabled={isSubmitting || assignableMembers.length === 0}
-                className="h-10 min-w-0 rounded-[8px] border border-outline-variant bg-surface px-2 text-sm text-on-surface outline-none transition focus:border-outline focus:ring-1 focus:ring-outline disabled:opacity-60"
-              >
-                <option value="">Không giao</option>
-                {assignableMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
+                className="min-w-0"
+                buttonClassName="h-10 w-full min-w-0 border-outline-variant bg-surface px-2 text-sm"
+                options={[
+                  { value: '', label: 'Không giao' },
+                  ...assignableMembers.map((member) => ({
+                    value: member.id,
+                    label: member.name,
+                  })),
+                ]}
+              />
               <button
                 type="button"
                 onClick={() => removeItem(item.id)}

@@ -342,7 +342,9 @@ Mục tiêu: tin nhắn giàu hơn text/file cơ bản.
 | A6.4 Polls | READY_TO_TEST | Group-only poll message type, single-choice vote changing, realtime result sync và voter list |
 | A6.5 Scheduled messages | READY_TO_TEST | Text-only send later qua REST + queue worker, pending strip, cancel và sync user room |
 | A6.6 Saved messages | READY_TO_TEST | Conversation cá nhân một-mình, `POST /api/conversations/saved`, tự sync realtime giữa tab/device |
-| A6.7 Message translation | OPTIONAL | Later AI/translation |
+| A6.7 Shared plans | READY_TO_TEST | Plan card từ chat, location poll, checklist, chi phí, album và realtime update qua user room |
+| A6.8 Decision timeline | READY_TO_TEST | Timeline quyết định theo conversation, link về message gốc, revert và sync realtime |
+| A6.9 Message translation | OPTIONAL | Later AI/translation |
 
 ## Pipeline A7 - Stories / Status
 

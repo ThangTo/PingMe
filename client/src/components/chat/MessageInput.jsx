@@ -8,6 +8,7 @@ const ScheduleMessageModal = lazy(() => import('./ScheduleMessageModal'));
 const CreatePollModal = lazy(() => import('./CreatePollModal'));
 const CreateEventModal = lazy(() => import('./CreateEventModal'));
 const CreateChecklistModal = lazy(() => import('./CreateChecklistModal'));
+const CreatePlanModal = lazy(() => import('./CreatePlanModal'));
 const CreateRecurringReminderModal = lazy(() => import('./CreateRecurringReminderModal'));
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
@@ -53,6 +54,10 @@ const getReplyPreviewText = (replyingMessage) => {
 
   if (replyingMessage.messageType === 'checklist') {
     return `Checklist: ${replyingMessage.checklist?.title || replyingMessage.content || 'Checklist'}`;
+  }
+
+  if (replyingMessage.messageType === 'plan') {
+    return `Kế hoạch: ${replyingMessage.plan?.title || replyingMessage.content || 'Kế hoạch'}`;
   }
 
   const attachments = getMessageAttachments(replyingMessage);
@@ -254,10 +259,12 @@ const MessageInput = ({
   onCreatePoll,
   onCreateEvent,
   onCreateChecklist,
+  onCreatePlan,
   onCreateReminder,
   canCreatePoll = false,
   canCreateEvent = false,
   canCreateChecklist = false,
+  canCreatePlan = false,
   canCreateReminder = false,
   conversationMembers = [],
   onDraftChange,
@@ -286,6 +293,7 @@ const MessageInput = ({
   const [isPollOpen, setIsPollOpen] = useState(false);
   const [isEventOpen, setIsEventOpen] = useState(false);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
@@ -1001,6 +1009,16 @@ const MessageInput = ({
     !isUploadingVoice &&
     !isRecordingVoice &&
     Boolean(onCreateChecklist);
+  const canOpenPlan =
+    canCreatePlan &&
+    !disabled &&
+    !editingMessage &&
+    !hasPreviews &&
+    !hasVoicePreview &&
+    !isUploading &&
+    !isUploadingVoice &&
+    !isRecordingVoice &&
+    Boolean(onCreatePlan);
   const canOpenReminder =
     canCreateReminder &&
     !disabled &&
@@ -1039,6 +1057,15 @@ const MessageInput = ({
           onSelect: () => setIsChecklistOpen(true),
         }
       : null,
+    canOpenPlan
+      ? {
+          key: 'plan',
+          label: 'Kế hoạch',
+          description: 'Tạo kế hoạch chung',
+          icon: 'plan',
+          onSelect: () => setIsPlanOpen(true),
+        }
+      : null,
     canOpenReminder
       ? {
           key: 'reminder',
@@ -1062,6 +1089,10 @@ const MessageInput = ({
   useEffect(() => {
     if (!canOpenChecklist) setIsChecklistOpen(false);
   }, [canOpenChecklist]);
+
+  useEffect(() => {
+    if (!canOpenPlan) setIsPlanOpen(false);
+  }, [canOpenPlan]);
 
   useEffect(() => {
     if (!canOpenReminder) setIsReminderOpen(false);
@@ -1140,6 +1171,21 @@ const MessageInput = ({
             onClose={() => setIsChecklistOpen(false)}
             onCreateChecklist={onCreateChecklist}
             members={conversationMembers}
+          />
+        </Suspense>
+      )}
+      {isPlanOpen && (
+        <Suspense fallback={null}>
+          <CreatePlanModal
+            open
+            initialTitle={message}
+            onClose={() => setIsPlanOpen(false)}
+            onCreatePlan={async (planInput) => {
+              await onCreatePlan?.(planInput);
+              setMessage('');
+              notifyDraftChange('');
+              stopTypingNow();
+            }}
           />
         </Suspense>
       )}
@@ -1513,6 +1559,17 @@ const MessageInput = ({
             title="Tạo checklist"
           >
             <AppIcon name="checklist" className="text-[19px]" />
+          </button>
+        )}
+
+        {canOpenPlan && (
+          <button
+            type="button"
+            onClick={() => setIsPlanOpen(true)}
+            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+            title="Tạo kế hoạch"
+          >
+            <AppIcon name="plan" className="text-[19px]" />
           </button>
         )}
 

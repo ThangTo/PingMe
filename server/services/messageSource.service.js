@@ -36,6 +36,9 @@ export const getSourceMessagePreviewText = (message = {}) => {
   if (message.messageType === 'checklist') {
     return message.checklist?.title || message.content || 'Checklist';
   }
+  if (message.messageType === 'plan') {
+    return message.plan?.title || message.content || 'Ke hoach';
+  }
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Nhãn dán';
   }

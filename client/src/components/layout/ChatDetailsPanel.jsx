@@ -156,6 +156,7 @@ const ChatDetailsPanel = ({
   onEventRsvp,
   onCancelEvent,
   onChecklistToggle,
+  onOpenPlan,
   onJumpToMessage,
   onOpenProfile,
   onBlocked,
@@ -1068,6 +1069,7 @@ const ChatDetailsPanel = ({
               onEventRsvp={onEventRsvp}
               onCancelEvent={onCancelEvent}
               onChecklistToggle={onChecklistToggle}
+              onOpenPlan={onOpenPlan}
               onJumpToMessage={onJumpToMessage}
             />
           )}

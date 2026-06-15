@@ -96,6 +96,7 @@ const MessageList = ({
   onPollVote,
   onEventRsvp,
   onChecklistToggle,
+  onOpenPlan,
   onCancelEvent,
   onEditMessage,
   onDeleteMessage,
@@ -423,6 +424,7 @@ const MessageList = ({
               onPollVote={onPollVote}
               onEventRsvp={onEventRsvp}
               onChecklistToggle={onChecklistToggle}
+              onOpenPlan={onOpenPlan}
               onCancelEvent={onCancelEvent}
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
@@ -456,6 +458,7 @@ const MessageList = ({
       onEditMessage,
       onEventRsvp,
       onChecklistToggle,
+      onOpenPlan,
       onCancelEvent,
       onEvolveMessage,
       onForwardMessage,

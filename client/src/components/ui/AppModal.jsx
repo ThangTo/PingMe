@@ -13,7 +13,7 @@ function AppModal({
 
   return (
     <div className="fixed inset-0 z-[9980] flex items-center justify-center bg-[#1f1d1a]/40 p-4 backdrop-blur-sm md:p-6">
-      <div className={`w-full overflow-hidden rounded-[18px] border border-outline-variant bg-surface-container-lowest shadow-sm ${maxWidth}`}>
+      <div className={`flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-[18px] border border-outline-variant bg-surface-container-lowest shadow-sm md:max-h-[calc(100dvh-3rem)] ${maxWidth}`}>
         <header className="flex items-start gap-3 border-b border-outline-variant px-5 py-4">
           <div className="min-w-0 flex-1">
             {title && <h2 className="text-[17px] font-semibold text-on-surface">{title}</h2>}
@@ -28,7 +28,7 @@ function AppModal({
             <AppIcon name="close" className="text-[18px]" />
           </button>
         </header>
-        <div className="px-5 py-4">{children}</div>
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
         {footer && <footer className="border-t border-outline-variant px-5 py-3">{footer}</footer>}
       </div>
     </div>

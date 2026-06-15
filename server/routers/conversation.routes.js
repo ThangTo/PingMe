@@ -26,6 +26,13 @@ router.post(
   conversationController.uploadAppearanceBackground,
 );
 router.get('/:conversationId/workspace', authMiddleware, conversationController.getWorkspace);
+router.get('/:conversationId/decisions', authMiddleware, conversationController.getDecisions);
+router.post('/:conversationId/decisions', authMiddleware, conversationController.createDecision);
+router.patch(
+  '/:conversationId/decisions/:decisionId/revert',
+  authMiddleware,
+  conversationController.revertDecision,
+);
 router.put('/:conversationId/draft', authMiddleware, conversationController.updateDraft);
 router.delete('/:conversationId/draft', authMiddleware, conversationController.deleteDraft);
 router.patch(

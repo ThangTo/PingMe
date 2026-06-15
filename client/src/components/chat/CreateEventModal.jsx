@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../ui/AppIcon';
 import AppModal from '../ui/AppModal';
+import AppSelect from '../ui/AppSelect';
 
 const TITLE_MAX_LENGTH = 120;
 const DESCRIPTION_MAX_LENGTH = 1000;
@@ -219,18 +220,14 @@ function CreateEventModal({
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
               Nhắc hẹn
             </span>
-            <select
+            <AppSelect
               value={reminderOffsetMinutes}
-              onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
+              onChange={(value) => setReminderOffsetMinutes(Number(value))}
               disabled={isSubmitting}
-              className="h-11 w-full rounded-[8px] border border-outline-variant bg-surface px-3 text-[15px] text-on-surface outline-none transition focus:border-outline focus:ring-1 focus:ring-outline disabled:opacity-60"
-            >
-              {REMINDER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              className="w-full"
+              buttonClassName="h-11 w-full min-w-0 border-outline-variant bg-surface text-[15px]"
+              options={REMINDER_OPTIONS}
+            />
           </label>
         </div>
 

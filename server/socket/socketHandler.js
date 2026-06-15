@@ -159,6 +159,9 @@ const getMessageNotificationBody = (messagePayload) => {
   if (messagePayload.messageType === 'checklist') {
     return `Checklist: ${messagePayload.checklist?.title || messagePayload.content || 'Checklist'}`;
   }
+  if (messagePayload.messageType === 'plan') {
+    return `Ke hoach: ${messagePayload.plan?.title || messagePayload.content || 'Ke hoach'}`;
+  }
   if (messagePayload.content) return messagePayload.content;
   if (messagePayload.messageType === 'sticker' || messagePayload.sticker?.url) {
     return messagePayload.sticker?.name
@@ -775,6 +778,7 @@ const formatReplyPreview = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    plan: message.isDeleted ? null : message.plan || null,
     sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
@@ -800,6 +804,7 @@ const formatPinnedMessage = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    plan: message.isDeleted ? null : message.plan || null,
     sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: message.isDeleted
@@ -2483,7 +2488,8 @@ const socketHandler = (io) => {
         if (
           message.messageType === 'poll' ||
           message.messageType === 'event' ||
-          message.messageType === 'checklist'
+          message.messageType === 'checklist' ||
+          message.messageType === 'plan'
         ) {
           socket.emit('message_edit_failed', {
             messageId,
@@ -2608,7 +2614,7 @@ const socketHandler = (io) => {
           const conversationLastMessage = await Message.findOne(conversationLastMessageQuery)
             .sort({ createdAt: -1 })
             .select(
-              'content attachment attachments sticker poll event checklist createdAt isDeleted messageType callDetails',
+              'content attachment attachments sticker poll event checklist plan createdAt isDeleted messageType callDetails',
             )
             .lean();
 
@@ -2651,6 +2657,7 @@ const socketHandler = (io) => {
                 checklist: conversationLastMessage.isDeleted
                   ? null
                   : formatChecklistPayload(conversationLastMessage.checklist),
+                plan: conversationLastMessage.isDeleted ? null : conversationLastMessage.plan || null,
                 attachments: conversationLastMessage.isDeleted
                   ? []
                   : normalizeAttachmentList({

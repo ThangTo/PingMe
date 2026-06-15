@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from './AppIcon';
 
-function AppSelect({ value, options = [], onChange, className = '', buttonClassName = '', label }) {
+function AppSelect({
+  value,
+  options = [],
+  onChange,
+  className = '',
+  buttonClassName = '',
+  label,
+  disabled = false,
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const selectedOption = useMemo(
@@ -26,8 +34,13 @@ function AppSelect({ value, options = [], onChange, className = '', buttonClassN
       {label && <p className="mb-1.5 text-[11px] font-medium text-on-surface">{label}</p>}
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={`flex h-9 min-w-[136px] items-center justify-between gap-2 rounded-[8px] border border-outline bg-surface-container-low px-3 text-left text-[12px] text-on-surface outline-none transition-colors hover:bg-surface-container-high ${buttonClassName}`}
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((current) => !current);
+        }}
+        aria-expanded={open}
+        className={`flex h-9 min-w-[136px] items-center justify-between gap-2 rounded-[8px] border border-outline bg-surface-container-low px-3 text-left text-[12px] text-on-surface outline-none transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60 ${buttonClassName}`}
       >
         <span className="truncate">{selectedOption?.label || 'Chọn'}</span>
         <AppIcon name={open ? 'expand_less' : 'expand_more'} className="text-[17px] text-on-surface-variant" />

@@ -21,6 +21,11 @@ import {
   uploadConversationBackground,
 } from '../services/conversationAppearance.service.js';
 import { getConversationWorkspace } from '../services/conversationWorkspace.service.js';
+import {
+  createDecision,
+  listDecisions,
+  revertDecision,
+} from '../services/conversationDecision.service.js';
 import { formatSourceMessageForPayload } from '../services/messageSource.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
 
@@ -101,6 +106,9 @@ const getMessagePreview = (message) => {
   if (message.messageType === 'checklist') {
     return `Checklist: ${message.checklist?.title || message.content || 'Checklist'}`;
   }
+  if (message.messageType === 'plan') {
+    return `Ke hoach: ${message.plan?.title || message.content || 'Ke hoach'}`;
+  }
   if (message.messageType === 'sticker' || message.sticker?.url) {
     return message.sticker?.name ? `Nhãn dán: ${message.sticker.name}` : 'Đã gửi nhãn dán';
   }
@@ -130,6 +138,7 @@ const formatPinnedMessage = (message) => {
     poll: message.isDeleted ? null : formatPollPayload(message.poll),
     event: message.isDeleted ? null : formatEventForMessage(message.event),
     checklist: message.isDeleted ? null : formatChecklistPayload(message.checklist),
+    plan: message.isDeleted ? null : message.plan || null,
     sourceMessage: message.isDeleted ? null : formatSourceMessageForPayload(message.sourceMessage),
     attachment: message.isDeleted ? null : message.attachment || null,
     attachments: getMessageAttachments(message),
@@ -1056,6 +1065,74 @@ const conversationController = {
     } catch (error) {
       console.error('Lỗi lấy danh sách cuộc trò chuyện:', error);
       res.status(500).json({ error: 'Không thể lấy danh sách cuộc trò chuyện' });
+    }
+  },
+
+  getDecisions: async (req, res) => {
+    try {
+      const decisions = await listDecisions({
+        userId: req.user?.id,
+        conversationId: req.params?.conversationId,
+        status: req.query?.status || 'all',
+      });
+
+      return res.status(200).json({
+        success: true,
+        conversationId: req.params?.conversationId,
+        decisions,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Loi lay Decision Timeline:', error);
+      return res.status(500).json({ error: 'Khong the lay Decision Timeline' });
+    }
+  },
+
+  createDecision: async (req, res) => {
+    try {
+      const decision = await createDecision({
+        io: req.app.get('io'),
+        userId: req.user?.id,
+        conversationId: req.params?.conversationId,
+        title: req.body?.title,
+        note: req.body?.note || '',
+        decidedById: req.body?.decidedById || null,
+        sourceMessageId: req.body?.sourceMessageId || null,
+      });
+
+      return res.status(201).json({
+        success: true,
+        decision,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Loi tao quyet dinh:', error);
+      return res.status(500).json({ error: 'Khong the tao quyet dinh' });
+    }
+  },
+
+  revertDecision: async (req, res) => {
+    try {
+      const decision = await revertDecision({
+        io: req.app.get('io'),
+        userId: req.user?.id,
+        decisionId: req.params?.decisionId,
+      });
+
+      return res.status(200).json({
+        success: true,
+        decision,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Loi hoan tac quyet dinh:', error);
+      return res.status(500).json({ error: 'Khong the hoan tac quyet dinh' });
     }
   },
 };
