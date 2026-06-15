@@ -19,7 +19,18 @@ cd server
 npm run push:vapid
 ```
 
-TURN không phải secret tự sinh bởi PingMe. Cần dùng dịch vụ TURN hoặc tự triển khai coturn, sau đó điền URL, username và credential vào env client.
+TURN không phải secret tự sinh bởi PingMe. Chỉ có STUN thì call qua NAT đối xứng hoặc mạng 4G dễ rớt vì không có relay fallback. Cần dùng dịch vụ TURN hoặc tự triển khai coturn, sau đó điền vào `RTC_ICE_SERVERS_JSON` trong `server/.env` (không commit):
+
+```bash
+RTC_ICE_SERVERS_JSON={"iceServers":[{"urls":"stun:stun.l.google.com:19302"},{"urls":["turn:turn.example.com:3478","turn:turn.example.com:3478?transport=tcp","turns:turn.example.com:5349"],"username":"USER","credential":"PASS"}]}
+```
+
+Server validate từng entry: entry thiếu `urls` bị bỏ qua, JSON sai cú pháp thì fallback về STUN mặc định (`EnvRtcConfigProvider.js`). Client lấy config qua `GET /api/calls/ice-config`.
+
+Gợi ý provider cho UAT:
+
+- **Metered/Twilio TURN**: dịch vụ có free tier hoặc trial, lấy sẵn credential. Nhanh nhất để test.
+- **coturn tự dựng**: kiểm soát hoàn toàn, cần một VPS có IP public; ưu tiên bật `turns:` (TLS) cho mạng chặn UDP.
 
 ## Trình Tự Deploy
 
