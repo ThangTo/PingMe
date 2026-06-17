@@ -2,6 +2,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
+import VoiceTrimmer from './VoiceTrimmer';
+import VoiceWave from './VoiceWave';
+import { trimVoiceToWav, getPeaksFromBlob } from '../../utils/audioTrim';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
 const ScheduleMessageModal = lazy(() => import('./ScheduleMessageModal'));
@@ -118,7 +121,9 @@ const revokePreviewUrls = (items = []) => {
   });
 };
 
-const waveformBars = [12, 22, 16, 30, 18, 36, 24, 42, 26, 34, 20, 32, 18, 28, 14, 24, 12, 20, 10, 16];
+const waveformBars = [
+  12, 22, 16, 30, 18, 36, 24, 42, 26, 34, 20, 32, 18, 28, 14, 24, 12, 20, 10, 16,
+];
 
 const VoiceWaveform = ({ progress = 0, active = false, tone = 'accent' }) => {
   const activeColor = tone === 'error' ? 'bg-error' : 'bg-secondary';
@@ -144,13 +149,14 @@ const VoiceWaveform = ({ progress = 0, active = false, tone = 'accent' }) => {
   );
 };
 
-const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
+const VoicePreviewPlayer = ({ src, duration = 0, size = 0, peaks }) => {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(duration || 0);
   const effectiveDuration = audioDuration || duration || 0;
-  const progress = effectiveDuration > 0 ? Math.min((currentTime / effectiveDuration) * 100, 100) : 0;
+  const progress =
+    effectiveDuration > 0 ? Math.min((currentTime / effectiveDuration) * 100, 100) : 0;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -199,12 +205,9 @@ const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
     audio.pause();
   };
 
-  const handleSeek = (event) => {
+  const handleSeek = (ratio) => {
     const audio = audioRef.current;
     if (!audio || !effectiveDuration) return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
     const nextTime = ratio * effectiveDuration;
     audio.currentTime = nextTime;
     setCurrentTime(nextTime);
@@ -231,20 +234,16 @@ const VoicePreviewPlayer = ({ src, duration = 0, size = 0 }) => {
             {formatVoiceDuration(currentTime)} / {formatVoiceDuration(effectiveDuration)}
           </span>
         </div>
-        <VoiceWaveform progress={progress} active={isPlaying} />
-        <button
-          type="button"
-          onClick={handleSeek}
-          className="mt-1 block h-3 w-full py-1"
-          aria-label="Tua ghi âm"
+        <div
+          className="cursor-pointer"
+          onPointerDown={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            handleSeek(ratio);
+          }}
         >
-          <span className="block h-1 overflow-hidden rounded-full bg-on-surface-variant/25">
-            <span
-              className="block h-full rounded-full bg-accent transition-[width]"
-              style={{ width: `${progress}%` }}
-            />
-          </span>
-        </button>
+          <VoiceWave peaks={peaks} progress={progress} active={isPlaying} height={36} />
+        </div>
       </div>
       <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
     </div>
@@ -288,6 +287,9 @@ const MessageInput = ({
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const [voiceDuration, setVoiceDuration] = useState(0);
   const [voiceError, setVoiceError] = useState('');
+  const [livePeaks, setLivePeaks] = useState([]);
+  const [isTrimmingVoice, setIsTrimmingVoice] = useState(false);
+  const [isProcessingTrim, setIsProcessingTrim] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPollOpen, setIsPollOpen] = useState(false);
@@ -316,6 +318,11 @@ const MessageInput = ({
   const voiceTimerRef = useRef(null);
   const recordingStartedAtRef = useRef(null);
   const discardVoiceRef = useRef(false);
+  const analyserCtxRef = useRef(null);
+  const analyserSourceRef = useRef(null);
+  const analyserTimerRef = useRef(null);
+  const trimRequestIdRef = useRef(0);
+  const isTrimErrorRef = useRef(false);
   const messageRef = useRef('');
   const lastDraftConversationIdRef = useRef(conversationId || null);
   const lastLocalDraftChangeAtRef = useRef(0);
@@ -338,6 +345,7 @@ const MessageInput = ({
 
   useEffect(
     () => () => {
+      trimRequestIdRef.current++;
       revokePreviewUrls(previewsRef.current);
       if (voicePreviewRef.current?.url) URL.revokeObjectURL(voicePreviewRef.current.url);
       if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
@@ -350,6 +358,9 @@ const MessageInput = ({
       }
       mediaRecorderRef.current = null;
       recordingStartedAtRef.current = null;
+      if (analyserTimerRef.current) clearTimeout(analyserTimerRef.current);
+      if (analyserCtxRef.current) analyserCtxRef.current.close();
+      if (analyserSourceRef.current) analyserSourceRef.current.disconnect();
       voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     },
@@ -426,6 +437,9 @@ const MessageInput = ({
     });
     setVoiceDuration(0);
     setVoiceError('');
+    setIsTrimmingVoice(false);
+    isTrimErrorRef.current = false;
+    trimRequestIdRef.current++;
   };
 
   useEffect(() => {
@@ -564,7 +578,10 @@ const MessageInput = ({
 
     requestAnimationFrame(() => {
       inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(selectionStart + emoji.length, selectionStart + emoji.length);
+      inputRef.current?.setSelectionRange(
+        selectionStart + emoji.length,
+        selectionStart + emoji.length,
+      );
       resizeInput();
     });
   };
@@ -641,7 +658,9 @@ const MessageInput = ({
 
       const acceptedFiles = selectedFiles.slice(0, availableSlots);
       if (selectedFiles.length > availableSlots) {
-        setUploadError(`Chỉ nhận thêm ${availableSlots} file, tối đa ${MAX_ATTACHMENTS} file mỗi tin nhắn`);
+        setUploadError(
+          `Chỉ nhận thêm ${availableSlots} file, tối đa ${MAX_ATTACHMENTS} file mỗi tin nhắn`,
+        );
       }
 
       const nextPreviews = acceptedFiles.map((file) => {
@@ -754,6 +773,38 @@ const MessageInput = ({
       voiceChunksRef.current = [];
       mediaRecorderRef.current = recorder;
 
+      // Setup AnalyserNode cho sóng live
+      try {
+        const aCtx = new AudioContext();
+        const aSource = aCtx.createMediaStreamSource(stream);
+        const analyser = aCtx.createAnalyser();
+        analyser.fftSize = 256;
+        aSource.connect(analyser);
+        analyserCtxRef.current = aCtx;
+        analyserSourceRef.current = aSource;
+        const bufLen = analyser.frequencyBinCount;
+        const dataArr = new Uint8Array(bufLen);
+        const ringBuf = [];
+
+        const updatePeaks = () => {
+          if (!analyserCtxRef.current) return;
+          analyser.getByteTimeDomainData(dataArr);
+          let sum = 0;
+          for (let i = 0; i < bufLen; i++) {
+            const n = (dataArr[i] - 128) / 128;
+            sum += n * n;
+          }
+          const rms = Math.min(1, Math.sqrt(sum / bufLen) * 2);
+          ringBuf.push(rms);
+          if (ringBuf.length > 40) ringBuf.shift();
+          setLivePeaks([...ringBuf]);
+          analyserTimerRef.current = setTimeout(updatePeaks, 80);
+        };
+        analyserTimerRef.current = setTimeout(updatePeaks, 80);
+      } catch (e) {
+        console.warn('AnalyserNode không khả dụng:', e);
+      }
+
       recorder.ondataavailable = (event) => {
         if (event.data?.size > 0) {
           voiceChunksRef.current.push(event.data);
@@ -763,6 +814,19 @@ const MessageInput = ({
       recorder.onstop = () => {
         const startedAt = recordingStartedAtRef.current || Date.now();
         clearVoiceTimer();
+        if (analyserTimerRef.current) {
+          clearTimeout(analyserTimerRef.current);
+          analyserTimerRef.current = null;
+        }
+        if (analyserCtxRef.current) {
+          analyserCtxRef.current.close();
+          analyserCtxRef.current = null;
+        }
+        if (analyserSourceRef.current) {
+          analyserSourceRef.current.disconnect();
+          analyserSourceRef.current = null;
+        }
+        setLivePeaks([]);
         stopVoiceStream();
         mediaRecorderRef.current = null;
         recordingStartedAtRef.current = null;
@@ -785,10 +849,7 @@ const MessageInput = ({
           return;
         }
 
-        const duration = Math.max(
-          1,
-          Math.round((Date.now() - startedAt) / 1000),
-        );
+        const duration = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
 
         setVoicePreview((current) => {
           if (current?.url) URL.revokeObjectURL(current.url);
@@ -801,10 +862,31 @@ const MessageInput = ({
           };
         });
         setVoiceDuration(duration);
+
+        // Rút peaks async
+        getPeaksFromBlob(blob).then((peaks) => {
+          setVoicePreview((prev) => {
+            if (!prev || prev.blob !== blob) return prev;
+            return { ...prev, peaks };
+          });
+        });
       };
 
       recorder.onerror = () => {
         clearVoiceTimer();
+        if (analyserTimerRef.current) {
+          clearTimeout(analyserTimerRef.current);
+          analyserTimerRef.current = null;
+        }
+        if (analyserCtxRef.current) {
+          analyserCtxRef.current.close();
+          analyserCtxRef.current = null;
+        }
+        if (analyserSourceRef.current) {
+          analyserSourceRef.current.disconnect();
+          analyserSourceRef.current = null;
+        }
+        setLivePeaks([]);
         stopVoiceStream();
         mediaRecorderRef.current = null;
         recordingStartedAtRef.current = null;
@@ -900,6 +982,7 @@ const MessageInput = ({
         size: uploadedFile.size || voicePreview.size,
         mimeType: uploadedFile.mimeType || voiceFile.type,
         duration: voicePreview.duration,
+        peaks: voicePreview.peaks || undefined,
       };
 
       onSendMessage(message.trim(), attachment, replyingMessage, [attachment]);
@@ -914,8 +997,49 @@ const MessageInput = ({
     }
   };
 
+  const processingTrimRef = useRef(false);
+
+  const handleConfirmTrim = useCallback(async (startSec, endSec) => {
+    const currentPreview = voicePreviewRef.current;
+    if (!currentPreview?.blob || processingTrimRef.current) return;
+    const requestId = ++trimRequestIdRef.current;
+    processingTrimRef.current = true;
+    setIsProcessingTrim(true);
+    setVoiceError('');
+    isTrimErrorRef.current = false;
+    try {
+      const {
+        blob: wavBlob,
+        duration: newDuration,
+        peaks,
+      } = await trimVoiceToWav(currentPreview.blob, startSec, endSec);
+      if (requestId !== trimRequestIdRef.current) return;
+      if (currentPreview.url) URL.revokeObjectURL(currentPreview.url);
+      setVoicePreview({
+        url: URL.createObjectURL(wavBlob),
+        blob: wavBlob,
+        duration: newDuration,
+        mimeType: 'audio/wav',
+        size: wavBlob.size,
+        peaks,
+      });
+      setIsTrimmingVoice(false);
+    } catch (error) {
+      if (requestId !== trimRequestIdRef.current) return;
+      console.error('Cắt ghi âm thất bại:', error);
+      setVoiceError('Không thể cắt ghi âm, thử lại.');
+      isTrimErrorRef.current = true;
+      setIsTrimmingVoice(false);
+    } finally {
+      setIsProcessingTrim(false);
+      processingTrimRef.current = false;
+    }
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isTrimmingVoice || isProcessingTrim) return;
 
     if (editingMessage) {
       if (!message.trim()) return;
@@ -953,7 +1077,9 @@ const MessageInput = ({
       !disabled &&
       !isUploading &&
       !isUploadingVoice &&
-      !isRecordingVoice;
+      !isRecordingVoice &&
+      !isTrimmingVoice &&
+      !isProcessingTrim;
   const canRecordVoice =
     !disabled &&
     !editingMessage &&
@@ -1148,11 +1274,7 @@ const MessageInput = ({
       )}
       {isPollOpen && (
         <Suspense fallback={null}>
-          <CreatePollModal
-            open
-            onClose={() => setIsPollOpen(false)}
-            onCreatePoll={onCreatePoll}
-          />
+          <CreatePollModal open onClose={() => setIsPollOpen(false)} onCreatePoll={onCreatePoll} />
         </Suspense>
       )}
       {isEventOpen && (
@@ -1265,7 +1387,9 @@ const MessageInput = ({
           )}
 
           {filePreviews.length > 0 && (
-            <div className={`${imagePreviews.length > 0 ? 'mt-3' : ''} overflow-hidden rounded-[10px] border border-outline-variant bg-surface`}>
+            <div
+              className={`${imagePreviews.length > 0 ? 'mt-3' : ''} overflow-hidden rounded-[10px] border border-outline-variant bg-surface`}
+            >
               {filePreviews.map((preview, index) => (
                 <div
                   key={preview.id}
@@ -1282,7 +1406,11 @@ const MessageInput = ({
                     <div className="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
                       <span>{formatFileSize(preview.size)}</span>
                       <span>·</span>
-                      <span>{preview.type === 'audio' ? 'AUDIO' : preview.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                      <span>
+                        {preview.type === 'audio'
+                          ? 'AUDIO'
+                          : preview.name?.split('.').pop()?.toUpperCase() || 'FILE'}
+                      </span>
                       {isUploading && index === 0 && (
                         <>
                           <span>·</span>
@@ -1340,7 +1468,7 @@ const MessageInput = ({
         </div>
       )}
 
-      {(isRecordingVoice || hasVoicePreview) && (
+      {(isRecordingVoice || hasVoicePreview || isTrimmingVoice) && (
         <div className="mb-2 w-full rounded-[16px] border border-outline-variant bg-surface-container-lowest px-3 py-2.5 shadow-sm sm:rounded-[12px] sm:py-3">
           {isRecordingVoice ? (
             <div className="flex flex-col gap-2.5">
@@ -1372,8 +1500,19 @@ const MessageInput = ({
                   <AppIcon name="stop" className="text-xl" />
                 </button>
               </div>
-              <VoiceWaveform progress={100} active tone="error" />
+              <VoiceWave peaks={livePeaks} allFilled tone="error" height={40} />
             </div>
+          ) : isTrimmingVoice ? (
+            <VoiceTrimmer
+              src={voicePreview.url}
+              duration={voicePreview.duration}
+              peaks={voicePreview.peaks}
+              onCancel={() => {
+                trimRequestIdRef.current++;
+                setIsTrimmingVoice(false);
+              }}
+              onConfirm={handleConfirmTrim}
+            />
           ) : (
             <>
               <div className="flex items-center gap-2 sm:hidden">
@@ -1381,7 +1520,19 @@ const MessageInput = ({
                   src={voicePreview.url}
                   duration={voicePreview.duration}
                   size={voicePreview.size}
+                  peaks={voicePreview.peaks}
                 />
+                {voicePreview.duration >= 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTrimmingVoice(true)}
+                    disabled={isUploadingVoice || isProcessingTrim}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
+                    title="Cắt ghi âm"
+                  >
+                    <AppIcon name="content_cut" className="text-xl" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={clearVoicePreview}
@@ -1401,7 +1552,8 @@ const MessageInput = ({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-on-surface">Ghi âm sẵn sàng gửi</p>
                     <p className="text-xs text-on-surface-variant">
-                      {formatVoiceDuration(voicePreview.duration)} · {formatFileSize(voicePreview.size)}
+                      {formatVoiceDuration(voicePreview.duration)} ·{' '}
+                      {formatFileSize(voicePreview.size)}
                     </p>
                   </div>
                 </div>
@@ -1410,8 +1562,20 @@ const MessageInput = ({
                     src={voicePreview.url}
                     duration={voicePreview.duration}
                     size={voicePreview.size}
+                    peaks={voicePreview.peaks}
                   />
                 </div>
+                {voicePreview.duration >= 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTrimmingVoice(true)}
+                    disabled={isUploadingVoice || isProcessingTrim}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-40"
+                    title="Cắt ghi âm"
+                  >
+                    <AppIcon name="content_cut" className="text-xl" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={clearVoicePreview}
@@ -1430,7 +1594,7 @@ const MessageInput = ({
       {voiceError && (
         <div className="mb-2 flex w-full items-center justify-between gap-3 rounded-[8px] border border-error/20 bg-error-container px-3 py-2 text-sm text-error">
           <p>{voiceError}</p>
-          {hasVoicePreview && (
+          {hasVoicePreview && !isTrimErrorRef.current && (
             <button
               type="button"
               onClick={handleSendVoiceMessage}
@@ -1497,169 +1661,169 @@ const MessageInput = ({
           onSubmit={handleSubmit}
           className="flex min-h-[48px] w-full items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"
         >
-        <button
-          type="button"
-          onClick={() => {
-            setIsActionMenuOpen(false);
-            fileInputRef.current?.click();
-          }}
-          disabled={disabled || Boolean(editingMessage) || isRecordingVoice || hasVoicePreview}
-          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
-          title="Đính kèm"
-        >
-          <AppIcon name="attach_file" className="text-[20px]" />
-        </button>
-
-        {hasComposerActions && (
-          <button
-            ref={actionButtonRef}
-            type="button"
-            onClick={() => {
-              setIsPickerOpen(false);
-              setIsActionMenuOpen((current) => !current);
-            }}
-            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:hidden ${
-              isActionMenuOpen ? 'bg-surface-container-low text-on-surface' : ''
-            }`}
-            title="Thao tác"
-            aria-label="Mở thao tác"
-            aria-expanded={isActionMenuOpen}
-          >
-            <AppIcon name="add" className="text-[20px]" />
-          </button>
-        )}
-
-        {canOpenPoll && (
-          <button
-            type="button"
-            onClick={() => setIsPollOpen(true)}
-            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
-            title="Tạo bình chọn"
-          >
-            <AppIcon name="poll" className="text-[19px]" />
-          </button>
-        )}
-
-        {canOpenEvent && (
-          <button
-            type="button"
-            onClick={() => setIsEventOpen(true)}
-            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
-            title="Tạo sự kiện"
-          >
-            <AppIcon name="event" className="text-[19px]" />
-          </button>
-        )}
-
-        {canOpenChecklist && (
-          <button
-            type="button"
-            onClick={() => setIsChecklistOpen(true)}
-            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
-            title="Tạo checklist"
-          >
-            <AppIcon name="checklist" className="text-[19px]" />
-          </button>
-        )}
-
-        {canOpenPlan && (
-          <button
-            type="button"
-            onClick={() => setIsPlanOpen(true)}
-            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
-            title="Tạo kế hoạch"
-          >
-            <AppIcon name="plan" className="text-[19px]" />
-          </button>
-        )}
-
-        {canOpenReminder && (
-          <button
-            type="button"
-            onClick={() => setIsReminderOpen(true)}
-            className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
-            title="Tạo nhắc hẹn"
-          >
-            <AppIcon name="reminder" className="text-[19px]" />
-          </button>
-        )}
-
-        <textarea
-          ref={inputRef}
-          value={message}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          onFocus={onFocus}
-          disabled={disabled || isRecordingVoice}
-          autoComplete="off"
-          rows={1}
-          className="min-w-0 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[16px] text-on-surface outline-none placeholder:text-on-surface-variant no-scrollbar md:text-[15px]"
-          placeholder={
-            editingMessage
-              ? 'Chỉnh sửa tin nhắn...'
-              : isRecordingVoice
-                ? 'Đang ghi âm...'
-                : hasPreviews || hasVoicePreview
-                  ? 'Viết chú thích...'
-                  : 'Nhập tin nhắn...'
-          }
-        />
-
-        <button
-          ref={emojiButtonRef}
-          type="button"
-          onClick={() => {
-            setIsActionMenuOpen(false);
-            setActivePickerTab('emoji');
-            setIsPickerOpen((current) => !current);
-          }}
-          disabled={disabled || isRecordingVoice}
-          className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
-          title="Cảm xúc"
-        >
-          <AppIcon name="emoji_picker" className="text-[20px]" />
-        </button>
-
-        {canSchedule && (
           <button
             type="button"
             onClick={() => {
               setIsActionMenuOpen(false);
-              setIsScheduleOpen(true);
+              fileInputRef.current?.click();
             }}
-            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-            title="Hẹn giờ gửi"
+            disabled={disabled || Boolean(editingMessage) || isRecordingVoice || hasVoicePreview}
+            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
+            title="Đính kèm"
           >
-            <AppIcon name="schedule" className="text-[19px]" />
+            <AppIcon name="attach_file" className="text-[20px]" />
           </button>
-        )}
 
-        {!canSend && (
+          {hasComposerActions && (
+            <button
+              ref={actionButtonRef}
+              type="button"
+              onClick={() => {
+                setIsPickerOpen(false);
+                setIsActionMenuOpen((current) => !current);
+              }}
+              className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:hidden ${
+                isActionMenuOpen ? 'bg-surface-container-low text-on-surface' : ''
+              }`}
+              title="Thao tác"
+              aria-label="Mở thao tác"
+              aria-expanded={isActionMenuOpen}
+            >
+              <AppIcon name="add" className="text-[20px]" />
+            </button>
+          )}
+
+          {canOpenPoll && (
+            <button
+              type="button"
+              onClick={() => setIsPollOpen(true)}
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              title="Tạo bình chọn"
+            >
+              <AppIcon name="poll" className="text-[19px]" />
+            </button>
+          )}
+
+          {canOpenEvent && (
+            <button
+              type="button"
+              onClick={() => setIsEventOpen(true)}
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              title="Tạo sự kiện"
+            >
+              <AppIcon name="event" className="text-[19px]" />
+            </button>
+          )}
+
+          {canOpenChecklist && (
+            <button
+              type="button"
+              onClick={() => setIsChecklistOpen(true)}
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              title="Tạo checklist"
+            >
+              <AppIcon name="checklist" className="text-[19px]" />
+            </button>
+          )}
+
+          {canOpenPlan && (
+            <button
+              type="button"
+              onClick={() => setIsPlanOpen(true)}
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              title="Tạo kế hoạch"
+            >
+              <AppIcon name="plan" className="text-[19px]" />
+            </button>
+          )}
+
+          {canOpenReminder && (
+            <button
+              type="button"
+              onClick={() => setIsReminderOpen(true)}
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              title="Tạo nhắc hẹn"
+            >
+              <AppIcon name="reminder" className="text-[19px]" />
+            </button>
+          )}
+
+          <textarea
+            ref={inputRef}
+            value={message}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            onFocus={onFocus}
+            disabled={disabled || isRecordingVoice}
+            autoComplete="off"
+            rows={1}
+            className="min-w-0 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[16px] text-on-surface outline-none placeholder:text-on-surface-variant no-scrollbar md:text-[15px]"
+            placeholder={
+              editingMessage
+                ? 'Chỉnh sửa tin nhắn...'
+                : isRecordingVoice
+                  ? 'Đang ghi âm...'
+                  : hasPreviews || hasVoicePreview
+                    ? 'Viết chú thích...'
+                    : 'Nhập tin nhắn...'
+            }
+          />
+
           <button
+            ref={emojiButtonRef}
             type="button"
-            onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-            disabled={!isRecordingVoice && !canRecordVoice}
-            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
-              isRecordingVoice
-                ? 'bg-error text-surface hover:bg-error/90'
-                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-            }`}
-            title={isRecordingVoice ? 'Dừng ghi âm' : 'Ghi âm'}
+            onClick={() => {
+              setIsActionMenuOpen(false);
+              setActivePickerTab('emoji');
+              setIsPickerOpen((current) => !current);
+            }}
+            disabled={disabled || isRecordingVoice}
+            className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-30"
+            title="Cảm xúc"
           >
-            <AppIcon name={isRecordingVoice ? 'stop' : 'mic'} className="text-[20px]" />
+            <AppIcon name="emoji_picker" className="text-[20px]" />
           </button>
-        )}
 
-        <button
-          type="submit"
-          disabled={!canSend}
-          className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-all ${
-            canSend ? 'bg-secondary text-surface hover:opacity-90 active:scale-[0.96]' : 'hidden'
-          }`}
-          title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi tin nhắn'}
-        >
-          <AppIcon name={editingMessage ? 'check' : 'send'} className="text-[18px]" />
-        </button>
+          {canSchedule && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsActionMenuOpen(false);
+                setIsScheduleOpen(true);
+              }}
+              className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+              title="Hẹn giờ gửi"
+            >
+              <AppIcon name="schedule" className="text-[19px]" />
+            </button>
+          )}
+
+          {!canSend && (
+            <button
+              type="button"
+              onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+              disabled={!isRecordingVoice && !canRecordVoice}
+              className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
+                isRecordingVoice
+                  ? 'bg-error text-surface hover:bg-error/90'
+                  : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+              }`}
+              title={isRecordingVoice ? 'Dừng ghi âm' : 'Ghi âm'}
+            >
+              <AppIcon name={isRecordingVoice ? 'stop' : 'mic'} className="text-[20px]" />
+            </button>
+          )}
+
+          <button
+            type="submit"
+            disabled={!canSend}
+            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-all ${
+              canSend ? 'bg-secondary text-surface hover:opacity-90 active:scale-[0.96]' : 'hidden'
+            }`}
+            title={editingMessage ? 'Lưu chỉnh sửa' : 'Gửi tin nhắn'}
+          >
+            <AppIcon name={editingMessage ? 'check' : 'send'} className="text-[18px]" />
+          </button>
         </form>
 
         {isActionMenuOpen && hasComposerActions && (
@@ -1681,7 +1845,9 @@ const MessageInput = ({
                   <AppIcon name={action.icon} className="text-[18px]" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-on-surface">{action.label}</span>
+                  <span className="block text-sm font-semibold text-on-surface">
+                    {action.label}
+                  </span>
                   <span className="block truncate text-xs text-on-surface-variant">
                     {action.description}
                   </span>

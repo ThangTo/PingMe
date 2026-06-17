@@ -235,7 +235,7 @@ Mục tiêu: voice và call không chỉ là media, mà trở thành thông tin 
 
 | Stage                      | Status  | Priority | Tags                      | Scope                                                              | Output / Gate                                                |
 | -------------------------- | ------- | -------- | ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| 4.1 Voice Message Trimming | NEXT    | P1       | `#media #mobile`          | Cắt đoạn đầu/cuối trước khi gửi voice                              | UI đơn giản, không làm tăng ma sát gửi voice                 |
+| 4.1 Voice Message Trimming | DONE    | P1       | `#media #mobile`          | Cắt đoạn đầu/cuối trước khi gửi voice                              | UI đơn giản, không làm tăng ma sát gửi voice                 |
 | 4.2 Voice Transcription    | PLANNED | P2       | `#ai #search #privacy`    | Convert voice message thành text                                   | Có trạng thái processing/failed, user có thể xóa transcript  |
 | 4.3 Voice Summary          | PLANNED | P2       | `#ai #wow`                | Tóm tắt voice dài thành ý chính                                    | Summary có link timestamp                                    |
 | 4.4 Timestamp Reply        | PLANNED | P2       | `#media #core`            | Reply vào đoạn cụ thể của voice                                    | Click reply nhảy tới timestamp trong audio                   |

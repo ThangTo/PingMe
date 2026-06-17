@@ -565,10 +565,33 @@ const getMessageMemberIds = async (message) => {
 
 const REVOKED_MESSAGE_TEXT = 'Tin nhắn này đã được thu hồi';
 
+const sanitizePeaks = (peaks) => {
+  if (!Array.isArray(peaks)) return undefined;
+  const MAX_PEAKS = 80;
+  const clamped = peaks.slice(0, MAX_PEAKS);
+  return clamped.map((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+  });
+};
+
+const sanitizeAttachments = (list) =>
+  list.map((item) => {
+    if (!item) return item;
+    if (item?.type === 'audio' && item?.peaks) {
+      return { ...item, peaks: sanitizePeaks(item.peaks) };
+    }
+    if (item?.peaks) {
+      const { peaks, ...rest } = item;
+      return rest;
+    }
+    return item;
+  });
+
 const normalizeAttachmentList = ({ attachment, attachments }) => {
   const list = Array.isArray(attachments) ? attachments.filter((item) => item?.url) : [];
-  if (list.length > 0) return list;
-  return attachment?.url ? [attachment] : [];
+  const result = list.length > 0 ? list : attachment?.url ? [attachment] : [];
+  return sanitizeAttachments(result);
 };
 
 const getPrimaryAttachment = (attachment, attachments) =>

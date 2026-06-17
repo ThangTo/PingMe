@@ -8,6 +8,7 @@ import PlanMessageCard from './PlanMessageCard';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import StickerArtwork from '../ui/StickerArtwork';
+import VoiceWave from './VoiceWave';
 
 const MESSAGE_URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[),.!?:;]+$/;
@@ -247,13 +248,14 @@ const ThemedTextBubble = ({ isOwn = false, themeId = 'classic', children }) => {
   );
 };
 
-const CompactVoicePlayer = ({ src, duration = 0 }) => {
+const CompactVoicePlayer = ({ src, duration = 0, peaks }) => {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(duration || 0);
   const effectiveDuration = audioDuration || duration || 0;
-  const progress = effectiveDuration > 0 ? Math.min((currentTime / effectiveDuration) * 100, 100) : 0;
+  const progress =
+    effectiveDuration > 0 ? Math.min((currentTime / effectiveDuration) * 100, 100) : 0;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -302,12 +304,9 @@ const CompactVoicePlayer = ({ src, duration = 0 }) => {
     audio.pause();
   };
 
-  const handleSeek = (event) => {
+  const handleSeek = (ratio) => {
     const audio = audioRef.current;
     if (!audio || !effectiveDuration) return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
     const nextTime = ratio * effectiveDuration;
     audio.currentTime = nextTime;
     setCurrentTime(nextTime);
@@ -330,19 +329,16 @@ const CompactVoicePlayer = ({ src, duration = 0 }) => {
         <AppIcon name={isPlaying ? 'pause' : 'play_arrow'} className="text-[21px]" />
       </button>
 
-      <button
-        type="button"
-        onClick={handleSeek}
-        className="h-5 min-w-0 flex-1"
-        aria-label="Tua tin nhắn thoại"
+      <div
+        className="min-w-0 flex-1 cursor-pointer"
+        onPointerDown={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+          handleSeek(ratio);
+        }}
       >
-        <span className="block h-1 overflow-hidden rounded-full bg-on-surface-variant/30">
-          <span
-            className="block h-full rounded-full bg-on-surface transition-[width]"
-            style={{ width: `${progress}%` }}
-          />
-        </span>
-      </button>
+        <VoiceWave peaks={peaks} progress={progress} active={isPlaying} height={24} />
+      </div>
 
       <span className="w-20 shrink-0 text-right text-[11px] font-medium tabular-nums text-on-surface-variant">
         {formatVoiceDuration(currentTime)} / {formatVoiceDuration(effectiveDuration)}
@@ -471,7 +467,9 @@ const MessageBubble = ({
   const isChecklistMessage = !isRevoked && message.messageType === 'checklist' && message.checklist;
   const isPlanMessage = !isRevoked && message.messageType === 'plan' && message.plan;
   const isStickerMessage =
-    !isRevoked && Boolean(message.sticker?.url) && (message.messageType === 'sticker' || message.sticker?.url);
+    !isRevoked &&
+    Boolean(message.sticker?.url) &&
+    (message.messageType === 'sticker' || message.sticker?.url);
   const evolutionSourceText = useMemo(() => getEvolutionSourceText(message), [message]);
   const attachments = useMemo(() => getMessageAttachments(message), [message]);
   const { imageAttachments, audioAttachments, fileAttachments } = useMemo(
@@ -489,7 +487,8 @@ const MessageBubble = ({
     () => renderMessageContent(message.content),
     [message.content],
   );
-  const canReact = Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
+  const canReact =
+    Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
   const canEvolve =
     Boolean(onEvolveMessage) &&
     Boolean(message.id) &&
@@ -800,9 +799,10 @@ const MessageBubble = ({
       : []),
   ];
 
-  const visibleActionItems = isPollMessage || isEventMessage || isChecklistMessage || isPlanMessage
-    ? actionItems.filter((item) => item.key !== 'edit')
-    : actionItems;
+  const visibleActionItems =
+    isPollMessage || isEventMessage || isChecklistMessage || isPlanMessage
+      ? actionItems.filter((item) => item.key !== 'edit')
+      : actionItems;
   const actionMenuVerticalClass =
     actionMenuPlacement === 'above'
       ? 'bottom-0'
@@ -881,7 +881,9 @@ const MessageBubble = ({
         className={`group flex animate-message-pop items-start gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
         onClick={handleMessageClick}
       >
-        <div className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}>
+        <div
+          className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}
+        >
           {!isOwn && (
             <button
               type="button"
@@ -894,7 +896,9 @@ const MessageBubble = ({
           )}
         </div>
 
-        <div className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}>
+        <div
+          className={`flex max-w-[82%] flex-col gap-1 md:max-w-[74%] ${isOwn ? 'items-end' : 'items-start'}`}
+        >
           {!isOwn && showAvatar && message.senderName && (
             <button
               type="button"
@@ -913,9 +917,7 @@ const MessageBubble = ({
             </span>
             <span className="min-w-0 truncate font-medium">{callMeta.title}</span>
             {showMeta && (
-              <span className="shrink-0 text-[11px] text-on-surface-variant">
-                {formattedTime}
-              </span>
+              <span className="shrink-0 text-[11px] text-on-surface-variant">{formattedTime}</span>
             )}
           </div>
         </div>
@@ -925,87 +927,92 @@ const MessageBubble = ({
 
   return (
     <>
-      {activeLightboxImage && typeof document !== 'undefined' && createPortal((
-        <div
-          className="fixed inset-0 z-[1000] flex cursor-pointer items-center justify-center bg-[#111111]/92 px-4 py-6"
-          onClick={closeLightbox}
-          onTouchStart={handleLightboxTouchStart}
-          onTouchEnd={handleLightboxTouchEnd}
-        >
-          <button
-            type="button"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
+      {activeLightboxImage &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[1000] flex cursor-pointer items-center justify-center bg-[#111111]/92 px-4 py-6"
             onClick={closeLightbox}
+            onTouchStart={handleLightboxTouchStart}
+            onTouchEnd={handleLightboxTouchEnd}
           >
-            <AppIcon name="close" className="text-2xl" />
-          </button>
-
-          {imageAttachments.length > 1 && (
-            <>
-              <button
-                type="button"
-                className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 md:flex"
-                onClick={showPrevImage}
-                title="Ảnh trước"
-              >
-                <AppIcon name="chevron_left" className="text-[28px]" />
-              </button>
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 md:flex"
-                onClick={showNextImage}
-                title="Ảnh sau"
-              >
-                <AppIcon name="chevron_right" className="text-[28px]" />
-              </button>
-            </>
-          )}
-
-          <img
-            src={activeLightboxImage.url}
-            alt={activeLightboxImage.filename || 'Ảnh trong tin nhắn'}
-            className="max-h-[84vh] max-w-[92vw] rounded-lg object-contain"
-            onClick={(event) => event.stopPropagation()}
-          />
-
-          {imageAttachments.length > 1 && (
-            <div
-              className="absolute inset-x-4 bottom-4 flex flex-col items-center gap-3"
-              onClick={(event) => event.stopPropagation()}
+            <button
+              type="button"
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20"
+              onClick={closeLightbox}
             >
-              <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
-                {(lightboxIndex || 0) + 1} / {imageAttachments.length}
+              <AppIcon name="close" className="text-2xl" />
+            </button>
+
+            {imageAttachments.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 md:flex"
+                  onClick={showPrevImage}
+                  title="Ảnh trước"
+                >
+                  <AppIcon name="chevron_left" className="text-[28px]" />
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 md:flex"
+                  onClick={showNextImage}
+                  title="Ảnh sau"
+                >
+                  <AppIcon name="chevron_right" className="text-[28px]" />
+                </button>
+              </>
+            )}
+
+            <img
+              src={activeLightboxImage.url}
+              alt={activeLightboxImage.filename || 'Ảnh trong tin nhắn'}
+              className="max-h-[84vh] max-w-[92vw] rounded-lg object-contain"
+              onClick={(event) => event.stopPropagation()}
+            />
+
+            {imageAttachments.length > 1 && (
+              <div
+                className="absolute inset-x-4 bottom-4 flex flex-col items-center gap-3"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                  {(lightboxIndex || 0) + 1} / {imageAttachments.length}
+                </div>
+                <div className="no-scrollbar flex max-w-full gap-2 overflow-x-auto">
+                  {imageAttachments.map((attachment, index) => (
+                    <button
+                      key={`${attachment.url}-${index}`}
+                      type="button"
+                      onClick={() => setLightboxIndex(index)}
+                      className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border transition ${
+                        index === lightboxIndex
+                          ? 'border-white opacity-100'
+                          : 'border-white/20 opacity-55 hover:opacity-85'
+                      }`}
+                    >
+                      <img
+                        src={attachment.url}
+                        alt={attachment.filename || 'Ảnh trong album'}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="no-scrollbar flex max-w-full gap-2 overflow-x-auto">
-                {imageAttachments.map((attachment, index) => (
-                  <button
-                    key={`${attachment.url}-${index}`}
-                    type="button"
-                    onClick={() => setLightboxIndex(index)}
-                    className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border transition ${
-                      index === lightboxIndex
-                        ? 'border-white opacity-100'
-                        : 'border-white/20 opacity-55 hover:opacity-85'
-                    }`}
-                  >
-                    <img
-                      src={attachment.url}
-                      alt={attachment.filename || 'Ảnh trong album'}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ), document.body)}
+            )}
+          </div>,
+          document.body,
+        )}
 
       <div
         className={`group flex animate-message-pop items-start gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
       >
-        <div className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}>
+        <div
+          className={`w-7 shrink-0 ${isOwn ? 'hidden md:block' : 'block'} ${showAvatar ? '' : 'invisible'}`}
+        >
           {!isOwn && (
             <button
               type="button"
@@ -1075,12 +1082,13 @@ const MessageBubble = ({
                 className={`relative flex min-w-0 max-w-[min(350px,76vw)] flex-col gap-1 md:max-w-[min(560px,70vw)] ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {pinnedBadge}
-                {message.sourceMessage && (isPollMessage || isEventMessage || isChecklistMessage || isPlanMessage) && (
-                  <SourceMessageLink
-                    sourceMessage={message.sourceMessage}
-                    onJumpToMessage={onJumpToMessage}
-                  />
-                )}
+                {message.sourceMessage &&
+                  (isPollMessage || isEventMessage || isChecklistMessage || isPlanMessage) && (
+                    <SourceMessageLink
+                      sourceMessage={message.sourceMessage}
+                      onJumpToMessage={onJumpToMessage}
+                    />
+                  )}
                 {isPollMessage && (
                   <PollMessageCard
                     poll={message.poll}
@@ -1101,29 +1109,29 @@ const MessageBubble = ({
                     onRsvp={onEventRsvp}
                     onCancel={onCancelEvent}
                     isOwn={isOwn}
-                    />
-                  )}
-                  {isChecklistMessage && (
-                    <ChecklistMessageCard
-                      checklist={message.checklist}
-                      messageId={message.id}
-                      currentUserId={currentUserId}
-                      reactionUsersById={reactionUsersById}
-                      disabled={message.status === 'sending'}
-                      onToggle={onChecklistToggle}
-                      onJumpToMessage={onJumpToMessage}
-                      isOwn={isOwn}
-                    />
-                  )}
-                  {isPlanMessage && (
-                    <PlanMessageCard
-                      plan={message.plan}
-                      messageId={message.id}
-                      disabled={message.status === 'sending'}
-                      onOpen={onOpenPlan}
-                    />
-                  )}
-                  {isStickerMessage && (
+                  />
+                )}
+                {isChecklistMessage && (
+                  <ChecklistMessageCard
+                    checklist={message.checklist}
+                    messageId={message.id}
+                    currentUserId={currentUserId}
+                    reactionUsersById={reactionUsersById}
+                    disabled={message.status === 'sending'}
+                    onToggle={onChecklistToggle}
+                    onJumpToMessage={onJumpToMessage}
+                    isOwn={isOwn}
+                  />
+                )}
+                {isPlanMessage && (
+                  <PlanMessageCard
+                    plan={message.plan}
+                    messageId={message.id}
+                    disabled={message.status === 'sending'}
+                    onOpen={onOpenPlan}
+                  />
+                )}
+                {isStickerMessage && (
                   <div className={`relative ${isOwn ? 'self-end' : 'self-start'}`}>
                     <StickerArtwork
                       sticker={message.sticker}
@@ -1247,7 +1255,7 @@ const MessageBubble = ({
                 )}
 
                 {audioAttachments.length > 0 && (
-                  <div className="flex w-[min(280px,72vw)] flex-col gap-2 md:w-[min(390px,74vw)]">
+                  <div className="flex w-[min(280px,72vw)] flex-col gap-2 md:w-[min(300px,65vw)]">
                     {audioAttachments.map((attachment, index) => (
                       <div
                         key={`${attachment.url}-${index}`}
@@ -1258,30 +1266,12 @@ const MessageBubble = ({
                         }`}
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <div className="px-2.5 py-2 md:hidden">
-                          <CompactVoicePlayer src={attachment.url} duration={attachment.duration} />
-                        </div>
-
-                        <div className="hidden min-w-[250px] flex-col gap-2 px-3 py-3 md:flex">
-                          <div className="flex items-center gap-3">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-on-surface">
-                              <AppIcon name="graphic_eq" className="text-[21px]" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold text-on-surface">
-                                Tin nhắn thoại
-                              </p>
-                              <p className="text-[11px] text-on-surface-variant">
-                                {[
-                                  attachment.duration ? formatVoiceDuration(attachment.duration) : '',
-                                  formatFileSize(attachment.size),
-                                ]
-                                  .filter(Boolean)
-                                  .join(' · ')}
-                              </p>
-                            </div>
-                          </div>
-                          <audio controls src={attachment.url} className="h-9 w-full" />
+                        <div className="px-2.5 py-2">
+                          <CompactVoicePlayer
+                            src={attachment.url}
+                            duration={attachment.duration}
+                            peaks={attachment.peaks}
+                          />
                         </div>
                       </div>
                     ))}
@@ -1296,7 +1286,9 @@ const MessageBubble = ({
                         role="button"
                         tabIndex={0}
                         className={`flex min-w-[240px] items-center gap-3 rounded-[12px] px-3.5 py-2.5 transition-colors hover:bg-surface-container-low ${
-                          isOwn ? 'bg-surface-container-high rounded-br-[4px]' : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
+                          isOwn
+                            ? 'bg-surface-container-high rounded-br-[4px]'
+                            : 'border border-outline-variant bg-surface-container-lowest rounded-bl-[4px]'
                         }`}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -1397,7 +1389,10 @@ const MessageBubble = ({
                       item.danger ? 'text-error' : 'text-on-surface'
                     }`}
                   >
-                    <AppIcon name={item.icon} className={`text-[20px] ${ item.pinIcon ? '-rotate-45' : '' }`} />
+                    <AppIcon
+                      name={item.icon}
+                      className={`text-[20px] ${item.pinIcon ? '-rotate-45' : ''}`}
+                    />
                     <span>{item.label}</span>
                   </button>
                 ))}
@@ -1408,7 +1403,11 @@ const MessageBubble = ({
           {reactionsList.length > 0 && (
             <div className="mt-0.5 flex flex-wrap gap-1">
               {reactionsList.map(({ emoji, count, users }) => (
-                <span key={emoji} ref={activeReactionEmoji === emoji ? reactionDetailsRef : null} className="relative">
+                <span
+                  key={emoji}
+                  ref={activeReactionEmoji === emoji ? reactionDetailsRef : null}
+                  className="relative"
+                >
                   <button
                     type="button"
                     onClick={(event) => {
@@ -1483,9 +1482,11 @@ const MessageBubble = ({
                     +{readReceipts.length - 5}
                   </span>
                 )}
-              <span className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${ isOwn ? 'right-0' : 'left-0' }`}>
-                {receiptSummary}
-              </span>
+                <span
+                  className={`pointer-events-none absolute bottom-full z-[80] mb-2 w-max max-w-[240px] rounded-md border border-outline-variant bg-[#2f2a24] px-2.5 py-1.5 text-center text-[11px] font-medium leading-4 text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/read-receipt:opacity-100 group-focus/read-receipt:opacity-100 ${isOwn ? 'right-0' : 'left-0'}`}
+                >
+                  {receiptSummary}
+                </span>
               </div>
             </div>
           )}
@@ -1493,10 +1494,7 @@ const MessageBubble = ({
       </div>
 
       {showActions && (
-        <div
-          className="fixed inset-0 z-[210] bg-[#1f1d1a]/42 md:hidden"
-          onClick={closeMenus}
-        >
+        <div className="fixed inset-0 z-[210] bg-[#1f1d1a]/42 md:hidden" onClick={closeMenus}>
           <div
             ref={mobileActionsRef}
             className="absolute inset-x-0 bottom-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))]"
@@ -1516,7 +1514,10 @@ const MessageBubble = ({
                     item.danger ? 'text-error' : 'text-on-surface'
                   }`}
                 >
-                  <AppIcon name={item.icon} className={`text-[22px] ${ item.pinIcon ? '-rotate-45' : '' }`} />
+                  <AppIcon
+                    name={item.icon}
+                    className={`text-[22px] ${item.pinIcon ? '-rotate-45' : ''}`}
+                  />
                   <span>{item.label}</span>
                 </button>
               ))}

@@ -13,6 +13,10 @@ export const attachmentSchema = new mongoose.Schema(
     size: Number,
     mimeType: String,
     duration: Number,
+    peaks: {
+      type: [Number],
+      default: undefined,
+    },
   },
   { _id: false },
 );
