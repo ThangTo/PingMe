@@ -230,7 +230,7 @@ const userController = {
       const pingId = normalizePingIdParam(req.params.pingId || '');
 
       if (!PING_ID_PATTERN.test(pingId)) {
-        return res.status(400).json({ error: 'PingMe ID khong hop le' });
+        return res.status(400).json({ error: 'PingMe ID không hợp lệ' });
       }
 
       const [targetUser, viewerUser] = await Promise.all([
@@ -247,11 +247,11 @@ const userController = {
       ]);
 
       if (!targetUser) {
-        return res.status(404).json({ error: 'Khong tim thay ho so' });
+        return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
       }
 
       if (viewerUser && hasBlockedRelationship(viewerUser, targetUser)) {
-        return res.status(404).json({ error: 'Khong tim thay ho so' });
+        return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
       }
 
       return res.status(200).json({
@@ -259,8 +259,8 @@ const userController = {
         profile: formatPublicProfile(targetUser, viewerUser),
       });
     } catch (error) {
-      console.error('Loi lay public profile:', error);
-      return res.status(500).json({ error: 'Khong the tai ho so' });
+      console.error('Lỗi lấy public profile:', error);
+      return res.status(500).json({ error: 'Không thể tải hồ sơ' });
     }
   },
 
@@ -269,7 +269,7 @@ const userController = {
       const { userId } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ error: 'userId khong hop le' });
+        return res.status(400).json({ error: 'userId không hợp lệ' });
       }
 
       const [targetUser, viewerUser] = await Promise.all([
@@ -286,11 +286,11 @@ const userController = {
       ]);
 
       if (!targetUser) {
-        return res.status(404).json({ error: 'Khong tim thay ho so' });
+        return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
       }
 
       if (viewerUser && hasBlockedRelationship(viewerUser, targetUser)) {
-        return res.status(404).json({ error: 'Khong tim thay ho so' });
+        return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
       }
 
       return res.status(200).json({
@@ -298,8 +298,8 @@ const userController = {
         profile: formatPublicProfile(targetUser, viewerUser),
       });
     } catch (error) {
-      console.error('Loi lay public profile theo userId:', error);
-      return res.status(500).json({ error: 'Khong the tai ho so' });
+      console.error('Lỗi lấy public profile theo userId:', error);
+      return res.status(500).json({ error: 'Không thể tải hồ sơ' });
     }
   },
 
@@ -411,7 +411,7 @@ const userController = {
 
       if (currentUser.avatarStorageKey) {
         void deleteStorageObject({ storageKey: currentUser.avatarStorageKey }).catch((error) => {
-          console.warn('Khong the xoa avatar cu tren storage:', error.message || error);
+          console.warn('Không thể xóa avatar cũ trên storage:', error.message || error);
         });
       }
 
@@ -431,7 +431,7 @@ const userController = {
 
   updatePrivacySettings: async (req, res) => {
     try {
-      const { onlineVisibility, avatarVisibility } = req.body;
+      const { onlineVisibility, avatarVisibility, aiCatchupEnabled } = req.body;
       const updates = {};
 
       if (onlineVisibility !== undefined) {
@@ -448,6 +448,13 @@ const userController = {
         updates['privacySettings.avatarVisibility'] = avatarVisibility;
       }
 
+      if (aiCatchupEnabled !== undefined) {
+        if (typeof aiCatchupEnabled !== 'boolean') {
+          return res.status(400).json({ error: 'aiCatchupEnabled phải là boolean' });
+        }
+        updates['privacySettings.aiCatchupEnabled'] = aiCatchupEnabled;
+      }
+
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: 'Không có thiết lập riêng tư để cập nhật' });
       }
@@ -462,6 +469,19 @@ const userController = {
         return res.status(404).json({ error: 'Người dùng không tồn tại' });
       }
 
+      // Cleanup sau update; log that bai nhung khong fail endpoint
+      if (aiCatchupEnabled === false) {
+        const { deleteCatchupForUser } = await import('../services/catchup.service.js');
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await deleteCatchupForUser(req.user.id);
+            break;
+          } catch (error) {
+            if (attempt === 1) console.error('Cleanup catchup summary thất bại ngay sau khi update:', error);
+          }
+        }
+      }
+
       emitPresenceForPrivacyChange(req, user);
 
       res.status(200).json({
@@ -471,6 +491,47 @@ const userController = {
     } catch (error) {
       console.error('Lỗi cập nhật riêng tư:', error);
       res.status(500).json({ error: 'Không thể cập nhật thiết lập riêng tư' });
+    }
+  },
+
+  updateAiSettings: async (req, res) => {
+    try {
+      const { aiCatchupEnabled } = req.body;
+
+      if (typeof aiCatchupEnabled !== 'boolean') {
+        return res.status(400).json({ error: 'aiCatchupEnabled phải là boolean' });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.user.id,
+        { $set: { 'privacySettings.aiCatchupEnabled': aiCatchupEnabled } },
+        { new: true, runValidators: true },
+      ).select(PROFILE_SELECT);
+
+      if (!user) {
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
+      }
+
+      // Cleanup sau update; log that bai nhung khong fail endpoint
+      if (!aiCatchupEnabled) {
+        const { deleteCatchupForUser } = await import('../services/catchup.service.js');
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await deleteCatchupForUser(req.user.id);
+            break;
+          } catch (error) {
+            if (attempt === 1) console.error('Cleanup catchup summary thất bại ngay sau khi update:', error);
+          }
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        user: formatUserProfile(user),
+      });
+    } catch (error) {
+      console.error('Lỗi cập nhật AI settings:', error);
+      res.status(500).json({ error: 'Không thể cập nhật thiết lập AI' });
     }
   },
 

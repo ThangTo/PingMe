@@ -4,6 +4,7 @@ import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import VoiceTrimmer from './VoiceTrimmer';
 import VoiceWave from './VoiceWave';
+import MessageSummaryPopover from './MessageSummaryPopover';
 import { trimVoiceToWav, getPeaksFromBlob } from '../../utils/audioTrim';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
@@ -276,6 +277,8 @@ const MessageInput = ({
   onEditMessage,
   onCancelEditMessage,
   onCancelReplyMessage,
+  isSaved = false,
+  onJumpToMessage,
 }) => {
   const [message, setMessage] = useState('');
   const [previews, setPreviews] = useState([]);
@@ -298,6 +301,7 @@ const MessageInput = ({
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
   const fileInputRef = useRef(null);
@@ -306,6 +310,7 @@ const MessageInput = ({
   const emojiButtonRef = useRef(null);
   const actionMenuRef = useRef(null);
   const actionButtonRef = useRef(null);
+  const summaryButtonRef = useRef(null);
   const wasEditingRef = useRef(false);
   const isTypingRef = useRef(false);
   const lastTypingEmitAtRef = useRef(0);
@@ -408,6 +413,28 @@ const MessageInput = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isActionMenuOpen]);
+
+  useEffect(() => {
+    if (!isSummaryOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (summaryButtonRef.current?.contains(event.target)) return;
+      const popoverEl = document.querySelector('[data-summary-popover]');
+      if (popoverEl?.contains(event.target)) return;
+      setIsSummaryOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsSummaryOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSummaryOpen]);
 
   const clearPreviews = () => {
     setPreviews((current) => {
@@ -1655,6 +1682,35 @@ const MessageInput = ({
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {conversationId && !isSaved && (
+        <div className="relative mb-1.5 flex items-center justify-between gap-2">
+          <button
+            ref={summaryButtonRef}
+            type="button"
+            onClick={() => setIsSummaryOpen((v) => !v)}
+            aria-label="Mở tóm tắt AI"
+            aria-expanded={isSummaryOpen}
+            className={`flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors ${
+              isSummaryOpen
+                ? 'bg-surface-container-low text-on-surface'
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+            title="Tóm tắt AI theo thời gian hoặc số lượng"
+          >
+            <AppIcon name="sparkles" className="text-[17px]" />
+            <span className="hidden md:inline">Tóm tắt AI</span>
+          </button>
+          <div data-summary-popover className={isSummaryOpen ? '' : 'hidden'}>
+            <MessageSummaryPopover
+              conversationId={conversationId}
+              isSaved={isSaved}
+              onJumpToMessage={onJumpToMessage}
+              onClose={() => setIsSummaryOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="relative">
         <form

@@ -25,6 +25,7 @@ router.get('/requests', authMiddleware, userController.getFriendRequests);
 router.patch('/me', authMiddleware, userController.updateProfile);
 router.patch('/me/notifications', authMiddleware, userController.updateNotificationSettings);
 router.patch('/me/privacy', authMiddleware, userController.updatePrivacySettings);
+router.patch('/me/ai-settings', authMiddleware, userController.updateAiSettings);
 router.patch('/me/password', authMiddleware, userController.changePassword);
 router.post('/me/avatar', authMiddleware, uploadAvatar, userController.uploadAvatar);
 router.post('/request', authMiddleware, userController.sendFriendRequest);

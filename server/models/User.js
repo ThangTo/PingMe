@@ -151,6 +151,10 @@ const userSchema = new mongoose.Schema(
         enum: ['everyone', 'friends', 'nobody'],
         default: 'everyone',
       },
+      aiCatchupEnabled: {
+        type: Boolean,
+        default: false,
+      },
     },
 
     lastSeen: {

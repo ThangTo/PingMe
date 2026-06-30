@@ -8,7 +8,7 @@ const router = Router();
 const uploadConversationBackground = (req, res, next) => {
   upload.single('background')(req, res, (error) => {
     if (error) {
-      return res.status(400).json({ error: error.message || 'Khong the upload anh nen' });
+      return res.status(400).json({ error: error.message || 'Không thể upload ảnh nền' });
     }
     next();
   });
@@ -50,6 +50,18 @@ router.delete(
   '/:conversationId/members/:memberId',
   authMiddleware,
   conversationController.removeGroupMember,
+);
+
+router.post(
+  '/:conversationId/catchup',
+  authMiddleware,
+  conversationController.getCatchup,
+);
+
+router.post(
+  '/:conversationId/summary',
+  authMiddleware,
+  conversationController.getSummary,
 );
 
 export default router;

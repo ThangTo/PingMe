@@ -26,6 +26,10 @@ import {
   listDecisions,
   revertDecision,
 } from '../services/conversationDecision.service.js';
+import {
+  generateCatchup,
+  generateSummary,
+} from '../services/catchup.service.js';
 import { formatSourceMessageForPayload } from '../services/messageSource.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
 
@@ -180,7 +184,7 @@ const formatConversationMembers = (conversation, currentUserId) =>
 
     return {
       id: toIdString(memberUser),
-      username: memberUser?.username || 'Nguoi dung',
+      username: memberUser?.username || 'Người dùng',
       pingId: memberUser?.pingId || '',
       avatar: getVisibleAvatar(currentUserId, memberUser),
       ...getVisiblePresence(currentUserId, memberUser),
@@ -216,7 +220,12 @@ const formatReadStates = (conversation, currentUserId) =>
     };
   });
 
-export const formatConversation = (conversation, currentUserId, unreadCountByConversation) => {
+export const formatConversation = (
+  conversation,
+  currentUserId,
+  unreadCountByConversation,
+  catchupAvailableByConversation = new Map(),
+) => {
   const isSaved = conversation.type === 'saved';
   const currentMember = getConversationMember(conversation, currentUserId);
   const peerMember = getPeerMember(conversation, currentUserId);
@@ -252,6 +261,14 @@ export const formatConversation = (conversation, currentUserId, unreadCountByCon
         : getMessagePreview(lastMessage),
     lastMessageAt: lastMessage?.createdAt || conversation.updatedAt || conversation.createdAt,
     unreadCount: isSaved ? 0 : unreadCountByConversation.get(conversationId) || 0,
+    catchupAvailable:
+      isSaved || conversation.type === 'saved'
+        ? false
+        : catchupAvailableByConversation.get(conversationId) || false,
+    catchupSince:
+      isSaved || conversation.type === 'saved'
+        ? null
+        : getMemberReadCutoff(currentMember)?.toISOString() || null,
     mutedUntil: currentMember?.mutedUntil || null,
     notificationsMuted: isActiveMute(currentMember?.mutedUntil),
     readState: formatReadState(conversation, currentUserId),
@@ -496,38 +513,38 @@ const conversationController = {
       const groupTitle = typeof title === 'string' ? title.trim() : '';
 
       if (groupTitle.length < 2 || groupTitle.length > 80) {
-        return res.status(400).json({ error: 'Ten nhom can tu 2 den 80 ky tu' });
+        return res.status(400).json({ error: 'Tên nhóm cần từ 2 đến 80 ký tự' });
       }
 
       if (!Array.isArray(memberIds) || memberIds.length === 0) {
-        return res.status(400).json({ error: 'Can chon it nhat 1 thanh vien' });
+        return res.status(400).json({ error: 'Cần chọn ít nhất 1 thành viên' });
       }
 
       const uniqueMemberIds = [...new Set(memberIds.map((id) => id?.toString()).filter(Boolean))]
         .filter((id) => id !== currentUserId);
 
       if (uniqueMemberIds.length === 0) {
-        return res.status(400).json({ error: 'Can chon it nhat 1 thanh vien khac ban' });
+        return res.status(400).json({ error: 'Cần chọn ít nhất 1 thành viên khác bạn' });
       }
 
       if (uniqueMemberIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
-        return res.status(400).json({ error: 'Danh sach thanh vien khong hop le' });
+        return res.status(400).json({ error: 'Danh sách thành viên không hợp lệ' });
       }
 
       const currentUser = await User.findById(currentUserId).select('friends').lean();
       if (!currentUser) {
-        return res.status(404).json({ error: 'Nguoi dung khong ton tai' });
+        return res.status(404).json({ error: 'Người dùng không tồn tại' });
       }
 
       const friendIdSet = new Set(currentUser.friends.map((id) => id.toString()));
       const invalidFriendIds = uniqueMemberIds.filter((id) => !friendIdSet.has(id));
       if (invalidFriendIds.length > 0) {
-        return res.status(403).json({ error: 'Chi co the tao nhom voi ban be cua ban' });
+        return res.status(403).json({ error: 'Chỉ có thể tạo nhóm với bạn bè của bạn' });
       }
 
       const memberUsers = await User.find({ _id: { $in: uniqueMemberIds } }).select('_id').lean();
       if (memberUsers.length !== uniqueMemberIds.length) {
-        return res.status(400).json({ error: 'Mot so thanh vien khong ton tai' });
+        return res.status(400).json({ error: 'Một số thành viên không tồn tại' });
       }
 
       const conversation = await Conversation.create({
@@ -572,8 +589,8 @@ const conversationController = {
 
       return res.status(201).json({ success: true, conversation: formattedConversation });
     } catch (error) {
-      console.error('Loi tao nhom:', error);
-      return res.status(500).json({ error: 'Khong the tao nhom' });
+      console.error('Lỗi tạo nhóm:', error);
+      return res.status(500).json({ error: 'Không thể tạo nhóm' });
     }
   },
 
@@ -859,16 +876,16 @@ const conversationController = {
       const { conversationId } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-        return res.status(400).json({ error: 'conversationId khong hop le' });
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
       }
 
       const conversation = await Conversation.findById(conversationId);
       if (!conversation) {
-        return res.status(404).json({ error: 'Cuoc tro chuyen khong ton tai' });
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
       }
 
       if (!getConversationMember(conversation, currentUserId)) {
-        return res.status(403).json({ error: 'Ban khong nam trong cuoc tro chuyen nay' });
+        return res.status(403).json({ error: 'Bạn không nằm trong cuộc trò chuyện này' });
       }
 
       const previousStorageKey = conversation.appearance?.background?.storageKey || '';
@@ -898,8 +915,8 @@ const conversationController = {
         return res.status(error.statusCode).json({ error: error.message });
       }
 
-      console.error('Loi cap nhat giao dien cuoc tro chuyen:', error);
-      return res.status(500).json({ error: 'Khong the cap nhat giao dien cuoc tro chuyen' });
+      console.error('Lỗi cập nhật giao diện cuộc trò chuyện:', error);
+      return res.status(500).json({ error: 'Không thể cập nhật giao diện cuộc trò chuyện' });
     }
   },
 
@@ -909,16 +926,16 @@ const conversationController = {
       const { conversationId } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-        return res.status(400).json({ error: 'conversationId khong hop le' });
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
       }
 
       const conversation = await Conversation.findById(conversationId);
       if (!conversation) {
-        return res.status(404).json({ error: 'Cuoc tro chuyen khong ton tai' });
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
       }
 
       if (!getConversationMember(conversation, currentUserId)) {
-        return res.status(403).json({ error: 'Ban khong nam trong cuoc tro chuyen nay' });
+        return res.status(403).json({ error: 'Bạn không nằm trong cuộc trò chuyện này' });
       }
 
       const { appearance: nextAppearance, previousStorageKey } = await uploadConversationBackground({
@@ -951,8 +968,8 @@ const conversationController = {
         return res.status(error.statusCode).json({ error: error.message });
       }
 
-      console.error('Loi upload anh nen cuoc tro chuyen:', error);
-      return res.status(500).json({ error: 'Khong the upload anh nen cuoc tro chuyen' });
+      console.error('Lỗi upload ảnh nền cuộc trò chuyện:', error);
+      return res.status(500).json({ error: 'Không thể upload ảnh nền cuộc trò chuyện' });
     }
   },
 
@@ -1019,6 +1036,9 @@ const conversationController = {
       const unreadCountByConversation = new Map(
         unreadCounts.map((item) => [item._id.toString(), item.count]),
       );
+      const catchupAvailableByConversation = new Map(
+        unreadCounts.map((item) => [item._id.toString(), item.count > 0]),
+      );
 
       const groupUnreadBranches = conversations
         .filter((conversation) => conversation.type === 'group')
@@ -1044,12 +1064,18 @@ const conversationController = {
 
         groupUnreadCounts.forEach((item) => {
           unreadCountByConversation.set(item._id.toString(), item.count);
+          catchupAvailableByConversation.set(item._id.toString(), item.count > 0);
         });
       }
 
       const formattedConversations = conversations
         .map((conversation) =>
-          formatConversation(conversation, currentUserId, unreadCountByConversation),
+          formatConversation(
+            conversation,
+            currentUserId,
+            unreadCountByConversation,
+            catchupAvailableByConversation,
+          ),
         )
         .sort((a, b) => {
           if (a.isSaved && !b.isSaved) return -1;
@@ -1085,8 +1111,8 @@ const conversationController = {
       if (error.statusCode) {
         return res.status(error.statusCode).json({ error: error.message });
       }
-      console.error('Loi lay Decision Timeline:', error);
-      return res.status(500).json({ error: 'Khong the lay Decision Timeline' });
+      console.error('Lỗi lấy Decision Timeline:', error);
+      return res.status(500).json({ error: 'Không thể lấy Decision Timeline' });
     }
   },
 
@@ -1110,8 +1136,8 @@ const conversationController = {
       if (error.statusCode) {
         return res.status(error.statusCode).json({ error: error.message });
       }
-      console.error('Loi tao quyet dinh:', error);
-      return res.status(500).json({ error: 'Khong the tao quyet dinh' });
+      console.error('Lỗi tạo quyết định:', error);
+      return res.status(500).json({ error: 'Không thể tạo quyết định' });
     }
   },
 
@@ -1131,8 +1157,55 @@ const conversationController = {
       if (error.statusCode) {
         return res.status(error.statusCode).json({ error: error.message });
       }
-      console.error('Loi hoan tac quyet dinh:', error);
-      return res.status(500).json({ error: 'Khong the hoan tac quyet dinh' });
+      console.error('Lỗi hoàn tác quyết định:', error);
+      return res.status(500).json({ error: 'Không thể hoàn tác quyết định' });
+    }
+  },
+
+  getCatchup: async (req, res) => {
+    try {
+      const result = await generateCatchup({
+        userId: req.user?.id,
+        conversationId: req.params?.conversationId,
+        catchupSince: req.body?.catchupSince || null,
+      });
+
+      return res.status(200).json({
+        success: true,
+        conversationId: req.params?.conversationId,
+        summary: result,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Lỗi tạo tóm tắt:', error);
+      return res.status(500).json({ error: 'Không thể tạo tóm tắt' });
+    }
+  },
+
+  getSummary: async (req, res) => {
+    try {
+      const result = await generateSummary({
+        userId: req.user?.id,
+        conversationId: req.params?.conversationId,
+        scope: req.body?.scope,
+        rangeFrom: req.body?.rangeFrom,
+        rangeTo: req.body?.rangeTo,
+        count: req.body?.count,
+      });
+
+      return res.status(200).json({
+        success: true,
+        conversationId: req.params?.conversationId,
+        summary: result,
+      });
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      console.error('Lỗi tạo tóm tắt theo yêu cầu:', error);
+      return res.status(500).json({ error: 'Không thể tạo tóm tắt theo yêu cầu' });
     }
   },
 };

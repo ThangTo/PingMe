@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './Header';
 import MessageList from '../chat/MessageList';
 import MessageInput from '../chat/MessageInput';
+import SmartCatchupBanner from '../chat/SmartCatchupBanner';
 import AppIcon from '../ui/AppIcon';
 import { useConfirmDialog } from '../ui/confirmDialogContext';
 import { normalizeConversationAppearance } from '../../utils/conversationAppearance';
@@ -441,6 +442,13 @@ const ChatArea = ({
   const [activePinnedActionId, setActivePinnedActionId] = useState(null);
   const pinnedPanelRef = useRef(null);
   const longPressTimerRef = useRef(null);
+  const [dismissedCatchup, setDismissedCatchup] = useState({});
+
+  // catchupAvailable tu server: co tin chua doc tinh theo lastReadAt cua member.
+  // Khac unreadCount (bi reset khi mo chat), flag nay on dinh de banner hien duoc.
+  const catchupKey = `${conversationId}_${currentUser?.catchupSince || ''}`;
+  const showCatchupBanner =
+    Boolean(currentUser?.catchupAvailable) && !currentUser?.isSaved && !dismissedCatchup[catchupKey];
 
   const pinnedMessages = currentUser?.pinnedMessages || (currentUser?.pinnedMessage ? [currentUser.pinnedMessage] : []);
   const latestPinnedMessage =
@@ -730,6 +738,17 @@ const ChatArea = ({
         </div>
       )}
 
+      <SmartCatchupBanner
+        key={conversationId}
+        conversationId={conversationId}
+        visible={showCatchupBanner}
+        unreadCount={currentUser?.unreadCount || 0}
+        catchupSince={currentUser?.catchupSince || null}
+        isSaved={currentUser?.isSaved}
+        onJumpToMessage={(messageId) => onJumpToPinnedMessage?.({ id: messageId })}
+        onDismiss={() => setDismissedCatchup((prev) => ({ ...prev, [catchupKey]: true }))}
+      />
+
       {isSearchOpen && (
         <div className="flex shrink-0 items-center gap-3 border-b border-outline-variant bg-surface px-4 py-2.5 md:px-5">
           <div className="relative max-w-md flex-1">
@@ -898,6 +917,8 @@ const ChatArea = ({
         onEditMessage={onEditMessage}
         onCancelEditMessage={onCancelEditMessage}
         onCancelReplyMessage={onCancelReplyMessage}
+        isSaved={currentUser?.isSaved}
+        onJumpToMessage={(messageId) => onJumpToPinnedMessage?.({ id: messageId })}
       />
     </section>
   );
