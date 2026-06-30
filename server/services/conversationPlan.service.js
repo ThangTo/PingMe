@@ -38,7 +38,7 @@ const createPlanError = (message, statusCode = 400) => {
 const normalizeText = (value, maxLength, fieldLabel) => {
   const text = typeof value === 'string' ? value.trim() : '';
   if (text.length > maxLength) {
-    throw createPlanError(`${fieldLabel} toi da ${maxLength} ky tu`, 400);
+    throw createPlanError(`${fieldLabel} tối đa ${maxLength} ký tự`, 400);
   }
   return text;
 };
@@ -57,21 +57,21 @@ const validatePlanConversation = async ({ conversationId, userId }) => {
     throw createPlanError('Unauthorized', 401);
   }
   if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) {
-    throw createPlanError('conversationId khong hop le', 400);
+    throw createPlanError('conversationId không hợp lệ', 400);
   }
 
   const conversation = await Conversation.findById(conversationId);
   if (!conversation) {
-    throw createPlanError('Cuoc tro chuyen khong ton tai', 404);
+    throw createPlanError('Cuộc trò chuyện không tồn tại', 404);
   }
   if (!['direct', 'group'].includes(conversation.type)) {
-    throw createPlanError('Shared Plans V1 chi ho tro chat truc tiep va nhom', 400);
+    throw createPlanError('Shared Plans V1 chỉ hỗ trợ chat trực tiếp và nhóm', 400);
   }
   if (!isConversationMember(conversation, normalizedUserId)) {
-    throw createPlanError('Ban khong thuoc cuoc tro chuyen nay', 403);
+    throw createPlanError('Bạn không thuộc cuộc trò chuyện này', 403);
   }
   if (await isDirectConversationBlocked(conversation)) {
-    throw createPlanError('Khong the tao/cap nhat ke hoach trong cuoc tro chuyen nay', 403);
+    throw createPlanError('Không thể tạo/cập nhật kế hoạch trong cuộc trò chuyện này', 403);
   }
 
   return conversation;
@@ -81,10 +81,10 @@ const ensureMemberId = (conversation, userId, fieldName = 'userId') => {
   const normalizedUserId = toIdString(userId);
   if (!normalizedUserId) return null;
   if (!mongoose.Types.ObjectId.isValid(normalizedUserId)) {
-    throw createPlanError(`${fieldName} khong hop le`, 400);
+    throw createPlanError(`${fieldName} không hợp lệ`, 400);
   }
   if (!isConversationMember(conversation, normalizedUserId)) {
-    throw createPlanError(`${fieldName} phai la thanh vien cuoc tro chuyen`, 400);
+    throw createPlanError(`${fieldName} phải là thành viên cuộc trò chuyện`, 400);
   }
   return normalizedUserId;
 };
@@ -95,12 +95,12 @@ const loadPlanForAction = async ({ planId, userId }) => {
     throw createPlanError('Unauthorized', 401);
   }
   if (!planId || !mongoose.Types.ObjectId.isValid(planId)) {
-    throw createPlanError('planId khong hop le', 400);
+    throw createPlanError('planId không hợp lệ', 400);
   }
 
   const plan = await ConversationPlan.findById(planId);
   if (!plan) {
-    throw createPlanError('Ke hoach khong ton tai', 404);
+    throw createPlanError('Kế hoạch không tồn tại', 404);
   }
   const conversation = await validatePlanConversation({
     conversationId: plan.conversation,
@@ -149,7 +149,7 @@ const formatLocationPoll = (locationPoll = {}) => {
   });
 
   return {
-    question: locationPoll.question || 'Chon dia diem',
+    question: locationPoll.question || 'Chọn địa điểm',
     totalVotes: options.reduce((total, option) => total + option.voteCount, 0),
     options,
   };
@@ -316,7 +316,7 @@ const queuePlanCreatedNotifications = ({ io, memberIds, creatorId, plan, message
   const recipientIds = memberIds.filter((memberId) => memberId !== creatorId);
   if (!recipientIds.length) return;
 
-  const body = `Ke hoach: ${plan.title}`;
+  const body = `Kế hoạch: ${plan.title}`;
   void Promise.all(
     recipientIds.map((recipientId) =>
       createNotification({
@@ -326,8 +326,8 @@ const queuePlanCreatedNotifications = ({ io, memberIds, creatorId, plan, message
         type: 'message',
         title:
           conversation.type === 'group'
-            ? `${senderUser?.username || 'Ai do'} · ${conversation.title || 'Nhom'}`
-            : senderUser?.username || 'Ke hoach moi',
+            ? `${senderUser?.username || 'Ai đó'} · ${conversation.title || 'Nhóm'}`
+            : senderUser?.username || 'Kế hoạch mới',
         body,
         conversationId: conversation._id,
         messageId: messagePayload.id,
@@ -335,7 +335,7 @@ const queuePlanCreatedNotifications = ({ io, memberIds, creatorId, plan, message
       }),
     ),
   ).catch((error) => {
-    console.warn('Khong the tao notification cho ke hoach:', error.message || error);
+    console.warn('Không thể tạo notification cho kế hoạch:', error.message || error);
   });
 
   void sendMessagePushToUsers({
@@ -344,7 +344,7 @@ const queuePlanCreatedNotifications = ({ io, memberIds, creatorId, plan, message
     conversation,
     senderUser,
   }).catch((error) => {
-    console.warn('Khong the gui push notification cho ke hoach:', error.message || error);
+    console.warn('Không thể gửi push notification cho kế hoạch:', error.message || error);
   });
 };
 
@@ -361,14 +361,14 @@ export const createPlan = async ({
     conversationId,
     userId: normalizedUserId,
   });
-  const cleanTitle = normalizeText(title, PLAN_TITLE_MAX_LENGTH, 'Tieu de ke hoach');
+  const cleanTitle = normalizeText(title, PLAN_TITLE_MAX_LENGTH, 'Tiêu đề kế hoạch');
   if (!cleanTitle) {
-    throw createPlanError('Tieu de ke hoach khong duoc rong', 400);
+    throw createPlanError('Tiêu đề kế hoạch không được rỗng', 400);
   }
   const cleanDescription = normalizeText(
     description,
     PLAN_DESCRIPTION_MAX_LENGTH,
-    'Mo ta ke hoach',
+    'Mô tả kế hoạch',
   );
   const sourceMessage = await resolveSourceMessageSnapshot({
     sourceMessageId,
@@ -442,7 +442,7 @@ export const listPlans = async ({ userId, conversationId, status = 'active' }) =
   const query = { conversation: conversation._id };
   if (status && status !== 'all') {
     if (!CONVERSATION_PLAN_STATUSES.includes(status)) {
-      throw createPlanError('status khong hop le', 400);
+      throw createPlanError('status không hợp lệ', 400);
     }
     query.status = status;
   }
@@ -475,19 +475,19 @@ export const updatePlan = async ({
   const hasDescription = typeof description === 'string';
 
   if (!hasTitle && !hasDescription) {
-    throw createPlanError('Khong co noi dung cap nhat', 400);
+    throw createPlanError('Không có nội dung cập nhật', 400);
   }
 
   if (hasTitle) {
-    const cleanTitle = normalizeText(title, PLAN_TITLE_MAX_LENGTH, 'Tieu de ke hoach');
-    if (!cleanTitle) throw createPlanError('Tieu de ke hoach khong duoc rong', 400);
+    const cleanTitle = normalizeText(title, PLAN_TITLE_MAX_LENGTH, 'Tiêu đề kế hoạch');
+    if (!cleanTitle) throw createPlanError('Tiêu đề kế hoạch không được rỗng', 400);
     plan.title = cleanTitle;
   }
   if (hasDescription) {
     plan.description = normalizeText(
       description,
       PLAN_DESCRIPTION_MAX_LENGTH,
-      'Mo ta ke hoach',
+      'Mô tả kế hoạch',
     );
   }
 
@@ -500,7 +500,7 @@ export const votePlanLocation = async ({ io, userId, planId, optionId }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
   const option = plan.locationPoll?.options?.find((item) => item.id === optionId);
   if (!option) {
-    throw createPlanError('Lua chon dia diem khong ton tai', 404);
+    throw createPlanError('Lựa chọn địa điểm không tồn tại', 404);
   }
 
   plan.locationPoll.options.forEach((item) => {
@@ -517,14 +517,14 @@ export const votePlanLocation = async ({ io, userId, planId, optionId }) => {
 
 export const addPlanLocationOption = async ({ io, userId, planId, text }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
-  const cleanText = normalizeText(text, PLAN_LOCATION_OPTION_MAX_LENGTH, 'Dia diem');
-  if (!cleanText) throw createPlanError('Dia diem khong duoc rong', 400);
+  const cleanText = normalizeText(text, PLAN_LOCATION_OPTION_MAX_LENGTH, 'Địa điểm');
+  if (!cleanText) throw createPlanError('Địa điểm không được rỗng', 400);
   const options = getPlanLocationOptions(plan);
   if (options.length >= PLAN_LOCATION_OPTION_MAX_ITEMS) {
-    throw createPlanError('Toi da 20 lua chon dia diem', 400);
+    throw createPlanError('Tối đa 20 lựa chọn địa điểm', 400);
   }
   if (options.some((option) => option.text.toLocaleLowerCase('vi') === cleanText.toLocaleLowerCase('vi'))) {
-    throw createPlanError('Dia diem da ton tai', 400);
+    throw createPlanError('Địa điểm đã tồn tại', 400);
   }
 
   plan.locationPoll.options.push({
@@ -540,17 +540,17 @@ export const addPlanLocationOption = async ({ io, userId, planId, text }) => {
 
 export const updatePlanLocationOption = async ({ io, userId, planId, optionId, text }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
-  const cleanText = normalizeText(text, PLAN_LOCATION_OPTION_MAX_LENGTH, 'Dia diem');
-  if (!cleanText) throw createPlanError('Dia diem khong duoc rong', 400);
+  const cleanText = normalizeText(text, PLAN_LOCATION_OPTION_MAX_LENGTH, 'Địa điểm');
+  if (!cleanText) throw createPlanError('Địa điểm không được rỗng', 400);
   const options = getPlanLocationOptions(plan);
   const option = options.find((entry) => entry.id === optionId);
-  if (!option) throw createPlanError('Lua chon dia diem khong ton tai', 404);
+  if (!option) throw createPlanError('Lựa chọn địa điểm không tồn tại', 404);
   if (
     options.some((entry) =>
       entry.id !== optionId &&
       entry.text.toLocaleLowerCase('vi') === cleanText.toLocaleLowerCase('vi'))
   ) {
-    throw createPlanError('Dia diem da ton tai', 400);
+    throw createPlanError('Địa điểm đã tồn tại', 400);
   }
 
   option.text = cleanText;
@@ -566,7 +566,7 @@ export const removePlanLocationOption = async ({ io, userId, planId, optionId })
   const previousLength = options.length;
   plan.locationPoll.options = options.filter((option) => option.id !== optionId);
   if (plan.locationPoll.options.length === previousLength) {
-    throw createPlanError('Lua chon dia diem khong ton tai', 404);
+    throw createPlanError('Lựa chọn địa điểm không tồn tại', 404);
   }
   plan.markModified('locationPoll.options');
   await plan.save();
@@ -584,10 +584,10 @@ export const addPlanChecklistItem = async ({
 }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
   const cleanText = normalizeText(text, PLAN_CHECKLIST_ITEM_MAX_LENGTH, 'Muc checklist');
-  if (!cleanText) throw createPlanError('Muc checklist khong duoc rong', 400);
+  if (!cleanText) throw createPlanError('Mục checklist không được rỗng', 400);
   const items = getPlanChecklistItems(plan);
   if (items.length >= PLAN_CHECKLIST_MAX_ITEMS) {
-    throw createPlanError('Checklist toi da 20 muc', 400);
+    throw createPlanError('Checklist tối đa 20 muc', 400);
   }
   const normalizedAssigneeId = assigneeId
     ? ensureMemberId(conversation, assigneeId, 'assigneeId')
@@ -627,12 +627,12 @@ export const updatePlanChecklistItem = async (input = {}) => {
   } = input;
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
   const item = getPlanChecklistItems(plan).find((entry) => entry.id === itemId);
-  if (!item) throw createPlanError('Muc checklist khong ton tai', 404);
+  if (!item) throw createPlanError('Mục checklist không tồn tại', 404);
 
   const changedAt = new Date();
   if (typeof text === 'string') {
     const cleanText = normalizeText(text, PLAN_CHECKLIST_ITEM_MAX_LENGTH, 'Muc checklist');
-    if (!cleanText) throw createPlanError('Muc checklist khong duoc rong', 400);
+    if (!cleanText) throw createPlanError('Mục checklist không được rỗng', 400);
     item.text = cleanText;
   }
   if (Object.prototype.hasOwnProperty.call(input, 'assigneeId')) {
@@ -661,7 +661,7 @@ export const removePlanChecklistItem = async ({ io, userId, planId, itemId }) =>
   const previousLength = items.length;
   plan.checklist.items = items.filter((item) => item.id !== itemId);
   if (plan.checklist.items.length === previousLength) {
-    throw createPlanError('Muc checklist khong ton tai', 404);
+    throw createPlanError('Mục checklist không tồn tại', 404);
   }
   plan.markModified('checklist.items');
   await plan.save();
@@ -680,13 +680,13 @@ export const addPlanExpense = async ({
   splitAmong = null,
 }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
-  const cleanLabel = normalizeText(label, PLAN_EXPENSE_LABEL_MAX_LENGTH, 'Khoan chi');
-  if (!cleanLabel) throw createPlanError('Ten khoan chi khong duoc rong', 400);
+  const cleanLabel = normalizeText(label, PLAN_EXPENSE_LABEL_MAX_LENGTH, 'Khoản chi');
+  if (!cleanLabel) throw createPlanError('Tên khoản chi không được rỗng', 400);
   const normalizedAmount = Number(amount);
   if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
-    throw createPlanError('So tien khong hop le', 400);
+    throw createPlanError('Số tiền không hợp lệ', 400);
   }
-  const cleanCurrency = normalizeText(currency || 'VND', PLAN_EXPENSE_CURRENCY_MAX_LENGTH, 'Tien te') || 'VND';
+  const cleanCurrency = normalizeText(currency || 'VND', PLAN_EXPENSE_CURRENCY_MAX_LENGTH, 'Tiền tệ') || 'VND';
   const normalizedPayerId = ensureMemberId(conversation, payerId || actorId, 'payerId');
   const memberIdSet = new Set(getConversationMemberIds(conversation));
   const normalizedSplitAmong = Array.isArray(splitAmong) && splitAmong.length > 0
@@ -717,7 +717,7 @@ export const removePlanExpense = async ({ io, userId, planId, expenseId }) => {
   const previousLength = expenses.length;
   plan.expenses = expenses.filter((expense) => expense.id !== expenseId);
   if (plan.expenses.length === previousLength) {
-    throw createPlanError('Khoan chi khong ton tai', 404);
+    throw createPlanError('Khoản chi không tồn tại', 404);
   }
   plan.markModified('expenses');
   await plan.save();
@@ -736,17 +736,17 @@ export const updatePlanExpense = async ({
 }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
   const expense = getPlanExpenses(plan).find((entry) => entry.id === expenseId);
-  if (!expense) throw createPlanError('Khoan chi khong ton tai', 404);
+  if (!expense) throw createPlanError('Khoản chi không tồn tại', 404);
 
   if (typeof label === 'string') {
-    const cleanLabel = normalizeText(label, PLAN_EXPENSE_LABEL_MAX_LENGTH, 'Khoan chi');
-    if (!cleanLabel) throw createPlanError('Ten khoan chi khong duoc rong', 400);
+    const cleanLabel = normalizeText(label, PLAN_EXPENSE_LABEL_MAX_LENGTH, 'Khoản chi');
+    if (!cleanLabel) throw createPlanError('Tên khoản chi không được rỗng', 400);
     expense.label = cleanLabel;
   }
   if (amount !== undefined) {
     const normalizedAmount = Number(amount);
     if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
-      throw createPlanError('So tien khong hop le', 400);
+      throw createPlanError('Số tiền không hợp lệ', 400);
     }
     expense.amount = normalizedAmount;
   }
@@ -761,10 +761,10 @@ export const updatePlanExpense = async ({
 };
 
 const normalizeAlbumAttachment = (attachment) => {
-  if (!attachment?.url) throw createPlanError('Attachment khong hop le', 400);
+  if (!attachment?.url) throw createPlanError('Attachment không hợp lệ', 400);
   const type = attachment.type || attachment.mimeType || '';
   if (type !== 'image' && !String(type).startsWith('image/')) {
-    throw createPlanError('Album V1 chi nhan anh', 400);
+    throw createPlanError('Album V1 chỉ nhận ảnh', 400);
   }
   return {
     type: 'image',
@@ -781,10 +781,10 @@ export const addPlanAlbumItems = async ({ io, userId, planId, attachments = [] }
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
   const attachmentList = Array.isArray(attachments) ? attachments : [attachments].filter(Boolean);
   if (attachmentList.length === 0) {
-    throw createPlanError('Chon it nhat 1 anh', 400);
+    throw createPlanError('Chọn ít nhất 1 ảnh', 400);
   }
   if ((plan.album?.length || 0) + attachmentList.length > PLAN_ALBUM_MAX_ITEMS) {
-    throw createPlanError('Album toi da 40 anh', 400);
+    throw createPlanError('Album tối đa 40 anh', 400);
   }
 
   attachmentList.forEach((attachment) => {
@@ -806,7 +806,7 @@ export const removePlanAlbumItem = async ({ io, userId, planId, itemId }) => {
   const previousLength = plan.album.length;
   plan.album = plan.album.filter((item) => item.id !== itemId);
   if (plan.album.length === previousLength) {
-    throw createPlanError('Anh khong ton tai', 404);
+    throw createPlanError('Ảnh không tồn tại', 404);
   }
   plan.markModified('album');
   await plan.save();
@@ -817,7 +817,7 @@ export const removePlanAlbumItem = async ({ io, userId, planId, itemId }) => {
 export const updatePlanStatus = async ({ io, userId, planId, status }) => {
   const { plan, conversation, userId: actorId } = await loadPlanForAction({ planId, userId });
   if (!CONVERSATION_PLAN_STATUSES.includes(status)) {
-    throw createPlanError('status khong hop le', 400);
+    throw createPlanError('status không hợp lệ', 400);
   }
   if (plan.status !== status) {
     plan.status = status;

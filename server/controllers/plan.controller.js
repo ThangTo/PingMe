@@ -44,7 +44,7 @@ const planController = {
         ...payload,
       });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the tao ke hoach');
+      return handlePlanError(res, error, 'Không thể tạo kế hoạch');
     }
   },
 
@@ -61,7 +61,7 @@ const planController = {
         plans,
       });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the lay ke hoach');
+      return handlePlanError(res, error, 'Không thể lấy kế hoạch');
     }
   },
 
@@ -77,7 +77,7 @@ const planController = {
         plan,
       });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the lay chi tiet ke hoach');
+      return handlePlanError(res, error, 'Không thể lấy chi tiết kế hoạch');
     }
   },
 
@@ -93,7 +93,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the cap nhat ke hoach');
+      return handlePlanError(res, error, 'Không thể cập nhật kế hoạch');
     }
   },
 
@@ -108,7 +108,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the vote dia diem');
+      return handlePlanError(res, error, 'Không thể vote địa điểm');
     }
   },
 
@@ -123,7 +123,7 @@ const planController = {
 
       return res.status(201).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the them dia diem');
+      return handlePlanError(res, error, 'Không thể thêm địa điểm');
     }
   },
 
@@ -139,7 +139,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the cap nhat dia diem');
+      return handlePlanError(res, error, 'Không thể cập nhật địa điểm');
     }
   },
 
@@ -154,7 +154,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the xoa dia diem');
+      return handlePlanError(res, error, 'Không thể xóa địa điểm');
     }
   },
 
@@ -171,7 +171,7 @@ const planController = {
 
       return res.status(201).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the them checklist item');
+      return handlePlanError(res, error, 'Không thể thêm checklist item');
     }
   },
 
@@ -191,7 +191,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the cap nhat checklist item');
+      return handlePlanError(res, error, 'Không thể cập nhật checklist item');
     }
   },
 
@@ -207,7 +207,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the cap nhat checklist item');
+      return handlePlanError(res, error, 'Không thể cập nhật checklist item');
     }
   },
 
@@ -222,7 +222,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the xoa checklist item');
+      return handlePlanError(res, error, 'Không thể xóa checklist item');
     }
   },
 
@@ -241,7 +241,7 @@ const planController = {
 
       return res.status(201).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the them chi phi');
+      return handlePlanError(res, error, 'Không thể thêm chi phí');
     }
   },
 
@@ -256,7 +256,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the xoa chi phi');
+      return handlePlanError(res, error, 'Không thể xóa chi phí');
     }
   },
 
@@ -274,7 +274,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the cap nhat chi phi');
+      return handlePlanError(res, error, 'Không thể cập nhật chi phí');
     }
   },
 
@@ -289,7 +289,7 @@ const planController = {
 
       return res.status(201).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the them anh vao album');
+      return handlePlanError(res, error, 'Không thể thêm ảnh vào album');
     }
   },
 
@@ -304,7 +304,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the xoa anh khoi album');
+      return handlePlanError(res, error, 'Không thể xóa ảnh khỏi album');
     }
   },
 
@@ -319,7 +319,7 @@ const planController = {
 
       return res.status(200).json({ success: true, plan });
     } catch (error) {
-      return handlePlanError(res, error, 'Khong the cap nhat trang thai ke hoach');
+      return handlePlanError(res, error, 'Không thể cập nhật trạng thái kế hoạch');
     }
   },
 };

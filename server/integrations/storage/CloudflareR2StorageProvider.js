@@ -12,7 +12,7 @@ const requiredEnv = [
 const assertR2Config = () => {
   const missing = requiredEnv.filter((key) => !process.env[key]?.trim());
   if (missing.length) {
-    throw new Error(`Cloudflare R2 chua duoc cau hinh: thieu ${missing.join(', ')}`);
+    throw new Error(`Cloudflare R2 chưa được cấu hình: thiếu ${missing.join(', ')}`);
   }
 };
 

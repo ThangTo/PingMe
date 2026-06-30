@@ -16,14 +16,14 @@ const MAX_MESSAGE_SYNC_LIMIT = 200;
 
 const parseSince = (value) => {
   if (typeof value !== 'string' || !value.trim()) {
-    const error = new Error('since khong hop le');
+    const error = new Error('since không hợp lệ');
     error.statusCode = 400;
     throw error;
   }
 
   const parsedDate = new Date(value);
   if (Number.isNaN(parsedDate.getTime())) {
-    const error = new Error('since khong hop le');
+    const error = new Error('since không hợp lệ');
     error.statusCode = 400;
     throw error;
   }
@@ -53,7 +53,8 @@ const populateConversationQuery = (query) =>
 
 const buildUnreadCountMap = async (conversations, currentUserObjectId, currentUserId) => {
   const conversationIds = conversations.map((conversation) => conversation._id);
-  if (conversationIds.length === 0) return new Map();
+  const result = { counts: new Map(), catchupAvailable: new Map() };
+  if (conversationIds.length === 0) return result;
 
   const unreadCounts = await Message.aggregate([
     {
@@ -70,6 +71,9 @@ const buildUnreadCountMap = async (conversations, currentUserObjectId, currentUs
   const unreadCountByConversation = new Map(
     unreadCounts.map((item) => [item._id.toString(), item.count]),
   );
+  unreadCounts.forEach((item) => {
+    result.catchupAvailable.set(item._id.toString(), item.count > 0);
+  });
 
   const groupUnreadBranches = conversations
     .filter((conversation) => conversation.type === 'group')
@@ -94,11 +98,14 @@ const buildUnreadCountMap = async (conversations, currentUserObjectId, currentUs
     ]);
 
     groupUnreadCounts.forEach((item) => {
-      unreadCountByConversation.set(item._id.toString(), item.count);
+      const id = item._id.toString();
+      unreadCountByConversation.set(id, item.count);
+      result.catchupAvailable.set(id, item.count > 0);
     });
   }
 
-  return unreadCountByConversation;
+  result.counts = unreadCountByConversation;
+  return result;
 };
 
 const getNextCursor = (items, hasMore, serverNow) => {
@@ -133,7 +140,7 @@ const syncController = {
       );
       const hasMore = changedConversations.length > limit;
       const pageConversations = hasMore ? changedConversations.slice(0, limit) : changedConversations;
-      const unreadCountByConversation = await buildUnreadCountMap(
+      const unreadMap = await buildUnreadCountMap(
         pageConversations,
         currentUserObjectId,
         currentUserId,
@@ -145,7 +152,7 @@ const syncController = {
         nextCursor: getNextCursor(pageConversations, hasMore, serverNow),
         hasMore,
         conversations: pageConversations.map((conversation) =>
-          formatConversation(conversation, currentUserId, unreadCountByConversation),
+          formatConversation(conversation, currentUserId, unreadMap.counts, unreadMap.catchupAvailable),
         ),
       });
     } catch (error) {
@@ -153,8 +160,8 @@ const syncController = {
         return res.status(error.statusCode).json({ error: error.message });
       }
 
-      console.error('Loi dong bo danh sach conversation:', error);
-      return res.status(500).json({ error: 'Khong the dong bo danh sach conversation' });
+      console.error('Lỗi đồng bộ danh sách conversation:', error);
+      return res.status(500).json({ error: 'Không thể đồng bộ danh sách conversation' });
     }
   },
 
@@ -168,7 +175,7 @@ const syncController = {
       const serverNow = new Date();
 
       if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-        return res.status(400).json({ error: 'conversationId khong hop le' });
+        return res.status(400).json({ error: 'conversationId không hợp lệ' });
       }
 
       const conversation = await populateConversationQuery(
@@ -176,11 +183,11 @@ const syncController = {
       ).lean();
 
       if (!conversation) {
-        return res.status(404).json({ error: 'Cuoc tro chuyen khong ton tai' });
+        return res.status(404).json({ error: 'Cuộc trò chuyện không tồn tại' });
       }
 
       if (!isConversationMember(conversation, currentUserId)) {
-        return res.status(403).json({ error: 'Ban khong thuoc cuoc tro chuyen nay' });
+        return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này' });
       }
 
       const changedMessages = await populateMessageQuery(
@@ -198,7 +205,7 @@ const syncController = {
         conversation,
         currentUserId,
       );
-      const unreadCountByConversation = await buildUnreadCountMap(
+      const unreadMap = await buildUnreadCountMap(
         [conversation],
         currentUserObjectId,
         currentUserId,
@@ -206,7 +213,8 @@ const syncController = {
       const formattedConversation = formatConversation(
         conversation,
         currentUserId,
-        unreadCountByConversation,
+        unreadMap.counts,
+        unreadMap.catchupAvailable,
       );
 
       return res.status(200).json({
@@ -225,8 +233,8 @@ const syncController = {
         return res.status(error.statusCode).json({ error: error.message });
       }
 
-      console.error('Loi dong bo conversation:', error);
-      return res.status(500).json({ error: 'Khong the dong bo conversation' });
+      console.error('Lỗi đồng bộ conversation:', error);
+      return res.status(500).json({ error: 'Không thể đồng bộ conversation' });
     }
   },
 };

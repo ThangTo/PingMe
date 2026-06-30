@@ -14,7 +14,7 @@ export const getStorageProvider = () => {
     return providerInstance;
   }
 
-  throw new Error(`Storage driver khong duoc ho tro: ${driver}`);
+  throw new Error(`Storage driver không được hỗ trợ: ${driver}`);
 };
 
 export const resetStorageProviderForTests = () => {

@@ -6,7 +6,7 @@ const requiredEnv = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_F
 const assertSmtpConfig = () => {
   const missing = requiredEnv.filter((key) => !process.env[key]?.trim());
   if (missing.length) {
-    throw new Error(`SMTP chua duoc cau hinh: thieu ${missing.join(', ')}`);
+    throw new Error(`SMTP chưa được cấu hình: thiếu ${missing.join(', ')}`);
   }
 };
 

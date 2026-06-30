@@ -15,6 +15,7 @@ const qrLogoSrc = '/brand/logo-trans.png';
 const defaultPrivacySettings = {
   onlineVisibility: 'friends',
   avatarVisibility: 'everyone',
+  aiCatchupEnabled: false,
 };
 
 const privacyOptions = [
@@ -802,6 +803,40 @@ function SettingsPanel({ onBack, onNavigate, connectionRequestCount = 0 }) {
             />
           </div>
         ))}
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-[10px] border border-outline bg-surface">
+        <div className="flex items-center gap-4 px-4 py-3.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] text-on-surface">Smart Catch-up (AI tóm tắt)</p>
+            <p className="mt-0.5 text-[11px] text-on-surface-variant leading-tight">
+              AI tóm tắt tin chưa đọc bằng bullet. Dữ liệu gửi tới dịch vụ AI. Có thể tắt bất cứ lúc nào.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean((profile.privacySettings || defaultPrivacySettings).aiCatchupEnabled)}
+            onClick={async () => {
+              const next = !(profile.privacySettings || defaultPrivacySettings).aiCatchupEnabled;
+              try {
+                await api.patch('/users/me/ai-settings', { aiCatchupEnabled: next });
+                setProfile((current) => ({
+                  ...current,
+                  privacySettings: { ...defaultPrivacySettings, ...current.privacySettings, aiCatchupEnabled: next },
+                }));
+                updateUser({ ...user, privacySettings: { ...defaultPrivacySettings, ...(user?.privacySettings || {}), aiCatchupEnabled: next } });
+              } catch {
+                // Implicit: revert UI
+              }
+            }}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${(profile.privacySettings || defaultPrivacySettings).aiCatchupEnabled ? 'bg-secondary' : 'bg-outline'}`}
+          >
+            <span
+              className={`absolute top-0.5 block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${(profile.privacySettings || defaultPrivacySettings).aiCatchupEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`}
+            />
+          </button>
+        </div>
       </div>
       <SettingsMessage {...messages.privacy} />
       <button

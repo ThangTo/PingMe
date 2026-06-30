@@ -8,8 +8,8 @@ const callController = {
         ...getRtcIceConfig(),
       });
     } catch (error) {
-      console.error('Khong the lay RTC ICE config:', error);
-      return res.status(500).json({ error: 'Khong the lay cau hinh cuoc goi' });
+      console.error('Không thể lấy RTC ICE config:', error);
+      return res.status(500).json({ error: 'Không thể lấy cấu hình cuộc gọi' });
     }
   },
 };

@@ -1,24 +1,24 @@
 import { getEmailProvider } from '../integrations/email/emailProviderFactory.js';
 
 const otpPurposeText = {
-  register: 'xac thuc dang ky PingMe',
-  password_reset: 'dat lai mat khau PingMe',
+  register: 'xác thực đăng ký PingMe',
+  password_reset: 'đặt lại mật khẩu PingMe',
 };
 
 export const sendOtpEmail = async ({ email, code, purpose }) => {
   const title = otpPurposeText[purpose] || 'xac thuc PingMe';
-  const subject = `Ma OTP PingMe cua ban: ${code}`;
+  const subject = `Mã OTP PingMe của bạn: ${code}`;
   const text = [
-    `Ma OTP de ${title}: ${code}`,
-    'Ma nay co hieu luc trong 10 phut.',
-    'Neu ban khong yeu cau thao tac nay, hay bo qua email nay.',
+    `Mã OTP để ${title}: ${code}`,
+    'Mã này có hiệu lực trong 10 phút.',
+    'Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.',
   ].join('\n');
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1f1d1a">
-      <p>Ma OTP de ${title}:</p>
+      <p>Mã OTP để ${title}:</p>
       <p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p>
-      <p>Ma nay co hieu luc trong 10 phut.</p>
-      <p style="color:#6f6a62">Neu ban khong yeu cau thao tac nay, hay bo qua email nay.</p>
+      <p>Mã này có hiệu lực trong 10 phút.</p>
+      <p style="color:#6f6a62">Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.</p>
     </div>
   `;
 

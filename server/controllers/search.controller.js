@@ -138,7 +138,7 @@ const searchController = {
       });
     } catch (error) {
       console.error('Loi tim kiem tin nhan:', error);
-      return res.status(500).json({ error: 'Khong the tim kiem tin nhan' });
+      return res.status(500).json({ error: 'Không thể tìm kiếm tin nhắn' });
     }
   },
 };

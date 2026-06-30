@@ -4,6 +4,14 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    host: 'localhost',
+    port: 5173,
+    hmr: {
+      host: 'localhost',
+      protocol: 'ws',
+    },
+  },
   build: {
     modulePreload: {
       resolveDependencies: (_filename, deps) =>

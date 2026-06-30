@@ -94,6 +94,11 @@ export const registerPushNotifications = async () => {
     return { subscribed: false, reason: 'unsupported' };
   }
 
+  if (!import.meta.env.PROD) {
+    debugPush('skip subscribe: service worker disabled in development');
+    return { subscribed: false, reason: 'development' };
+  }
+
   if (Notification.permission !== 'granted') {
     debugPush('skip subscribe: permission is', Notification.permission);
     return { subscribed: false, reason: 'permission_not_granted' };
@@ -182,7 +187,7 @@ export const showClientNotification = async ({ title = 'PingMe', options = {}, o
     return { shown: false, reason: `permission_${Notification.permission}` };
   }
 
-  if ('serviceWorker' in navigator) {
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     try {
       const registration =
         (await navigator.serviceWorker.getRegistration()) ||
@@ -213,6 +218,10 @@ export const showServiceWorkerTestNotification = async () => {
 
   if (Notification.permission !== 'granted') {
     return { shown: false, reason: `permission_${Notification.permission}` };
+  }
+
+  if (!import.meta.env.PROD) {
+    return { shown: false, reason: 'development' };
   }
 
   await navigator.serviceWorker.register(PINGME_SERVICE_WORKER_PATH);

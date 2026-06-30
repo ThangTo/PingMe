@@ -10,7 +10,7 @@ const requiredEnv = [
 const assertGoogleConfig = () => {
   const missing = requiredEnv.filter((key) => !process.env[key]?.trim());
   if (missing.length) {
-    throw new Error(`Google OAuth chua duoc cau hinh: thieu ${missing.join(', ')}`);
+    throw new Error(`Google OAuth chưa được cấu hình: thiếu ${missing.join(', ')}`);
   }
 };
 
@@ -38,14 +38,14 @@ class GoogleOAuthProvider extends OAuthProvider {
   async getProfileFromCode(code) {
     const { tokens } = await this.client.getToken(code);
     const idToken = tokens.id_token;
-    if (!idToken) throw new Error('Google callback khong tra ve id_token');
+    if (!idToken) throw new Error('Google callback không trả về id_token');
 
     const ticket = await this.client.verifyIdToken({
       idToken,
       audience: this.clientId,
     });
     const payload = ticket.getPayload();
-    if (!payload?.email) throw new Error('Google profile khong co email');
+    if (!payload?.email) throw new Error('Google profile không có email');
 
     return {
       provider: this.providerName,

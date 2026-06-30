@@ -5,6 +5,7 @@ export const PRIVACY_VISIBILITY_VALUES = ['everyone', 'friends', 'nobody'];
 export const DEFAULT_PRIVACY_SETTINGS = {
   onlineVisibility: 'friends',
   avatarVisibility: 'everyone',
+  aiCatchupEnabled: false,
 };
 
 export const normalizePrivacySettings = (settings = {}) => ({
@@ -14,6 +15,10 @@ export const normalizePrivacySettings = (settings = {}) => ({
   avatarVisibility: PRIVACY_VISIBILITY_VALUES.includes(settings.avatarVisibility)
     ? settings.avatarVisibility
     : DEFAULT_PRIVACY_SETTINGS.avatarVisibility,
+  aiCatchupEnabled:
+    typeof settings.aiCatchupEnabled === 'boolean'
+      ? settings.aiCatchupEnabled
+      : DEFAULT_PRIVACY_SETTINGS.aiCatchupEnabled,
 });
 
 const hasFriend = (user, viewerId) => {

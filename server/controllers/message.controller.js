@@ -132,7 +132,7 @@ const createBeforeMessageQuery = async (conversationId, beforeMessageId) => {
   if (!beforeMessageId) return null;
 
   if (!mongoose.Types.ObjectId.isValid(beforeMessageId)) {
-    const error = new Error('before khong hop le');
+    const error = new Error('before không hợp lệ');
     error.statusCode = 400;
     throw error;
   }
@@ -145,7 +145,7 @@ const createBeforeMessageQuery = async (conversationId, beforeMessageId) => {
     .lean();
 
   if (!beforeMessage) {
-    const error = new Error('Tin nhan moc phan trang khong ton tai');
+    const error = new Error('Tin nhắn mốc phân trang không tồn tại');
     error.statusCode = 404;
     throw error;
   }

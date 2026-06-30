@@ -12,7 +12,7 @@ export const normalizeOtpEmail = (email = '') => email.trim().toLowerCase();
 
 const assertPurpose = (purpose) => {
   if (!OTP_PURPOSES.includes(purpose)) {
-    throw new Error('Muc dich OTP khong hop le');
+    throw new Error('Mục đích OTP không hợp lệ');
   }
 };
 
@@ -22,7 +22,7 @@ export const requestOtp = async ({ email, purpose }) => {
   assertPurpose(purpose);
   const normalizedEmail = normalizeOtpEmail(email);
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-    throw new Error('Email khong hop le');
+    throw new Error('Email không hợp lệ');
   }
 
   const latestToken = await OtpToken.findOne({
@@ -88,7 +88,7 @@ export const consumeOtp = async ({ email, purpose, code }) => {
   const normalizedEmail = normalizeOtpEmail(email);
   const normalizedCode = code?.toString?.().trim() || '';
   if (!/^\d{6}$/.test(normalizedCode)) {
-    throw new Error('Ma OTP phai gom 6 chu so');
+    throw new Error('Mã OTP phải gồm 6 chữ số');
   }
 
   const token = await OtpToken.findOne({
@@ -100,14 +100,14 @@ export const consumeOtp = async ({ email, purpose, code }) => {
     .select('+codeHash')
     .sort({ createdAt: -1 });
 
-  if (!token) throw new Error('Ma OTP khong ton tai hoac da het han');
-  if (token.attempts >= MAX_OTP_ATTEMPTS) throw new Error('Ma OTP da bi khoa do nhap sai qua nhieu lan');
+  if (!token) throw new Error('Mã OTP không tồn tại hoặc đã hết hạn');
+  if (token.attempts >= MAX_OTP_ATTEMPTS) throw new Error('Mã OTP đã bị khóa do nhập sai quá nhiều lần');
 
   const isValid = await bcrypt.compare(normalizedCode, token.codeHash);
   if (!isValid) {
     token.attempts += 1;
     await token.save();
-    throw new Error('Ma OTP khong dung');
+    throw new Error('Mã OTP không đúng');
   }
 
   token.consumedAt = new Date();

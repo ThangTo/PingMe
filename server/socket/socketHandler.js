@@ -37,6 +37,7 @@ import {
   formatSourceMessageForPayload,
   resolveSourceMessageSnapshot,
 } from '../services/messageSource.service.js';
+import { deleteCatchupForMessage } from '../services/catchup.service.js';
 
 /**
  * Socket.io Event Handler
@@ -1155,7 +1156,7 @@ const createAndEmitCallLogMessage = async ({ io, session, actorId, reason = 'end
     }
     return callMessage;
   } catch (error) {
-    console.error('Loi tao call log:', error);
+    console.error('Lỗi tạo call log:', error);
     return null;
   }
 };
@@ -2615,6 +2616,8 @@ const socketHandler = (io) => {
         message.isDeleted = true;
         message.deletedAt = deletedAt;
         await message.save();
+
+        await deleteCatchupForMessage(message.id);
 
         let shouldUpdatePinnedMessages = false;
         if (conversationId) {

@@ -7,7 +7,7 @@ const requiredEnv = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL'];
 const assertBrevoConfig = () => {
   const missing = requiredEnv.filter((key) => !process.env[key]?.trim());
   if (missing.length) {
-    throw new Error(`Brevo chua duoc cau hinh: thieu ${missing.join(', ')}`);
+    throw new Error(`Brevo chưa được cấu hình: thiếu ${missing.join(', ')}`);
   }
 };
 

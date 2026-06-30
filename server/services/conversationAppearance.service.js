@@ -96,7 +96,7 @@ export const buildAppearancePatch = (currentAppearance = {}, body = {}, userId) 
 
     if (presetId !== undefined) {
       if (!BACKGROUND_PRESET_IDS.has(presetId)) {
-        const error = new Error('Nen chat khong hop le');
+        const error = new Error('Nền chat không hợp lệ');
         error.statusCode = 400;
         throw error;
       }
@@ -105,7 +105,7 @@ export const buildAppearancePatch = (currentAppearance = {}, body = {}, userId) 
 
     if (type !== undefined) {
       if (!['preset', 'uploaded'].includes(type)) {
-        const error = new Error('Kieu nen chat khong hop le');
+        const error = new Error('Kiểu nền chat không hợp lệ');
         error.statusCode = 400;
         throw error;
       }
@@ -115,7 +115,7 @@ export const buildAppearancePatch = (currentAppearance = {}, body = {}, userId) 
         nextBackground.imageUrl = '';
         nextBackground.storageKey = '';
       } else if (!currentAppearance.background?.imageUrl) {
-        const error = new Error('Chua co anh nen da upload');
+        const error = new Error('Chưa có ảnh nền đã upload');
         error.statusCode = 400;
         throw error;
       } else {
@@ -129,7 +129,7 @@ export const buildAppearancePatch = (currentAppearance = {}, body = {}, userId) 
     if (blur !== undefined) nextBackground.blur = normalizeNumber(blur, nextBackground.blur, 0, 12);
     if (fit !== undefined) {
       if (!['cover', 'contain'].includes(fit)) {
-        const error = new Error('Cach hien thi nen khong hop le');
+        const error = new Error('Cách hiển thị nền không hợp lệ');
         error.statusCode = 400;
         throw error;
       }
@@ -141,7 +141,7 @@ export const buildAppearancePatch = (currentAppearance = {}, body = {}, userId) 
     const { presetId } = body.bubbleTheme;
     if (presetId !== undefined) {
       if (!BUBBLE_THEME_IDS.has(presetId)) {
-        const error = new Error('Kieu bong bong khong hop le');
+        const error = new Error('Kiểu bong bóng không hợp lệ');
         error.statusCode = 400;
         throw error;
       }
@@ -159,20 +159,20 @@ export const buildAppearancePatch = (currentAppearance = {}, body = {}, userId) 
 
 export const uploadConversationBackground = async ({ file, currentAppearance = {}, userId }) => {
   if (!file) {
-    const error = new Error('Chua chon anh nen');
+    const error = new Error('Chưa chọn ảnh nền');
     error.statusCode = 400;
     throw error;
   }
 
   const mimeType = normalizeMimeType(file.mimetype);
   if (!UPLOADED_BACKGROUND_MIME_TYPES.has(mimeType)) {
-    const error = new Error('Anh nen chi ho tro JPG, PNG hoac WebP');
+    const error = new Error('Ảnh nền chỉ hỗ trợ JPG, PNG hoặc WebP');
     error.statusCode = 400;
     throw error;
   }
 
   if (file.size > UPLOADED_BACKGROUND_MAX_SIZE) {
-    const error = new Error('Anh nen khong duoc vuot qua 8MB');
+    const error = new Error('Ảnh nền không được vượt quá 8MB');
     error.statusCode = 400;
     throw error;
   }
@@ -208,6 +208,6 @@ export const uploadConversationBackground = async ({ file, currentAppearance = {
 export const deleteConversationBackgroundLater = (storageKey) => {
   if (!storageKey) return;
   void deleteStorageObject({ storageKey }).catch((error) => {
-    console.warn('Khong the xoa anh nen cu:', error.message || error);
+    console.warn('Không thể xóa ảnh nền cũ:', error.message || error);
   });
 };

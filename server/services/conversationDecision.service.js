@@ -27,7 +27,7 @@ const createDecisionError = (message, statusCode = 400) => {
 const normalizeText = (value, maxLength, fieldLabel) => {
   const text = typeof value === 'string' ? value.trim() : '';
   if (text.length > maxLength) {
-    throw createDecisionError(`${fieldLabel} toi da ${maxLength} ky tu`, 400);
+    throw createDecisionError(`${fieldLabel} tối đa ${maxLength} ký tự`, 400);
   }
   return text;
 };
@@ -46,21 +46,21 @@ const validateDecisionConversation = async ({ conversationId, userId }) => {
     throw createDecisionError('Unauthorized', 401);
   }
   if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) {
-    throw createDecisionError('conversationId khong hop le', 400);
+    throw createDecisionError('conversationId không hợp lệ', 400);
   }
 
   const conversation = await Conversation.findById(conversationId);
   if (!conversation) {
-    throw createDecisionError('Cuoc tro chuyen khong ton tai', 404);
+    throw createDecisionError('Cuộc trò chuyện không tồn tại', 404);
   }
   if (conversation.type === 'saved') {
-    throw createDecisionError('Decision Timeline chua ho tro Saved Messages', 400);
+    throw createDecisionError('Decision Timeline chưa hỗ trợ Saved Messages', 400);
   }
   if (!isConversationMember(conversation, normalizedUserId)) {
-    throw createDecisionError('Ban khong thuoc cuoc tro chuyen nay', 403);
+    throw createDecisionError('Bạn không thuộc cuộc trò chuyện này', 403);
   }
   if (await isDirectConversationBlocked(conversation)) {
-    throw createDecisionError('Khong the danh dau quyet dinh trong cuoc tro chuyen nay', 403);
+    throw createDecisionError('Không thể đánh dấu quyết định trong cuộc trò chuyện này', 403);
   }
 
   return conversation;
@@ -70,10 +70,10 @@ const validateDecidedBy = (conversation, decidedById) => {
   const normalizedDecidedById = toIdString(decidedById);
   if (!normalizedDecidedById) return null;
   if (!mongoose.Types.ObjectId.isValid(normalizedDecidedById)) {
-    throw createDecisionError('decidedById khong hop le', 400);
+    throw createDecisionError('decidedById không hợp lệ', 400);
   }
   if (!isConversationMember(conversation, normalizedDecidedById)) {
-    throw createDecisionError('Nguoi quyet dinh phai la thanh vien cuoc tro chuyen', 400);
+    throw createDecisionError('Người quyết định phải là thành viên cuộc trò chuyện', 400);
   }
   return normalizedDecidedById;
 };
@@ -117,11 +117,11 @@ export const createDecision = async ({
     conversationId,
     userId: normalizedUserId,
   });
-  const cleanTitle = normalizeText(title, DECISION_TITLE_MAX_LENGTH, 'Tieu de quyet dinh');
+  const cleanTitle = normalizeText(title, DECISION_TITLE_MAX_LENGTH, 'Tiêu đề quyết định');
   if (!cleanTitle) {
-    throw createDecisionError('Tieu de quyet dinh khong duoc rong', 400);
+    throw createDecisionError('Tiêu đề quyết định không được rỗng', 400);
   }
-  const cleanNote = normalizeText(note, DECISION_NOTE_MAX_LENGTH, 'Ghi chu quyet dinh');
+  const cleanNote = normalizeText(note, DECISION_NOTE_MAX_LENGTH, 'Ghi chú quyết định');
   const normalizedDecidedById = validateDecidedBy(conversation, decidedById);
   const sourceMessage = await resolveSourceMessageSnapshot({
     sourceMessageId,
@@ -159,7 +159,7 @@ export const listDecisions = async ({ userId, conversationId, status = 'all' }) 
   const query = { conversation: conversation._id };
   if (status && status !== 'all') {
     if (!['active', 'reverted'].includes(status)) {
-      throw createDecisionError('status khong hop le', 400);
+      throw createDecisionError('status không hợp lệ', 400);
     }
     query.status = status;
   }
@@ -187,19 +187,19 @@ export const revertDecision = async ({ io, userId, decisionId }) => {
     throw createDecisionError('Unauthorized', 401);
   }
   if (!decisionId || !mongoose.Types.ObjectId.isValid(decisionId)) {
-    throw createDecisionError('decisionId khong hop le', 400);
+    throw createDecisionError('decisionId không hợp lệ', 400);
   }
 
   const decision = await ConversationDecision.findById(decisionId);
   if (!decision) {
-    throw createDecisionError('Quyet dinh khong ton tai', 404);
+    throw createDecisionError('Quyết định không tồn tại', 404);
   }
   const conversation = await validateDecisionConversation({
     conversationId: decision.conversation,
     userId: normalizedUserId,
   });
   if (!canRevertDecision(decision, conversation, normalizedUserId)) {
-    throw createDecisionError('Ban khong co quyen hoan tac quyet dinh nay', 403);
+    throw createDecisionError('Bạn không có quyền hoàn tác quyết định này', 403);
   }
 
   if (decision.status !== 'reverted') {

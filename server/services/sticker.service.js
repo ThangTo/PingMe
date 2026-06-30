@@ -12,7 +12,7 @@ export const normalizeStickerForMessage = async (sticker) => {
   if (!sticker) return null;
   const resolvedSticker = await getStickerProvider().resolveSticker(sticker);
   if (!resolvedSticker?.url) {
-    const error = new Error('Sticker khong hop le');
+    const error = new Error('Sticker không hợp lệ');
     error.statusCode = 400;
     throw error;
   }

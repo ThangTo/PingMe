@@ -28,7 +28,7 @@ export const getEmailProvider = () => {
     return providerInstance;
   }
 
-  throw new Error(`Email driver khong duoc ho tro: ${driver}`);
+  throw new Error(`Email driver không được hỗ trợ: ${driver}`);
 };
 
 export const resetEmailProviderForTests = () => {

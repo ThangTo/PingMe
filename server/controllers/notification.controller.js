@@ -23,7 +23,7 @@ const notificationController = {
       });
     } catch (error) {
       console.error('Loi lay thong bao:', error);
-      res.status(500).json({ error: 'Khong the lay danh sach thong bao' });
+      res.status(500).json({ error: 'Không thể lấy danh sách thông báo' });
     }
   },
 
@@ -31,7 +31,7 @@ const notificationController = {
     try {
       const { notificationId } = req.params;
       if (!mongoose.Types.ObjectId.isValid(notificationId)) {
-        return res.status(400).json({ error: 'notificationId khong hop le' });
+        return res.status(400).json({ error: 'notificationId không hợp lệ' });
       }
 
       const notification = await Notification.findOneAndUpdate(
@@ -41,13 +41,13 @@ const notificationController = {
       ).populate('actor', 'username avatar');
 
       if (!notification) {
-        return res.status(404).json({ error: 'Thong bao khong ton tai' });
+        return res.status(404).json({ error: 'Thông báo không tồn tại' });
       }
 
       return res.json({ success: true, notification: formatNotification(notification) });
     } catch (error) {
       console.error('Loi danh dau thong bao:', error);
-      return res.status(500).json({ error: 'Khong the cap nhat thong bao' });
+      return res.status(500).json({ error: 'Không thể cập nhật thông báo' });
     }
   },
 
@@ -60,7 +60,7 @@ const notificationController = {
       res.json({ success: true, unreadCount: 0 });
     } catch (error) {
       console.error('Loi danh dau tat ca thong bao:', error);
-      res.status(500).json({ error: 'Khong the cap nhat thong bao' });
+      res.status(500).json({ error: 'Không thể cập nhật thông báo' });
     }
   },
 };

@@ -23,7 +23,7 @@ const socialController = {
       res.json({ success: true, users: user?.blockedUsers || [] });
     } catch (error) {
       console.error('Loi lay danh sach chan:', error);
-      res.status(500).json({ error: 'Khong the lay danh sach da chan' });
+      res.status(500).json({ error: 'Không thể lấy danh sách đã chặn' });
     }
   },
 
@@ -31,11 +31,11 @@ const socialController = {
     try {
       const { userId } = req.params;
       if (!mongoose.Types.ObjectId.isValid(userId) || userId === req.user.id) {
-        return res.status(400).json({ error: 'Nguoi dung khong hop le' });
+        return res.status(400).json({ error: 'Người dùng không hợp lệ' });
       }
 
       const target = await User.findById(userId).select('_id');
-      if (!target) return res.status(404).json({ error: 'Nguoi dung khong ton tai' });
+      if (!target) return res.status(404).json({ error: 'Người dùng không tồn tại' });
 
       await Promise.all([
         User.updateOne(
@@ -60,7 +60,7 @@ const socialController = {
       return res.json({ success: true });
     } catch (error) {
       console.error('Loi chan nguoi dung:', error);
-      return res.status(500).json({ error: 'Khong the chan nguoi dung' });
+      return res.status(500).json({ error: 'Không thể chặn người dùng' });
     }
   },
 
@@ -68,7 +68,7 @@ const socialController = {
     try {
       const { userId } = req.params;
       if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({ error: 'Nguoi dung khong hop le' });
+        return res.status(400).json({ error: 'Người dùng không hợp lệ' });
       }
 
       await User.updateOne({ _id: req.user.id }, { $pull: { blockedUsers: userId } });
@@ -80,7 +80,7 @@ const socialController = {
       return res.json({ success: true });
     } catch (error) {
       console.error('Loi bo chan nguoi dung:', error);
-      return res.status(500).json({ error: 'Khong the bo chan nguoi dung' });
+      return res.status(500).json({ error: 'Không thể bỏ chặn người dùng' });
     }
   },
 
@@ -89,23 +89,23 @@ const socialController = {
       const { userId } = req.params;
       const { reason = 'other', details = '', conversationId = null, messageId = null } = req.body;
       if (!mongoose.Types.ObjectId.isValid(userId) || userId === req.user.id) {
-        return res.status(400).json({ error: 'Nguoi dung khong hop le' });
+        return res.status(400).json({ error: 'Người dùng không hợp lệ' });
       }
       if (!REPORT_REASONS.has(reason) || String(details).length > 1000) {
-        return res.status(400).json({ error: 'Noi dung bao cao khong hop le' });
+        return res.status(400).json({ error: 'Nội dung báo cáo không hợp lệ' });
       }
 
       const reportedUser = await User.exists({ _id: userId });
-      if (!reportedUser) return res.status(404).json({ error: 'Nguoi dung khong ton tai' });
+      if (!reportedUser) return res.status(404).json({ error: 'Người dùng không tồn tại' });
 
       let verifiedConversationId = null;
       if (conversationId) {
         if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-          return res.status(400).json({ error: 'conversationId khong hop le' });
+          return res.status(400).json({ error: 'conversationId không hợp lệ' });
         }
         const conversation = await Conversation.findById(conversationId).select('members');
         if (!conversation || !isConversationMember(conversation, req.user.id)) {
-          return res.status(403).json({ error: 'Khong the bao cao tu cuoc tro chuyen nay' });
+          return res.status(403).json({ error: 'Không thể báo cáo từ cuộc trò chuyện này' });
         }
         verifiedConversationId = conversation._id;
       }
@@ -113,17 +113,17 @@ const socialController = {
       let verifiedMessageId = null;
       if (messageId) {
         if (!mongoose.Types.ObjectId.isValid(messageId)) {
-          return res.status(400).json({ error: 'messageId khong hop le' });
+          return res.status(400).json({ error: 'messageId không hợp lệ' });
         }
         const message = await Message.findOne({
           _id: messageId,
           ...(verifiedConversationId ? { conversation: verifiedConversationId } : {}),
         }).select('_id conversation');
-        if (!message) return res.status(404).json({ error: 'Tin nhan khong ton tai' });
+        if (!message) return res.status(404).json({ error: 'Tin nhắn không tồn tại' });
         if (!verifiedConversationId) {
           const messageConversation = await Conversation.findById(message.conversation).select('members');
           if (!messageConversation || !isConversationMember(messageConversation, req.user.id)) {
-            return res.status(403).json({ error: 'Khong the bao cao tin nhan nay' });
+            return res.status(403).json({ error: 'Không thể báo cáo tin nhắn này' });
           }
           verifiedConversationId = messageConversation._id;
         }
@@ -142,7 +142,7 @@ const socialController = {
       return res.status(201).json({ success: true, reportId: report._id });
     } catch (error) {
       console.error('Loi bao cao nguoi dung:', error);
-      return res.status(500).json({ error: 'Khong the gui bao cao' });
+      return res.status(500).json({ error: 'Không thể gửi báo cáo' });
     }
   },
 };

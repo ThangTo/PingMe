@@ -33,7 +33,7 @@ const MessageEvolutionModal = lazy(() => import('../components/chat/MessageEvolu
 
 const LazyPanelFallback = () => (
   <div className="flex h-full flex-1 items-center justify-center bg-surface text-sm text-on-surface-variant">
-    Dang tai...
+    Đang tải...
   </div>
 );
 
@@ -711,6 +711,8 @@ const formatConversationSummary = (conversation) => {
     lastMessage: conversation.lastMessage || (isSaved ? SAVED_CONVERSATION_EMPTY_PREVIEW : 'Bắt đầu trò chuyện'),
     lastMessageAt: conversation.lastMessageAt || null,
     unreadCount: isSaved ? 0 : conversation.unreadCount || 0,
+    catchupAvailable: isSaved ? false : Boolean(conversation.catchupAvailable),
+    catchupSince: isSaved ? null : conversation.catchupSince || null,
     mutedUntil: conversation.mutedUntil || null,
     notificationsMuted: !isSaved && Boolean(conversation.notificationsMuted),
     appearance: normalizeConversationAppearance(conversation.appearance),
@@ -2216,7 +2218,7 @@ const Chat = () => {
       markOfflineSyncFinished(true);
       return true;
     } catch (error) {
-      console.error('Khong the dong bo danh sach conversation:', error);
+      console.error('Không thể đồng bộ danh sách conversation:', error);
       markOfflineSyncFinished(false);
       return false;
     } finally {
@@ -2307,7 +2309,7 @@ const Chat = () => {
           }
         }
 
-        console.error('Khong the dong bo conversation:', error);
+        console.error('Không thể đồng bộ conversation:', error);
         markOfflineSyncFinished(false);
         return false;
       } finally {

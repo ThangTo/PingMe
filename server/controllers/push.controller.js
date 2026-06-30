@@ -31,7 +31,7 @@ const saveSubscription = async (req, res) => {
   } catch (error) {
     res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || 'Khong the luu push subscription',
+      message: error.message || 'Không thể lưu push subscription',
     });
   }
 };
@@ -47,7 +47,7 @@ const sendTestNotification = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message || 'Khong the gui test push notification',
+      message: error.message || 'Không thể gửi test push notification',
     });
   }
 };
@@ -65,7 +65,7 @@ const deleteSubscription = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message || 'Khong the xoa push subscription',
+      message: error.message || 'Không thể xóa push subscription',
     });
   }
 };

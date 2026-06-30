@@ -9,7 +9,7 @@ const getEncryptionKey = () => {
     process.env.ACCESS_TOKEN_SECRET;
 
   if (!secret) {
-    throw new Error('QUEUE_ENCRYPTION_KEY hoac token secret chua duoc cau hinh');
+    throw new Error('QUEUE_ENCRYPTION_KEY hoặc token secret chưa được cấu hình');
   }
 
   return createHash('sha256').update(secret).digest();
@@ -30,7 +30,7 @@ export const encryptQueuePayload = (payload) => {
 export const decryptQueuePayload = (encryptedPayload) => {
   const [ivText, authTagText, ciphertextText] = String(encryptedPayload || '').split('.');
   if (!ivText || !authTagText || !ciphertextText) {
-    throw new Error('Queue payload khong hop le');
+    throw new Error('Queue payload không hợp lệ');
   }
 
   const decipher = createDecipheriv(
