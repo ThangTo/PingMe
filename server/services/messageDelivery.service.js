@@ -212,6 +212,12 @@ const queueMessageNotifications = ({
   void Promise.all(
     recipientIds.map((recipientId) => {
       const isMention = mentionedUserIds.has(recipientId);
+
+      // Mute bypass: skip notification if muted and not a mention
+      const member = conversation.members?.find((m) => m.user?.toString() === recipientId);
+      const isMuted = member?.mutedUntil && new Date() < new Date(member.mutedUntil);
+      if (isMuted && !isMention) return Promise.resolve();
+
       const title = isMention
         ? `${senderUser?.username || 'Ai đó'} đã nhắc đến bạn`
         : conversation.type === 'group'
@@ -242,6 +248,7 @@ const queueMessagePushNotification = ({
   conversation,
   senderUser,
   isUserOnline = () => false,
+  mentionIds = [],
 }) => {
   const offlineRecipientIds = memberIds.filter(
     (memberId) => memberId !== senderId && !isUserOnline(memberId),
@@ -254,6 +261,7 @@ const queueMessagePushNotification = ({
     message: messagePayload,
     conversation,
     senderUser,
+    mentionIds,
   }).catch((error) => {
     console.warn('Không thể gửi push notification cho tin nhắn:', error.message || error);
   });
@@ -315,10 +323,15 @@ export const loadTextMessageDeliveryContext = async ({
 
   const memberIds = getConversationMemberIds(conversation);
   const senderUser = await User.findById(normalizedSenderId).select('username avatar').lean();
-  const mentionIds =
+  let mentionIds =
     conversation.type === 'group'
       ? await resolveMentionUserIds({ content: cleanContent, memberIds, senderId: normalizedSenderId })
       : [];
+
+  // @all / @everyone expansion
+  if (conversation.type === 'group' && /@(all|everyone)\b/i.test(cleanContent)) {
+    mentionIds = memberIds.filter((id) => id !== String(normalizedSenderId));
+  }
 
   return {
     cleanContent,
@@ -407,6 +420,7 @@ export const deliverTextMessage = async ({
     conversation,
     senderUser,
     isUserOnline,
+    mentionIds,
   });
   queueMessageNotifications({
     io,

@@ -135,6 +135,19 @@ const isInteractiveMessageTarget = (target) =>
     ),
   );
 
+const MENTION_REGEX = /(@\w+)/g;
+
+const renderTextWithMentions = (text) =>
+  text.split(MENTION_REGEX).map((part, i) =>
+    /^@\w+$/.test(part) ? (
+      <span key={`m-${i}`} className="font-medium text-secondary">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+
 const renderMessageContent = (content = '') => {
   if (!content) return null;
 
@@ -147,7 +160,7 @@ const renderMessageContent = (content = '') => {
     const startIndex = match.index ?? 0;
 
     if (startIndex > lastIndex) {
-      parts.push(content.slice(lastIndex, startIndex));
+      parts.push(...renderTextWithMentions(content.slice(lastIndex, startIndex)));
     }
 
     const displayUrl = rawUrl.replace(TRAILING_URL_PUNCTUATION_REGEX, '');
@@ -170,14 +183,14 @@ const renderMessageContent = (content = '') => {
     );
 
     if (trailingText) {
-      parts.push(trailingText);
+      parts.push(...renderTextWithMentions(trailingText));
     }
 
     lastIndex = startIndex + rawUrl.length;
   }
 
   if (lastIndex < content.length) {
-    parts.push(content.slice(lastIndex));
+    parts.push(...renderTextWithMentions(content.slice(lastIndex)));
   }
 
   return parts;

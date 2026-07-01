@@ -1,10 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../config/api';
 import FileTypeIcon from '../ui/FileTypeIcon';
 import AppIcon from '../ui/AppIcon';
 import VoiceTrimmer from './VoiceTrimmer';
 import VoiceWave from './VoiceWave';
 import MessageSummaryPopover from './MessageSummaryPopover';
+import MentionDropdown from './MentionDropdown';
 import { trimVoiceToWav, getPeaksFromBlob } from '../../utils/audioTrim';
 
 const EmojiStickerPicker = lazy(() => import('./EmojiStickerPicker'));
@@ -267,6 +268,7 @@ const MessageInput = ({
   canCreatePlan = false,
   canCreateReminder = false,
   conversationMembers = [],
+  isGroupChat = false,
   onDraftChange,
   disabled = false,
   onTypingStart,
@@ -302,6 +304,9 @@ const MessageInput = ({
   const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionStart, setMentionStart] = useState(-1);
+  const [mentionActiveIdx, setMentionActiveIdx] = useState(0);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
   const fileInputRef = useRef(null);
@@ -506,6 +511,24 @@ const MessageInput = ({
     });
   }, [replyingMessage, editingMessage]);
 
+  useEffect(() => {
+    if (mentionQuery !== null) setMentionActiveIdx(0);
+  }, [mentionQuery]);
+
+  const mentionItems = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const lower = mentionQuery.toLocaleLowerCase('vi');
+    const filtered = lower
+      ? conversationMembers.filter((m) =>
+          m.username?.toLocaleLowerCase('vi').includes(lower),
+        )
+      : conversationMembers;
+    return [
+      { _id: '@all', username: 'all', isAll: true },
+      ...filtered.slice(0, 5),
+    ];
+  }, [mentionQuery, conversationMembers]);
+
   const stopTypingNow = useCallback(() => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -574,6 +597,17 @@ const MessageInput = ({
 
   const handleTextChange = (e) => {
     const nextMessage = e.target.value;
+    const cursor = e.target.selectionStart;
+
+    // Detect @ mention
+    const atIdx = nextMessage.lastIndexOf('@', cursor - 1);
+    if (atIdx !== -1 && cursor > atIdx && !nextMessage.slice(atIdx + 1, cursor).includes(' ')) {
+      setMentionQuery(nextMessage.slice(atIdx + 1, cursor));
+      setMentionStart(atIdx);
+    } else {
+      setMentionQuery(null);
+    }
+
     setMessage(nextMessage);
     resizeInput(e.target);
     notifyDraftChange(nextMessage);
@@ -639,7 +673,57 @@ const MessageInput = ({
     });
   };
 
+  const handleMentionSelect = (username) => {
+    const input = inputRef.current;
+    const cursor = input?.selectionStart ?? message.length;
+    const before = message.slice(0, mentionStart);
+    const after = message.slice(cursor);
+    const mentionText = `@${username} `;
+    const nextMessage = before + mentionText + after;
+
+    setMessage(nextMessage);
+    setMentionQuery(null);
+    notifyDraftChange(nextMessage);
+    updateTypingState(nextMessage);
+
+    requestAnimationFrame(() => {
+      if (!input) return;
+      const newCursor = mentionStart + mentionText.length;
+      input.focus();
+      input.setSelectionRange(newCursor, newCursor);
+      resizeInput(input);
+    });
+  };
+
   const handleKeyDown = (e) => {
+    if (mentionQuery !== null && isGroupChat) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionActiveIdx((prev) =>
+          prev < mentionItems.length - 1 ? prev + 1 : 0,
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionActiveIdx((prev) =>
+          prev > 0 ? prev - 1 : mentionItems.length - 1,
+        );
+        return;
+      }
+      if (e.key === 'Enter' && mentionItems.length > 0) {
+        e.preventDefault();
+        const selected = mentionItems[mentionActiveIdx];
+        handleMentionSelect(selected.isAll ? 'all' : selected.username);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -1713,6 +1797,15 @@ const MessageInput = ({
       )}
 
       <div className="relative">
+        {mentionQuery !== null && isGroupChat && conversationMembers?.length > 0 && (
+          <MentionDropdown
+            members={conversationMembers}
+            query={mentionQuery}
+            onSelect={handleMentionSelect}
+            activeIndex={mentionActiveIdx}
+            onActiveIndexChange={setMentionActiveIdx}
+          />
+        )}
         <form
           onSubmit={handleSubmit}
           className="flex min-h-[48px] w-full items-end gap-1.5 rounded-[14px] border border-outline-variant bg-surface-container-lowest py-1.5 pl-2.5 pr-1.5 transition-colors focus-within:border-outline focus-within:ring-1 focus-within:ring-outline"

@@ -902,6 +902,7 @@ const ChatArea = ({
         onCreateChecklist={onCreateChecklist}
         onCreatePlan={onCreatePlan}
         onCreateReminder={onCreateReminder}
+        isGroupChat={Boolean(currentUser?.isGroup)}
         canCreatePoll={Boolean(currentUser?.isGroup)}
         canCreateEvent={Boolean(currentUser && !currentUser.isSaved)}
         canCreateChecklist={Boolean(currentUser?.isGroup)}

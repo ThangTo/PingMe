@@ -365,13 +365,14 @@ export const sendTestPushToUser = async (userId) => {
   });
 };
 
-export const sendMessagePushToUsers = async ({ recipientIds = [], message, conversation, senderUser }) => {
+export const sendMessagePushToUsers = async ({ recipientIds = [], message, conversation, senderUser, mentionIds = [] }) => {
+  const mentionedUserIds = new Set(mentionIds.map((id) => id?.toString()).filter(Boolean));
   const conversationMutedUserIds = getConversationMutedUserIds(conversation);
   const uniqueRecipientIds = [
     ...new Set(
       recipientIds
         .map((id) => id?.toString())
-        .filter((id) => id && !conversationMutedUserIds.has(id)),
+        .filter((id) => id && (!conversationMutedUserIds.has(id) || mentionedUserIds.has(id))),
     ),
   ];
   if (!uniqueRecipientIds.length) return;

@@ -95,7 +95,7 @@ const buildUserPresencePayload = (viewerId, targetUser) => {
   };
 };
 
-const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, conversation, senderUser }) => {
+const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, conversation, senderUser, mentionIds = [] }) => {
   const offlineRecipientIds = memberIds.filter(
     (memberId) => memberId !== senderId && !isUserOnline(memberId),
   );
@@ -111,6 +111,7 @@ const queueMessagePushNotification = ({ memberIds, senderId, messagePayload, con
     message: messagePayload,
     conversation,
     senderUser,
+    mentionIds,
   }).catch((error) => {
     console.warn('Không thể gửi push notification cho tin nhắn:', error.message || error);
   });
@@ -193,6 +194,12 @@ const queueMessageNotifications = ({
   void Promise.all(
     recipientIds.map((recipientId) => {
       const isMention = mentionedUserIds.has(recipientId);
+
+      // Mute bypass: skip notification if muted and not a mention
+      const member = conversation.members?.find((m) => m.user?.toString() === recipientId);
+      const isMuted = member?.mutedUntil && new Date() < new Date(member.mutedUntil);
+      if (isMuted && !isMention) return Promise.resolve();
+
       const title = isMention
         ? `${senderUser?.username || 'Ai đó'} đã nhắc đến bạn`
         : conversation.type === 'group'
@@ -1586,10 +1593,16 @@ const socketHandler = (io) => {
         const memberIds = getConversationMemberIds(conversation);
         const isSavedConversation = conversation.type === 'saved';
         const senderUser = await User.findById(senderId).select('username avatar').lean();
-        const mentionIds =
+        let mentionIds =
           conversation.type === 'group'
             ? await resolveMentionUserIds({ content: cleanContent, memberIds, senderId })
             : [];
+
+        // @all / @everyone expansion
+        if (conversation.type === 'group' && /@(all|everyone)\b/i.test(cleanContent)) {
+          mentionIds = memberIds.filter((id) => id !== String(senderId));
+        }
+
         let replyToMessage = null;
 
         if (await isDirectConversationBlocked(conversation)) {
@@ -1689,6 +1702,7 @@ const socketHandler = (io) => {
           messagePayload,
           conversation,
           senderUser,
+          mentionIds,
         });
         queueMessageNotifications({
           io,
