@@ -630,6 +630,7 @@ const normalizeMessage = (msg, selectedConversationId, currentUser, currentChatU
   editedAt: msg.editedAt || null,
   isDeleted: msg.isDeleted || false,
   deletedAt: msg.deletedAt || null,
+  intent: msg.intent || null,
   replyTo: normalizeReplyPreview(msg.replyTo, currentUser, currentChatUser),
 });
 
@@ -2956,6 +2957,7 @@ const Chat = () => {
                 attachments: savedAttachments.length > 0 ? savedAttachments : msg.attachments || [],
                 linkPreview: data.linkPreview || msg.linkPreview || null,
                 replyTo: data.replyTo || msg.replyTo || null,
+                intent: data.intent !== undefined ? data.intent : msg.intent,
               }
             : msg,
         ),
@@ -3211,6 +3213,7 @@ const Chat = () => {
               linkPreview: data.linkPreview || null,
               isEdited: data.isEdited,
               editedAt: data.editedAt,
+              ...(data.intent !== undefined ? { intent: data.intent } : {}),
             };
           }
 
@@ -3760,6 +3763,7 @@ const Chat = () => {
     const messageAttachments = getMessageAttachments({ attachment, attachments });
     const primaryAttachment = attachment || messageAttachments[0] || null;
     const sticker = options?.sticker || null;
+    const intent = options?.intent || null;
 
     if (!cleanContent && messageAttachments.length === 0 && !sticker?.url) return;
 
@@ -3772,6 +3776,7 @@ const Chat = () => {
       attachments: messageAttachments,
       sticker,
       replyToId: replyPreview?.id || null,
+      intent,
     };
     socket.emit('send_message', messageData);
 
@@ -3782,6 +3787,7 @@ const Chat = () => {
       senderName: user.username || 'Bạn',
       senderAvatar: user.avatar || '',
       content: cleanContent,
+      intent,
       messageType: sticker?.url
         ? 'sticker'
         : getMessageAttachments({ attachment: primaryAttachment, attachments: messageAttachments }).length
@@ -3820,6 +3826,10 @@ const Chat = () => {
       const otherConvs = prev.filter((c) => c.id !== selectedConversationId);
       return sortConversations([updatedTarget, ...otherConvs]);
     });
+  };
+
+  const handleSetMessageIntent = (messageId, conversationId, intent) => {
+    socket.emit('set_message_intent', { messageId, conversationId, intent });
   };
 
   const handleOpenForwardMessage = (message) => {
@@ -4802,6 +4812,7 @@ const Chat = () => {
                     onUnpinMessage={handleUnpinPinnedMessage}
                     onEvolveMessage={currentChatUser?.isSaved ? undefined : handleOpenMessageEvolution}
                     onForwardMessage={handleOpenForwardMessage}
+                    onSetMessageIntent={handleSetMessageIntent}
                     onOpenSenderProfile={handleOpenSenderProfile}
                     onJumpToPinnedMessage={handleJumpToPinnedMessage}
                     jumpToMessageSignal={jumpToMessageSignal}

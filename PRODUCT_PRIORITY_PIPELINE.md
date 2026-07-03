@@ -179,8 +179,8 @@ Mục tiêu: biến message thành hành động. Người dùng không chỉ n�
 | 2.3 Collaborative Checklist    | DONE    | P1       | `#group #realtime #wow`         | Checklist chung, assign member, mark done                                                              | Update realtime, audit nhỏ: ai tick, lúc nào                            |
 | 2.4 Message Evolution          | DONE    | P2       | `#wow #core`                    | Convert message thành task, poll, event, checklist item                                                | Object mới giữ link tới message gốc và jump được                        |
 | 2.5 Conversation Workspace MVP | DONE    | P2       | `#wow #retention #monetization` | Tab Kế hoạch trong detail panel tổng hợp Poll, Event, Checklist; thao tác trực tiếp và jump về tin gốc | Mỗi conversation có một "home base" không rối                           |
-| 2.6 Shared Plans               | READY_TO_TEST | P2       | `#wow #group`                   | Plan card cho đi chơi/họp/sự kiện: poll địa điểm, checklist, chi phí, album                            | Một flow tạo kế hoạch trọn vẹn từ chat                                  |
-| 2.7 Decision Timeline          | READY_TO_TEST | P2       | `#ai #wow`                      | Bán tự động lưu các quyết định đã chốt từ message/conversation                                         | Timeline có link message gốc, người chốt, thời điểm                     |
+| 2.6 Shared Plans               | DONE          | P2       | `#wow #group`                   | Plan card cho đi chơi/họp/sự kiện: poll địa điểm, checklist, chi phí, album                            | Một flow tạo kế hoạch trọn vẹn từ chat                                  |
+| 2.7 Decision Timeline          | DONE          | P2       | `#ai #wow`                      | Bán tự động lưu các quyết định đã chốt từ message/conversation                                         | Timeline có link message gốc, người chốt, thời điểm                     |
 
 Realtime notes:
 

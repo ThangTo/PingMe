@@ -29,6 +29,7 @@ const AUDIO_MIME_TYPES = [
   'audio/mp4',
   'audio/ogg;codecs=opus',
 ];
+const MENTION_WORD_CHAR_REGEX = /[\p{L}\p{N}_]/u;
 
 const loadRecentEmojis = () => {
   try {
@@ -44,6 +45,53 @@ const getMessageAttachments = (message = {}) => {
     return message.attachments;
   }
   return message.attachment ? [message.attachment] : [];
+};
+
+const normalizeMentionName = (name = '') => name.trim().replace(/^@+/, '');
+
+const getMentionNames = (members = []) => {
+  const names = members
+    .map((member) => normalizeMentionName(member.username || member.name || ''))
+    .filter(Boolean);
+  return [...new Set([...names, 'everyone', 'all'])].sort((a, b) => b.length - a.length);
+};
+
+const renderDraftWithMentions = (text = '', mentionNames = []) => {
+  if (!text) return null;
+
+  const parts = [];
+  let cursor = 0;
+
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] !== '@') continue;
+
+    const matchedName = mentionNames.find((name) => {
+      const token = `@${name}`;
+      if (text.slice(i, i + token.length).toLocaleLowerCase('vi') !== token.toLocaleLowerCase('vi')) {
+        return false;
+      }
+      const nextChar = text[i + token.length];
+      return !nextChar || !MENTION_WORD_CHAR_REGEX.test(nextChar);
+    });
+
+    if (!matchedName) continue;
+
+    const end = i + matchedName.length + 1;
+    if (i > cursor) parts.push(text.slice(cursor, i));
+    parts.push(
+      <span
+        key={`mention-${i}`}
+        className="rounded-md bg-secondary/10 px-1 py-0.5 font-semibold text-secondary"
+      >
+        {text.slice(i, end)}
+      </span>,
+    );
+    cursor = end;
+    i = end - 1;
+  }
+
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts.length > 0 ? parts : text;
 };
 
 const getReplyPreviewText = (replyingMessage) => {
@@ -268,6 +316,7 @@ const MessageInput = ({
   canCreatePlan = false,
   canCreateReminder = false,
   conversationMembers = [],
+  currentUserId = '',
   isGroupChat = false,
   onDraftChange,
   disabled = false,
@@ -309,6 +358,16 @@ const MessageInput = ({
   const [mentionActiveIdx, setMentionActiveIdx] = useState(0);
   const [activePickerTab, setActivePickerTab] = useState('emoji');
   const [recentEmojis, setRecentEmojis] = useState(loadRecentEmojis);
+  const [selectedIntent, setSelectedIntent] = useState(null);
+  const [isIntentPickerOpen, setIsIntentPickerOpen] = useState(false);
+
+  const INTENT_OPTIONS = [
+    { key: 'urgent', label: 'Khẩn cấp', color: 'text-error', bg: 'bg-error/10', icon: 'alarm' },
+    { key: 'needs_reply', label: 'Cần trả lời', color: 'text-warning', bg: 'bg-warning/10', icon: 'reply' },
+    { key: 'decision', label: 'Quyết định', color: 'text-secondary', bg: 'bg-secondary/10', icon: 'check_circle' },
+    { key: 'fyi', label: 'Để biết', color: 'text-accent', bg: 'bg-accent/10', icon: 'info' },
+    { key: 'remind_me', label: 'Nhắc tôi', color: 'text-purple-500', bg: 'bg-purple-500/10', icon: 'bookmark' },
+  ];
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
   const pickerRef = useRef(null);
@@ -316,6 +375,9 @@ const MessageInput = ({
   const actionMenuRef = useRef(null);
   const actionButtonRef = useRef(null);
   const summaryButtonRef = useRef(null);
+  const intentPickerRef = useRef(null);
+  const intentButtonRef = useRef(null);
+  const mentionOverlayRef = useRef(null);
   const wasEditingRef = useRef(false);
   const isTypingRef = useRef(false);
   const lastTypingEmitAtRef = useRef(0);
@@ -441,6 +503,27 @@ const MessageInput = ({
     };
   }, [isSummaryOpen]);
 
+  useEffect(() => {
+    if (!isIntentPickerOpen) return;
+
+    const handlePointerDown = (event) => {
+      if (intentPickerRef.current?.contains(event.target)) return;
+      if (intentButtonRef.current?.contains(event.target)) return;
+      setIsIntentPickerOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsIntentPickerOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isIntentPickerOpen]);
+
   const clearPreviews = () => {
     setPreviews((current) => {
       revokePreviewUrls(current);
@@ -515,19 +598,33 @@ const MessageInput = ({
     if (mentionQuery !== null) setMentionActiveIdx(0);
   }, [mentionQuery]);
 
+  const mentionableMembers = useMemo(
+    () =>
+      conversationMembers.filter((member) => {
+        const memberId = member.id || member._id || member.userId || member.user?._id || member.user;
+        return memberId?.toString?.() !== currentUserId?.toString?.();
+      }),
+    [conversationMembers, currentUserId],
+  );
+
   const mentionItems = useMemo(() => {
     if (mentionQuery === null) return [];
     const lower = mentionQuery.toLocaleLowerCase('vi');
     const filtered = lower
-      ? conversationMembers.filter((m) =>
+      ? mentionableMembers.filter((m) =>
           m.username?.toLocaleLowerCase('vi').includes(lower),
         )
-      : conversationMembers;
+      : mentionableMembers;
     return [
       { _id: '@all', username: 'all', isAll: true },
       ...filtered.slice(0, 5),
     ];
-  }, [mentionQuery, conversationMembers]);
+  }, [mentionQuery, mentionableMembers]);
+  const draftMentionNames = useMemo(() => getMentionNames(mentionableMembers), [mentionableMembers]);
+  const renderedDraftMessage = useMemo(
+    () => renderDraftWithMentions(message, draftMentionNames),
+    [draftMentionNames, message],
+  );
 
   const stopTypingNow = useCallback(() => {
     if (typingTimeoutRef.current) {
@@ -543,6 +640,11 @@ const MessageInput = ({
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, []);
+
+  const syncMentionOverlayScroll = useCallback(() => {
+    if (!mentionOverlayRef.current || !inputRef.current) return;
+    mentionOverlayRef.current.scrollTop = inputRef.current.scrollTop;
   }, []);
 
   useEffect(() => {
@@ -660,7 +762,8 @@ const MessageInput = ({
       return;
     }
 
-    onSendMessage('', null, replyingMessage, [], { sticker });
+    onSendMessage('', null, replyingMessage, [], { sticker, intent: selectedIntent });
+    setSelectedIntent(null);
     setMessage('');
     notifyDraftChange('');
     setIsPickerOpen(false);
@@ -843,7 +946,8 @@ const MessageInput = ({
         };
       });
 
-      onSendMessage(message.trim(), attachments[0] || null, replyingMessage, attachments);
+      onSendMessage(message.trim(), attachments[0] || null, replyingMessage, attachments, { intent: selectedIntent });
+      setSelectedIntent(null);
       setMessage('');
       clearPreviews();
       stopTypingNow();
@@ -1096,7 +1200,8 @@ const MessageInput = ({
         peaks: voicePreview.peaks || undefined,
       };
 
-      onSendMessage(message.trim(), attachment, replyingMessage, [attachment]);
+      onSendMessage(message.trim(), attachment, replyingMessage, [attachment], { intent: selectedIntent });
+      setSelectedIntent(null);
       setMessage('');
       clearVoicePreview();
       stopTypingNow();
@@ -1173,7 +1278,8 @@ const MessageInput = ({
     }
 
     if (message.trim() && !disabled) {
-      onSendMessage(message.trim(), null, replyingMessage, []);
+      onSendMessage(message.trim(), null, replyingMessage, [], { intent: selectedIntent });
+      setSelectedIntent(null);
       setMessage('');
       if (inputRef.current) {
         inputRef.current.style.height = 'auto';
@@ -1372,7 +1478,7 @@ const MessageInput = ({
   };
 
   return (
-    <footer className="shrink-0 border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
+    <footer className="relative shrink-0 overflow-visible border-t border-outline-variant bg-surface px-3 py-2.5 md:px-5 md:py-3">
       {isScheduleOpen && (
         <Suspense fallback={null}>
           <ScheduleMessageModal
@@ -1768,22 +1874,28 @@ const MessageInput = ({
       />
 
       {conversationId && !isSaved && (
-        <div className="relative mb-1.5 flex items-center justify-between gap-2">
+        <div className="absolute -top-14 left-3 z-[120] flex items-center md:left-5">
           <button
             ref={summaryButtonRef}
             type="button"
             onClick={() => setIsSummaryOpen((v) => !v)}
             aria-label="Mở tóm tắt AI"
             aria-expanded={isSummaryOpen}
-            className={`flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors ${
+            className={`inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold shadow-lg shadow-black/10 backdrop-blur transition-all ${
               isSummaryOpen
-                ? 'bg-surface-container-low text-on-surface'
-                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                ? 'border-secondary/40 bg-secondary/10 text-secondary shadow-secondary/10'
+                : 'border-secondary/20 bg-surface-container-lowest/95 text-on-surface hover:border-secondary/40 hover:bg-secondary/10 hover:text-secondary'
             }`}
             title="Tóm tắt AI theo thời gian hoặc số lượng"
           >
-            <AppIcon name="sparkles" className="text-[17px]" />
-            <span className="hidden md:inline">Tóm tắt AI</span>
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                isSummaryOpen ? 'bg-secondary text-surface' : 'bg-secondary/10 text-secondary'
+              }`}
+            >
+              <AppIcon name="sparkles" className="text-[15px]" />
+            </span>
+            <span>Tóm tắt AI</span>
           </button>
           <div data-summary-popover className={isSummaryOpen ? '' : 'hidden'}>
             <MessageSummaryPopover
@@ -1797,9 +1909,9 @@ const MessageInput = ({
       )}
 
       <div className="relative">
-        {mentionQuery !== null && isGroupChat && conversationMembers?.length > 0 && (
+        {mentionQuery !== null && isGroupChat && mentionableMembers.length > 0 && (
           <MentionDropdown
-            members={conversationMembers}
+            members={mentionableMembers}
             query={mentionQuery}
             onSelect={handleMentionSelect}
             activeIndex={mentionActiveIdx}
@@ -1831,7 +1943,7 @@ const MessageInput = ({
                 setIsPickerOpen(false);
                 setIsActionMenuOpen((current) => !current);
               }}
-              className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:hidden ${
+              className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface ${
                 isActionMenuOpen ? 'bg-surface-container-low text-on-surface' : ''
               }`}
               title="Thao tác"
@@ -1846,7 +1958,7 @@ const MessageInput = ({
             <button
               type="button"
               onClick={() => setIsPollOpen(true)}
-              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
               title="Tạo bình chọn"
             >
               <AppIcon name="poll" className="text-[19px]" />
@@ -1857,7 +1969,7 @@ const MessageInput = ({
             <button
               type="button"
               onClick={() => setIsEventOpen(true)}
-              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
               title="Tạo sự kiện"
             >
               <AppIcon name="event" className="text-[19px]" />
@@ -1868,7 +1980,7 @@ const MessageInput = ({
             <button
               type="button"
               onClick={() => setIsChecklistOpen(true)}
-              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
               title="Tạo checklist"
             >
               <AppIcon name="checklist" className="text-[19px]" />
@@ -1879,7 +1991,7 @@ const MessageInput = ({
             <button
               type="button"
               onClick={() => setIsPlanOpen(true)}
-              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
               title="Tạo kế hoạch"
             >
               <AppIcon name="plan" className="text-[19px]" />
@@ -1890,33 +2002,47 @@ const MessageInput = ({
             <button
               type="button"
               onClick={() => setIsReminderOpen(true)}
-              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface sm:flex"
+              className="hidden h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
               title="Tạo nhắc hẹn"
             >
               <AppIcon name="reminder" className="text-[19px]" />
             </button>
           )}
 
-          <textarea
-            ref={inputRef}
-            value={message}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            onFocus={onFocus}
-            disabled={disabled || isRecordingVoice}
-            autoComplete="off"
-            rows={1}
-            className="min-w-0 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[16px] text-on-surface outline-none placeholder:text-on-surface-variant no-scrollbar md:text-[15px]"
-            placeholder={
-              editingMessage
-                ? 'Chỉnh sửa tin nhắn...'
-                : isRecordingVoice
-                  ? 'Đang ghi âm...'
-                  : hasPreviews || hasVoicePreview
-                    ? 'Viết chú thích...'
-                    : 'Nhập tin nhắn...'
-            }
-          />
+          <div className="relative min-w-0 flex-1">
+            {message && !editingMessage && (
+              <div
+                ref={mentionOverlayRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-2 py-1.5 text-[16px] text-on-surface [overflow-wrap:anywhere] md:text-[15px]"
+              >
+                {renderedDraftMessage}
+              </div>
+            )}
+            <textarea
+              ref={inputRef}
+              value={message}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              onFocus={onFocus}
+              onScroll={syncMentionOverlayScroll}
+              disabled={disabled || isRecordingVoice}
+              autoComplete="off"
+              rows={1}
+              className={`relative z-10 block w-full resize-none border-none bg-transparent px-2 py-1.5 text-[16px] outline-none placeholder:text-on-surface-variant no-scrollbar caret-on-surface md:text-[15px] ${
+                message && !editingMessage ? 'text-transparent' : 'text-on-surface'
+              }`}
+              placeholder={
+                editingMessage
+                  ? 'Chỉnh sửa tin nhắn...'
+                  : isRecordingVoice
+                    ? 'Đang ghi âm...'
+                    : hasPreviews || hasVoicePreview
+                      ? 'Viết chú thích...'
+                      : 'Nhập tin nhắn...'
+              }
+            />
+          </div>
 
           <button
             ref={emojiButtonRef}
@@ -1931,6 +2057,25 @@ const MessageInput = ({
             title="Cảm xúc"
           >
             <AppIcon name="emoji_picker" className="text-[20px]" />
+          </button>
+
+          <button
+            ref={intentButtonRef}
+            type="button"
+            onClick={() => {
+              setIsActionMenuOpen(false);
+              setIsPickerOpen(false);
+              setIsIntentPickerOpen((current) => !current);
+            }}
+            disabled={disabled || isRecordingVoice || Boolean(editingMessage)}
+            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
+              isIntentPickerOpen || selectedIntent
+                ? 'bg-surface-container-low text-secondary'
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+            title={selectedIntent ? `Đã đánh dấu: ${INTENT_OPTIONS.find((o) => o.key === selectedIntent)?.label}` : 'Đánh dấu'}
+          >
+            <AppIcon name="label" className="text-[20px]" />
           </button>
 
           {canSchedule && (
@@ -1975,10 +2120,58 @@ const MessageInput = ({
           </button>
         </form>
 
+        {selectedIntent && !editingMessage && (
+          <div className="mt-1.5 flex items-center justify-between rounded-[10px] border border-outline-variant bg-surface-container-lowest px-2.5 py-1.5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface">
+              <AppIcon name={INTENT_OPTIONS.find((o) => o.key === selectedIntent)?.icon || 'label'} className={`text-[16px] ${INTENT_OPTIONS.find((o) => o.key === selectedIntent)?.color || ''}`} />
+              {INTENT_OPTIONS.find((o) => o.key === selectedIntent)?.label || ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedIntent(null)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
+            >
+              <AppIcon name="close" className="text-[14px]" />
+            </button>
+          </div>
+        )}
+
+        {isIntentPickerOpen && !editingMessage && (
+          <div
+            ref={intentPickerRef}
+            className="absolute bottom-[calc(100%+8px)] right-0 z-[130] w-56 overflow-hidden rounded-[14px] border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl"
+          >
+            {INTENT_OPTIONS.map((option) => {
+              const isActive = selectedIntent === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedIntent((current) => (current === option.key ? null : option.key));
+                    setIsIntentPickerOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors hover:bg-surface-container-low ${
+                    isActive ? option.bg : ''
+                  }`}
+                >
+                  <AppIcon name={option.icon} className={`text-[18px] ${option.color}`} />
+                  <span className={`text-sm font-medium ${isActive ? option.color : 'text-on-surface'}`}>
+                    {option.label}
+                  </span>
+                  {isActive && (
+                    <AppIcon name="check" className="ml-auto text-[16px] text-secondary" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {isActionMenuOpen && hasComposerActions && (
           <div
             ref={actionMenuRef}
-            className="absolute bottom-[calc(100%+8px)] left-0 z-[130] w-60 overflow-hidden rounded-[14px] border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl sm:hidden"
+            className="absolute bottom-[calc(100%+8px)] left-0 z-[130] w-60 overflow-hidden rounded-[14px] border border-outline-variant bg-surface-container-lowest p-1.5 shadow-xl"
           >
             {composerActions.map((action) => (
               <button

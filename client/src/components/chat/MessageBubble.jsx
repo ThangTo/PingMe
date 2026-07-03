@@ -135,20 +135,74 @@ const isInteractiveMessageTarget = (target) =>
     ),
   );
 
-const MENTION_REGEX = /(@\w+)/g;
+const MENTION_FALLBACK_REGEX = /@[\p{L}\p{N}_]+/gu;
+const MENTION_WORD_CHAR_REGEX = /[\p{L}\p{N}_]/u;
 
-const renderTextWithMentions = (text) =>
-  text.split(MENTION_REGEX).map((part, i) =>
-    /^@\w+$/.test(part) ? (
-      <span key={`m-${i}`} className="font-medium text-secondary">
-        {part}
-      </span>
-    ) : (
-      part
-    ),
-  );
+const normalizeMentionName = (name = '') => name.trim().replace(/^@+/, '');
 
-const renderMessageContent = (content = '') => {
+const getMentionNames = (members = []) => {
+  const names = members
+    .map((member) => normalizeMentionName(member.username || member.name || ''))
+    .filter(Boolean);
+  return [...new Set([...names, 'everyone', 'all'])].sort((a, b) => b.length - a.length);
+};
+
+const renderMentionPart = (text, key) => (
+  <span key={key} className="font-medium text-secondary">
+    {text}
+  </span>
+);
+
+const renderTextWithMentions = (text, mentionNames = []) => {
+  if (!text) return [];
+
+  const parts = [];
+  let cursor = 0;
+
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] !== '@') continue;
+
+    const matchedName = mentionNames.find((name) => {
+      const token = `@${name}`;
+      if (text.slice(i, i + token.length).toLocaleLowerCase('vi') !== token.toLocaleLowerCase('vi')) {
+        return false;
+      }
+      const nextChar = text[i + token.length];
+      return !nextChar || !MENTION_WORD_CHAR_REGEX.test(nextChar);
+    });
+
+    if (!matchedName) continue;
+
+    const end = i + matchedName.length + 1;
+    if (i > cursor) parts.push(text.slice(cursor, i));
+    parts.push(renderMentionPart(text.slice(i, end), `m-${i}`));
+    cursor = end;
+    i = end - 1;
+  }
+
+  if (cursor === 0) {
+    const fallbackParts = [];
+    let fallbackCursor = 0;
+    MENTION_FALLBACK_REGEX.lastIndex = 0;
+
+    for (const match of text.matchAll(MENTION_FALLBACK_REGEX)) {
+      const start = match.index ?? 0;
+      const value = match[0];
+      if (start > fallbackCursor) fallbackParts.push(text.slice(fallbackCursor, start));
+      fallbackParts.push(renderMentionPart(value, `m-fallback-${start}`));
+      fallbackCursor = start + value.length;
+    }
+
+    if (fallbackCursor === 0) return [text];
+    if (fallbackCursor < text.length) fallbackParts.push(text.slice(fallbackCursor));
+    return fallbackParts;
+  }
+
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts;
+};
+
+const renderMessageContent = (content = '', mentionNames = []) => {
   if (!content) return null;
 
   const parts = [];
@@ -160,7 +214,7 @@ const renderMessageContent = (content = '') => {
     const startIndex = match.index ?? 0;
 
     if (startIndex > lastIndex) {
-      parts.push(...renderTextWithMentions(content.slice(lastIndex, startIndex)));
+      parts.push(...renderTextWithMentions(content.slice(lastIndex, startIndex), mentionNames));
     }
 
     const displayUrl = rawUrl.replace(TRAILING_URL_PUNCTUATION_REGEX, '');
@@ -183,14 +237,14 @@ const renderMessageContent = (content = '') => {
     );
 
     if (trailingText) {
-      parts.push(...renderTextWithMentions(trailingText));
+      parts.push(...renderTextWithMentions(trailingText, mentionNames));
     }
 
     lastIndex = startIndex + rawUrl.length;
   }
 
   if (lastIndex < content.length) {
-    parts.push(...renderTextWithMentions(content.slice(lastIndex)));
+    parts.push(...renderTextWithMentions(content.slice(lastIndex), mentionNames));
   }
 
   return parts;
@@ -432,12 +486,21 @@ const getCallMessageMeta = (message = {}) => {
   };
 };
 
+const INTENT_CONFIG = {
+  urgent: { label: 'Khẩn cấp', icon: 'alarm', color: 'text-error', bg: 'bg-error/10' },
+  needs_reply: { label: 'Cần trả lời', icon: 'reply', color: 'text-warning', bg: 'bg-warning/10' },
+  decision: { label: 'Quyết định', icon: 'check_circle', color: 'text-secondary', bg: 'bg-secondary/10' },
+  fyi: { label: 'Để biết', icon: 'info', color: 'text-accent', bg: 'bg-accent/10' },
+  remind_me: { label: 'Nhắc tôi', icon: 'bookmark', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+};
+
 const MessageBubble = ({
   message,
   isOwn = false,
   showAvatar = true,
   readReceipts = [],
   currentUserId = '',
+  conversationMembers = [],
   onReaction,
   onPollVote,
   onEventRsvp,
@@ -452,6 +515,7 @@ const MessageBubble = ({
   onForwardMessage,
   onJumpToMessage,
   onOpenSenderProfile,
+  onSetMessageIntent,
   bubbleThemeId = 'classic',
   isPinned = false,
   showMeta = true,
@@ -465,6 +529,7 @@ const MessageBubble = ({
   const [activeReactionEmoji, setActiveReactionEmoji] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [actionMenuPlacement, setActionMenuPlacement] = useState('center');
+  const [showIntentMenu, setShowIntentMenu] = useState(false);
   const longPressTimer = useRef(null);
   const lightboxTouchStartX = useRef(null);
   const messageRef = useRef(null);
@@ -496,9 +561,10 @@ const MessageBubble = ({
     [attachments],
   );
   const formattedTime = useMemo(() => formatMessageTime(message.timestamp), [message.timestamp]);
+  const mentionNames = useMemo(() => getMentionNames(conversationMembers), [conversationMembers]);
   const renderedMessageContent = useMemo(
-    () => renderMessageContent(message.content),
-    [message.content],
+    () => renderMessageContent(message.content, mentionNames),
+    [message.content, mentionNames],
   );
   const canReact =
     Boolean(message.id) && !isRevoked && !isCallMessage && message.status !== 'sending';
@@ -692,6 +758,7 @@ const MessageBubble = ({
     setShowPicker(false);
     onCloseActionMenu?.(message.id);
     setActiveReactionEmoji(null);
+    setShowIntentMenu(false);
   };
 
   const handleEmojiSelect = (emoji) => {
@@ -759,6 +826,14 @@ const MessageBubble = ({
       onClick: () => {
         onPinMessage?.(message);
         closeMenus();
+      },
+    },
+    {
+      key: 'intent',
+      label: message.intent ? 'Đổi đánh dấu' : 'Đánh dấu',
+      icon: 'label',
+      onClick: () => {
+        setShowIntentMenu((current) => !current);
       },
     },
     ...(isOwn && !isRevoked
@@ -1393,25 +1468,89 @@ const MessageBubble = ({
                 }`}
                 onContextMenu={(event) => event.preventDefault()}
               >
-                {visibleActionItems.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={item.onClick || closeMenus}
-                    className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-container-low ${
-                      item.danger ? 'text-error' : 'text-on-surface'
-                    }`}
-                  >
-                    <AppIcon
-                      name={item.icon}
-                      className={`text-[20px] ${item.pinIcon ? '-rotate-45' : ''}`}
-                    />
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {showIntentMenu ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowIntentMenu(false)}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
+                    >
+                      <AppIcon name="arrow_back" className="text-[18px]" />
+                      <span>Quay lại</span>
+                    </button>
+                    <div className="mx-3 my-1 h-px bg-outline-variant" />
+                    {Object.entries(INTENT_CONFIG).map(([key, cfg]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          onSetMessageIntent?.(message.id, message.conversationId, message.intent === key ? null : key);
+                          closeMenus();
+                        }}
+                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-container-low ${
+                          message.intent === key ? cfg.bg : ''
+                        }`}
+                      >
+                        <AppIcon name={cfg.icon} className={`text-[20px] ${cfg.color}`} />
+                        <span className={`${message.intent === key ? cfg.color : 'text-on-surface'}`}>
+                          {cfg.label}
+                        </span>
+                        {message.intent === key && (
+                          <AppIcon name="check" className="ml-auto text-[16px] text-secondary" />
+                        )}
+                      </button>
+                    ))}
+                    {message.intent && (
+                      <>
+                        <div className="mx-3 my-1 h-px bg-outline-variant" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSetMessageIntent?.(message.id, message.conversationId, null);
+                            closeMenus();
+                          }}
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-error transition-colors hover:bg-surface-container-low"
+                        >
+                          <AppIcon name="close" className="text-[20px]" />
+                          <span>Bỏ đánh dấu</span>
+                        </button>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  visibleActionItems.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onClick || closeMenus}
+                      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-container-low ${
+                        item.danger ? 'text-error' : 'text-on-surface'
+                      }`}
+                    >
+                      <AppIcon
+                        name={item.icon}
+                        className={`text-[20px] ${item.pinIcon ? '-rotate-45' : ''}`}
+                      />
+                      <span>{item.label}</span>
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
+
+          {message.intent && INTENT_CONFIG[message.intent] && (
+            <div className="mt-0.5 flex">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  INTENT_CONFIG[message.intent].bg
+                } ${INTENT_CONFIG[message.intent].color}`}
+              >
+                <AppIcon name={INTENT_CONFIG[message.intent].icon} className="text-[13px]" />
+                {INTENT_CONFIG[message.intent].label}
+              </span>
+            </div>
+          )}
 
           {reactionsList.length > 0 && (
             <div className="mt-0.5 flex flex-wrap gap-1">
@@ -1518,22 +1657,69 @@ const MessageBubble = ({
               <EmojiPicker emojis={QUICK_EMOJIS} onSelect={handleEmojiSelect} />
             </div>
             <div className="overflow-hidden rounded-[16px] border border-outline-variant bg-surface-container-lowest shadow-sm">
-              {visibleActionItems.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={item.onClick || closeMenus}
-                  className={`flex h-[52px] w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] last:border-b-0 ${
-                    item.danger ? 'text-error' : 'text-on-surface'
-                  }`}
-                >
-                  <AppIcon
-                    name={item.icon}
-                    className={`text-[22px] ${item.pinIcon ? '-rotate-45' : ''}`}
-                  />
-                  <span>{item.label}</span>
-                </button>
-              ))}
+              {showIntentMenu ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowIntentMenu(false)}
+                    className="flex h-[52px] w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] text-on-surface-variant last:border-b-0"
+                  >
+                    <AppIcon name="arrow_back" className="text-[22px]" />
+                    <span>Quay lại</span>
+                  </button>
+                  {Object.entries(INTENT_CONFIG).map(([key, cfg]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        onSetMessageIntent?.(message.id, message.conversationId, message.intent === key ? null : key);
+                        closeMenus();
+                      }}
+                      className={`flex h-[52px] w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] last:border-b-0 ${
+                        message.intent === key ? cfg.bg : ''
+                      }`}
+                    >
+                      <AppIcon name={cfg.icon} className={`text-[22px] ${cfg.color}`} />
+                      <span className={message.intent === key ? cfg.color : 'text-on-surface'}>
+                        {cfg.label}
+                      </span>
+                      {message.intent === key && (
+                        <AppIcon name="check" className="ml-auto text-[18px] text-secondary" />
+                      )}
+                    </button>
+                  ))}
+                  {message.intent && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSetMessageIntent?.(message.id, message.conversationId, null);
+                        closeMenus();
+                      }}
+                      className="flex h-[52px] w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] text-error last:border-b-0"
+                    >
+                      <AppIcon name="close" className="text-[22px]" />
+                      <span>Bỏ đánh dấu</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                visibleActionItems.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={item.onClick || closeMenus}
+                    className={`flex h-[52px] w-full items-center gap-4 border-b border-outline-variant px-5 text-left text-[15px] last:border-b-0 ${
+                      item.danger ? 'text-error' : 'text-on-surface'
+                    }`}
+                  >
+                    <AppIcon
+                      name={item.icon}
+                      className={`text-[22px] ${item.pinIcon ? '-rotate-45' : ''}`}
+                    />
+                    <span>{item.label}</span>
+                  </button>
+                ))
+              )}
             </div>
             <button
               type="button"
@@ -1585,6 +1771,7 @@ const getMessageCompareKey = (message = {}) =>
     isDeleted: message.isDeleted,
     deletedAt: message.deletedAt,
     replyTo: message.replyTo,
+    intent: message.intent,
   });
 
 const hasSameActionSurface = (prevProps, nextProps) =>
@@ -1600,6 +1787,7 @@ const hasSameActionSurface = (prevProps, nextProps) =>
   Boolean(prevProps.onPinMessage) === Boolean(nextProps.onPinMessage) &&
   Boolean(prevProps.onEvolveMessage) === Boolean(nextProps.onEvolveMessage) &&
   Boolean(prevProps.onForwardMessage) === Boolean(nextProps.onForwardMessage) &&
+  Boolean(prevProps.onSetMessageIntent) === Boolean(nextProps.onSetMessageIntent) &&
   Boolean(prevProps.onJumpToMessage) === Boolean(nextProps.onJumpToMessage) &&
   Boolean(prevProps.onOpenSenderProfile) === Boolean(nextProps.onOpenSenderProfile);
 
@@ -1608,6 +1796,7 @@ const areMessageBubblePropsEqual = (prevProps, nextProps) =>
   prevProps.isOwn === nextProps.isOwn &&
   prevProps.showAvatar === nextProps.showAvatar &&
   prevProps.currentUserId === nextProps.currentUserId &&
+  prevProps.conversationMembers === nextProps.conversationMembers &&
   prevProps.isPinned === nextProps.isPinned &&
   prevProps.showMeta === nextProps.showMeta &&
   prevProps.bubbleThemeId === nextProps.bubbleThemeId &&

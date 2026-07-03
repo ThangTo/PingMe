@@ -420,6 +420,7 @@ const ChatArea = ({
   onUnpinMessage,
   onEvolveMessage,
   onForwardMessage,
+  onSetMessageIntent,
   onOpenSenderProfile,
   onJumpToPinnedMessage,
   jumpToMessageSignal,
@@ -869,7 +870,10 @@ const ChatArea = ({
             onPinMessage={onPinMessage}
             onEvolveMessage={onEvolveMessage}
             onForwardMessage={onForwardMessage}
+            onSetMessageIntent={onSetMessageIntent}
+            conversationMembers={currentUser?.members || []}
             onOpenSenderProfile={onOpenSenderProfile}
+            hasFloatingSummaryAction={Boolean(conversationId && !currentUser?.isSaved)}
           />
         </div>
       </div>
@@ -903,6 +907,7 @@ const ChatArea = ({
         onCreatePlan={onCreatePlan}
         onCreateReminder={onCreateReminder}
         isGroupChat={Boolean(currentUser?.isGroup)}
+        currentUserId={currentUserId}
         canCreatePoll={Boolean(currentUser?.isGroup)}
         canCreateEvent={Boolean(currentUser && !currentUser.isSaved)}
         canCreateChecklist={Boolean(currentUser?.isGroup)}

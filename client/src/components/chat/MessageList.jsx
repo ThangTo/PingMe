@@ -4,6 +4,14 @@ import MessageBubble from './MessageBubble';
 import AppIcon from '../ui/AppIcon';
 import { LoadingSpinner, MessageSkeleton } from '../ui/LoadingState';
 
+const INTENT_CONFIG = {
+  urgent: { label: 'Khẩn cấp', icon: 'alarm', color: 'text-error', bg: 'bg-error/10', border: 'border-error/30' },
+  needs_reply: { label: 'Cần trả lời', icon: 'reply', color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30' },
+  decision: { label: 'Quyết định', icon: 'check_circle', color: 'text-secondary', bg: 'bg-secondary/10', border: 'border-secondary/30' },
+  fyi: { label: 'Để biết', icon: 'info', color: 'text-accent', bg: 'bg-accent/10', border: 'border-accent/30' },
+  remind_me: { label: 'Nhắc tôi', icon: 'bookmark', color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
+};
+
 const EMPTY_META_MESSAGE_IDS = new Set();
 
 const getInitials = (name = '') =>
@@ -91,6 +99,7 @@ const MessageList = ({
   messages = [],
   conversationId,
   currentUserId,
+  conversationMembers = [],
   reactionUsersById = {},
   onReaction,
   onPollVote,
@@ -104,6 +113,7 @@ const MessageList = ({
   onPinMessage,
   onEvolveMessage,
   onForwardMessage,
+  onSetMessageIntent,
   onOpenSenderProfile,
   isLoading = false,
   isLoadingOlderMessages = false,
@@ -119,6 +129,7 @@ const MessageList = ({
   jumpToMessageSignal,
   typingUsers = [],
   bubbleThemeId = 'classic',
+  hasFloatingSummaryAction = false,
 }) => {
   const virtuosoRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
@@ -128,6 +139,7 @@ const MessageList = ({
   const previousLatestMessageIdRef = useRef(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [activeActionMessageId, setActiveActionMessageId] = useState(null);
+  const [activeIntentFilter, setActiveIntentFilter] = useState(null);
   const [isNearLatestMessage, setIsNearLatestMessage] = useState(true);
   const [expandedMetaState, setExpandedMetaState] = useState(() => ({
     conversationId,
@@ -135,7 +147,14 @@ const MessageList = ({
   }));
   const normalizedSearchQuery = searchQuery.trim();
   const isSearchMode = Boolean(normalizedSearchQuery);
-  const visibleMessages = messages;
+  const visibleMessages = activeIntentFilter
+    ? messages.filter((msg) => msg.intent === activeIntentFilter)
+    : messages;
+
+  const hasIntentMessages = useMemo(
+    () => messages.some((msg) => msg.intent && INTENT_CONFIG[msg.intent]),
+    [messages],
+  );
   const searchMatchIdSet = useMemo(() => new Set(searchMatchIds), [searchMatchIds]);
   const pinnedMessageIdSet = useMemo(() => new Set(pinnedMessageIds), [pinnedMessageIds]);
   const messageIndexById = useMemo(() => {
@@ -345,7 +364,7 @@ const MessageList = ({
 
   const renderFooter = useCallback(
     () => (
-      <div className="w-full px-4 pb-6 pt-1 md:px-5">
+      <div className={`w-full px-4 pt-1 md:px-5 ${hasFloatingSummaryAction ? 'pb-20' : 'pb-6'}`}>
         {hasTypingUsers && (
           <div className="flex max-w-[72%] items-end gap-2 md:max-w-[58%]">
             <TypingIndicator typingUsers={typingUsers} />
@@ -353,7 +372,7 @@ const MessageList = ({
         )}
       </div>
     ),
-    [hasTypingUsers, typingUsers],
+    [hasFloatingSummaryAction, hasTypingUsers, typingUsers],
   );
 
   const virtuosoComponents = useMemo(
@@ -418,6 +437,7 @@ const MessageList = ({
               isOwn={isOwn}
               showAvatar={showAvatar}
               currentUserId={currentUserId}
+              conversationMembers={conversationMembers}
               reactionUsersById={reactionUsersById}
               readReceipts={readReceipts}
               onReaction={onReaction}
@@ -432,6 +452,7 @@ const MessageList = ({
               onPinMessage={onPinMessage}
               onEvolveMessage={onEvolveMessage}
               onForwardMessage={onForwardMessage}
+              onSetMessageIntent={onSetMessageIntent}
               onOpenSenderProfile={onOpenSenderProfile}
               bubbleThemeId={bubbleThemeId}
               isPinned={pinnedMessageIdSet.has(message.id)}
@@ -449,6 +470,7 @@ const MessageList = ({
     [
       activeActionMessageId,
       currentUserId,
+      conversationMembers,
       expandedMetaMessageIds,
       handleJumpToMessage,
       highlightedMessageId,
@@ -462,6 +484,7 @@ const MessageList = ({
       onCancelEvent,
       onEvolveMessage,
       onForwardMessage,
+      onSetMessageIntent,
       onPinMessage,
       onOpenSenderProfile,
       onPollVote,
@@ -512,6 +535,34 @@ const MessageList = ({
 
   return (
     <div className="relative h-full bg-transparent">
+      {hasIntentMessages && (
+        <div className="sticky top-0 z-30 flex shrink-0 gap-1.5 overflow-x-auto border-b border-outline-variant bg-surface px-4 py-2 md:px-5">
+          <button
+            type="button"
+            onClick={() => setActiveIntentFilter(null)}
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
+              !activeIntentFilter
+                ? 'border-secondary bg-secondary/10 text-secondary'
+                : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
+            }`}
+          >
+            Tất cả
+          </button>
+          {Object.entries(INTENT_CONFIG).map(([key, cfg]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveIntentFilter((current) => (current === key ? null : key))}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                activeIntentFilter === key ? `${cfg.bg} ${cfg.color} ${cfg.border}` : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
+              }`}
+            >
+              <AppIcon name={cfg.icon} className="text-[14px]" />
+              {cfg.label}
+            </button>
+          ))}
+        </div>
+      )}
       <Virtuoso
         key={conversationId || 'conversation'}
         ref={virtuosoRef}

@@ -195,10 +195,11 @@ const queueMessageNotifications = ({
     recipientIds.map((recipientId) => {
       const isMention = mentionedUserIds.has(recipientId);
 
-      // Mute bypass: skip notification if muted and not a mention
+      // Mute bypass: skip notification if muted and not a mention and not urgent
       const member = conversation.members?.find((m) => m.user?.toString() === recipientId);
       const isMuted = member?.mutedUntil && new Date() < new Date(member.mutedUntil);
-      if (isMuted && !isMention) return Promise.resolve();
+      const shouldBypass = isMention || messagePayload.intent === 'urgent';
+      if (isMuted && !shouldBypass) return Promise.resolve();
 
       const title = isMention
         ? `${senderUser?.username || 'Ai đó'} đã nhắc đến bạn`
@@ -1562,7 +1563,7 @@ const socketHandler = (io) => {
      */
     socket.on('send_message', async (data) => {
       try {
-        const { tempId, conversationId, recipientId, content, attachment, attachments, sticker, replyToId } =
+        const { tempId, conversationId, recipientId, content, attachment, attachments, sticker, replyToId, intent } =
           data;
         const senderId = socket.userId;
         const cleanContent = typeof content === 'string' ? content.trim() : '';
@@ -1603,6 +1604,10 @@ const socketHandler = (io) => {
           mentionIds = memberIds.filter((id) => id !== String(senderId));
         }
 
+        // Intent validation
+        const VALID_INTENTS = ['urgent', 'needs_reply', 'decision', 'fyi', 'remind_me'];
+        const validatedIntent = VALID_INTENTS.includes(intent) ? intent : null;
+
         let replyToMessage = null;
 
         if (await isDirectConversationBlocked(conversation)) {
@@ -1641,6 +1646,7 @@ const socketHandler = (io) => {
           status: 'sent',
           replyTo: replyToMessage?._id || null,
           mentions: mentionIds,
+          intent: validatedIntent,
         });
 
         conversation.lastMessage = newMessage._id;
@@ -1664,6 +1670,7 @@ const socketHandler = (io) => {
           callDetails: newMessage.callDetails || null,
           replyTo: formatReplyPreview(replyToMessage),
           mentions: mentionIds,
+          intent: newMessage.intent || null,
           isSaved: isSavedConversation,
         });
 
@@ -1687,6 +1694,7 @@ const socketHandler = (io) => {
           isGroup: conversation.type === 'group',
           isSaved: isSavedConversation,
           mentions: mentionIds,
+          intent: newMessage.intent || null,
         };
 
         queueLinkPreviewUpdate({
@@ -2574,6 +2582,60 @@ const socketHandler = (io) => {
         socket.emit('message_edit_failed', {
           messageId: data?.messageId,
           error: 'Không thể sửa tin nhắn',
+        });
+      }
+    });
+
+    socket.on('set_message_intent', async (data) => {
+      try {
+        const { messageId, conversationId, intent } = data;
+        const userId = socket.userId;
+        const VALID_INTENTS = ['urgent', 'needs_reply', 'decision', 'fyi', 'remind_me'];
+        const validatedIntent = VALID_INTENTS.includes(intent) ? intent : null;
+
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          socket.emit('message_edit_failed', { messageId, error: 'messageId không hợp lệ' });
+          return;
+        }
+
+        const message = await Message.findOne({ _id: messageId, conversation: conversationId });
+        if (!message || message.isDeleted) {
+          socket.emit('message_edit_failed', { messageId, error: 'Tin nhắn không tồn tại' });
+          return;
+        }
+
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation) {
+          socket.emit('message_edit_failed', { messageId, error: 'Cuộc trò chuyện không tồn tại' });
+          return;
+        }
+
+        if (!isConversationMember(conversation, userId)) {
+          socket.emit('message_edit_failed', { messageId, error: 'Bạn không thuộc cuộc trò chuyện này' });
+          return;
+        }
+
+        message.intent = validatedIntent;
+        await message.save();
+
+        const participantIds = getConversationMemberIds(conversation);
+        emitToUsers(io, participantIds, 'message_updated', {
+          messageId: message.id,
+          conversationId: toIdString(conversation._id),
+          senderId: message.sender.toString(),
+          recipientId: message.recipient?.toString(),
+          content: message.content,
+          linkPreview: message.linkPreview,
+          isEdited: message.isEdited,
+          editedAt: message.editedAt,
+          intent: message.intent || null,
+          updatedAt: message.updatedAt,
+        });
+      } catch (error) {
+        console.error('Lỗi set_message_intent:', error);
+        socket.emit('message_edit_failed', {
+          messageId: data?.messageId,
+          error: 'Không thể đánh dấu tin nhắn',
         });
       }
     });

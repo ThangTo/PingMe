@@ -542,6 +542,13 @@ const messageSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+
+    // Intent: urgent, needs_reply, decision, fyi, remind_me
+    intent: {
+      type: String,
+      enum: ['urgent', 'needs_reply', 'decision', 'fyi', 'remind_me'],
+      default: null,
+    },
   },
   {
     timestamps: true, // createdAt, updatedAt

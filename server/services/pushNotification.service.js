@@ -372,7 +372,7 @@ export const sendMessagePushToUsers = async ({ recipientIds = [], message, conve
     ...new Set(
       recipientIds
         .map((id) => id?.toString())
-        .filter((id) => id && (!conversationMutedUserIds.has(id) || mentionedUserIds.has(id))),
+        .filter((id) => id && (!conversationMutedUserIds.has(id) || mentionedUserIds.has(id) || message.intent === 'urgent')),
     ),
   ];
   if (!uniqueRecipientIds.length) return;

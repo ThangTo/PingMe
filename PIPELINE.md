@@ -215,7 +215,7 @@ Mục tiêu: không bỏ lỡ tin nhắn, nhưng không làm phiền.
 | 8.3 Browser notification permission | DONE | Notification API + đồng bộ permission/subscription |
 | 8.4 Push for new messages | DONE | Service worker + Web Push + in-app fallback toast |
 | 8.5 Notification preferences | DONE | Global mute và mute riêng từng conversation theo user |
-| 8.6 Mention notification | READY_TO_TEST | `@username` trong group tạo mention notification realtime |
+| 8.6 Mention notification | DONE | `@username` và `@all`/`@everyone` trong group tạo mention notification realtime, có highlight UX và mute bypass |
 
 Product rule:
 
