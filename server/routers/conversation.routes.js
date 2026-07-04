@@ -15,6 +15,7 @@ const uploadConversationBackground = (req, res, next) => {
 };
 
 router.get('/', authMiddleware, conversationController.getConversations);
+router.get('/debt', authMiddleware, conversationController.getConversationDebt);
 router.get('/drafts', authMiddleware, conversationController.getDrafts);
 router.post('/saved', authMiddleware, conversationController.ensureSavedConversation);
 router.post('/groups', authMiddleware, conversationController.createGroup);

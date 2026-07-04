@@ -32,6 +32,7 @@ import {
 } from '../services/catchup.service.js';
 import { formatSourceMessageForPayload } from '../services/messageSource.service.js';
 import { getVisibleAvatar, getVisiblePresence } from '../services/privacy.service.js';
+import { detectDebt } from '../services/conversationDebt.service.js';
 
 const SAVED_CONVERSATION_NAME = 'Tin nhắn đã lưu';
 const SAVED_CONVERSATION_EMPTY_PREVIEW = 'Lưu note, link, file tại đây';
@@ -1206,6 +1207,22 @@ const conversationController = {
       }
       console.error('Lỗi tạo tóm tắt theo yêu cầu:', error);
       return res.status(500).json({ error: 'Không thể tạo tóm tắt theo yêu cầu' });
+    }
+  },
+
+  getConversationDebt: async (req, res) => {
+    try {
+      const minAgeHours = Math.max(1, Math.min(720, parseInt(req.query.minAgeHours, 10) || 4));
+      const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 30));
+      const result = await detectDebt(req.user.id, { minAgeHours, limit });
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error('Lỗi lấy danh sách nợ phản hồi:', error);
+      return res.status(500).json({ error: 'Không thể lấy danh sách nợ phản hồi' });
     }
   },
 };

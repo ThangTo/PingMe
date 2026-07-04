@@ -148,6 +148,7 @@ const iconMap = {
   lock: LockKeyhole,
   login: LogIn,
   logout: LogOut,
+  mark_chat_unread: MessageCircle,
   location: MapPin,
   mic: Mic,
   mic_off: MicOff,

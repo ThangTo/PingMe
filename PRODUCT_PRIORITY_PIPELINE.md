@@ -206,7 +206,7 @@ Mục tiêu: giải quyết nỗi đau lớn nhất của chat hiện đại: qu
 | 3.1 Smart Catch-up MVP            | DONE     | P2       | `#ai #wow #retention`        | Tóm tắt unread messages trong conversation                                  | Summary có bullet, mention, decisions, questions, jump to original |
 | 3.2 Mention And Priority Catch-up | PLANNED  | P2       | `#ai #notification`          | Ưu tiên tin nhắc tới user, reply user, urgent intent                        | Người dùng thấy "việc liên quan đến mình" trước                    |
 | 3.3 Conversation Debt             | PLANNED  | P2       | `#ai #wow #retention`        | Detect câu hỏi chưa trả lời, lời hứa chưa hoàn thành, message cần follow-up | Inbox riêng cho "đang nợ phản hồi"                                 |
-| 3.4 Intent Message                | PLANNED  | P2       | `#core #realtime #wow`       | Người gửi đánh dấu `urgent`, `needs_reply`, `decision`, `fyi`, `remind_me`  | Filter được message theo intent; notification tôn trọng intent     |
+| 3.4 Intent Message                | DONE     | P2       | `#core #realtime #wow`       | Người gửi đánh dấu `urgent`, `needs_reply`, `decision`, `fyi`, `remind_me`  | Filter được message theo intent; notification tôn trọng intent     |
 | 3.5 Smart Notification Digest     | PLANNED  | P2       | `#ai #notification #privacy` | Gom thông báo theo batch, chỉ alert ngay khi urgent/mention                 | Ít notification hơn nhưng không bỏ lỡ việc quan trọng              |
 | 3.6 Semantic Search               | PLANNED  | P2       | `#ai #search`                | Tìm bằng ý nghĩa: "file báo cáo Minh gửi tháng trước"                       | Kết quả có nguồn, conversation, jump, quyền truy cập được kiểm tra |
 | 3.7 Cross-App Personal Inbox      | PLANNED  | P2       | `#retention #growth`         | Share link/file/email vào Saved Messages, tự phân loại                      | User có một nơi gom thông tin cá nhân                              |
@@ -236,7 +236,7 @@ Mục tiêu: voice và call không chỉ là media, mà trở thành thông tin 
 | Stage                      | Status  | Priority | Tags                      | Scope                                                              | Output / Gate                                                |
 | -------------------------- | ------- | -------- | ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
 | 4.1 Voice Message Trimming | DONE    | P1       | `#media #mobile`          | Cắt đoạn đầu/cuối trước khi gửi voice                              | UI đơn giản, không làm tăng ma sát gửi voice                 |
-| 4.2 Voice Transcription    | PLANNED | P2       | `#ai #search #privacy`    | Convert voice message thành text                                   | Có trạng thái processing/failed, user có thể xóa transcript  |
+| ~~4.2 Voice Transcription~~ | ~~REMOVED~~ | ~~P2~~ | `#ai #search #privacy`    | ~~Đã bỏ khỏi pipeline~~                                             | —                                                            |
 | 4.3 Voice Summary          | PLANNED | P2       | `#ai #wow`                | Tóm tắt voice dài thành ý chính                                    | Summary có link timestamp                                    |
 | 4.4 Timestamp Reply        | PLANNED | P2       | `#media #core`            | Reply vào đoạn cụ thể của voice                                    | Click reply nhảy tới timestamp trong audio                   |
 | 4.5 Search Inside Voice    | PLANNED | P2       | `#ai #search`             | Transcript được index theo quyền conversation                      | Search trả voice result đúng timestamp                       |
@@ -421,16 +421,14 @@ Danh sách này là hàng đợi hành động gần nhất, đã sắp theo r�
 | 8     | 2.2 Event In Chat                   | P1       | Biến group thành nơi lập kế hoạch                                 |
 | 9     | 2.3 Collaborative Checklist         | P1       | Tạo giá trị khác biệt cho nhóm nhỏ                                |
 | 10    | 3.1 Smart Catch-up MVP              | P2       | Wow moment mạnh nhất, nhưng cần nền search/jump ổn                |
-| 11    | 4.2 Voice Transcription             | P2       | Mở khóa search voice và summary                                   |
-| 12    | 3.4 Intent Message                  | P2       | Nền cho Conversation Debt và smart notification                   |
-| 13    | 3.3 Conversation Debt               | P2       | Khác biệt hóa rõ so với app chat thông thường                     |
-| 14    | 5.1 Group Topics/Threads            | P2       | Cần trước channel/community                                       |
-| 15    | 6.1 Passkey Login                   | P2       | Tăng trust và bắt kịp app lớn                                     |
-| 16    | 6.2 Anti-Scam Safety Screen         | P2       | Quan trọng khi mở invite/link/group                               |
-| 17    | 6.4 Privacy Agreement MVP           | P2       | Tạo định vị riêng cho PingMe                                      |
-| 18    | 4.6 Call Link                       | P2       | Mở đường group call/screen share                                  |
-| 19    | 5.2 Invite Links And QR             | P2       | Growth loop cho group                                             |
-| 20    | 9.3 Job Queue                       | P3       | Cần trước khi AI/transcription/push job tăng tải                  |
+| 11    | 3.3 Conversation Debt               | P2       | Khác biệt hóa rõ so với app chat thông thường; intent đã có nền  |
+| 12    | 5.1 Group Topics/Threads            | P2       | Cần trước channel/community                                       |
+| 13    | 6.1 Passkey Login                   | P2       | Tăng trust và bắt kịp app lớn                                     |
+| 14    | 6.2 Anti-Scam Safety Screen         | P2       | Quan trọng khi mở invite/link/group                               |
+| 15    | 6.4 Privacy Agreement MVP           | P2       | Tạo định vị riêng cho PingMe                                      |
+| 16    | 4.6 Call Link                       | P2       | Mở đường group call/screen share                                  |
+| 17    | 5.2 Invite Links And QR             | P2       | Growth loop cho group                                             |
+| 18    | 9.3 Job Queue                       | P3       | Cần trước khi AI/push job tăng tải                                |
 
 ---
 

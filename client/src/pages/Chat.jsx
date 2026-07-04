@@ -19,6 +19,7 @@ import { normalizeConversationAppearance } from '../utils/conversationAppearance
 const ChatDetailsPanel = lazy(() => import('../components/layout/ChatDetailsPanel'));
 const SettingsPanel = lazy(() => import('../components/layout/SettingsPanel'));
 const NotificationPanel = lazy(() => import('../components/layout/NotificationPanel'));
+const ConversationDebtPanel = lazy(() => import('../components/layout/ConversationDebtPanel'));
 const GlobalSearchPanel = lazy(() => import('../components/layout/GlobalSearchPanel'));
 const ProfileViewer = lazy(() => import('../components/profile/ProfileViewer'));
 const AddChecklistItemModal = lazy(() => import('../components/chat/AddChecklistItemModal'));
@@ -932,6 +933,7 @@ const Chat = () => {
   const [evolutionMode, setEvolutionMode] = useState(null);
   const [appNotifications, setAppNotifications] = useState([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [debtCount, setDebtCount] = useState(0);
   const [friendRequestCount, setFriendRequestCount] = useState(0);
   const [offlineSyncStatus, setOfflineSyncStatus] = useState('idle');
   const [, setPresenceClock] = useState(0);
@@ -1138,6 +1140,26 @@ const Chat = () => {
     if (user) fetchNotificationCount();
     socket.on('notification_created', handleNotificationCreated);
     return () => socket.off('notification_created', handleNotificationCreated);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setDebtCount(0);
+      return;
+    }
+
+    const fetchDebtCount = async () => {
+      try {
+        const response = await api.get('/conversations/debt', { params: { limit: 1 } });
+        setDebtCount(response.data.data?.total || 0);
+      } catch {
+        // silent
+      }
+    };
+
+    fetchDebtCount();
+    const interval = setInterval(fetchDebtCount, 60000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const fetchFriendRequestCount = useCallback(async () => {
@@ -4699,6 +4721,7 @@ const Chat = () => {
         <AppRail
           activeItem={activeRailItem}
           notificationCount={notificationUnreadCount}
+          debtCount={debtCount}
           connectionRequestCount={friendRequestCount}
           onCollapseChange={setIsRailCollapsed}
           onNavigate={handleRailNavigate}
@@ -4720,6 +4743,15 @@ const Chat = () => {
                 onNavigate={setActiveRailItem}
                 onUnreadCountChange={setNotificationUnreadCount}
                 onOpen={handleOpenMessageTarget}
+                connectionRequestCount={friendRequestCount}
+              />
+            </Suspense>
+          ) : activeRailItem === 'debt' ? (
+            <Suspense fallback={<LazyPanelFallback />}>
+              <ConversationDebtPanel
+                onBack={() => setActiveRailItem('messages')}
+                onNavigate={setActiveRailItem}
+                onJumpToMessage={handleOpenMessageTarget}
                 connectionRequestCount={friendRequestCount}
               />
             </Suspense>
@@ -4749,11 +4781,13 @@ const Chat = () => {
                 error={friendsError}
                 focusSearchSignal={focusSearchSignal}
                 notificationCount={notificationUnreadCount}
+                debtCount={debtCount}
                 onFriendRequestCountChange={setFriendRequestCount}
                 showMessageBrand={activeRailItem === 'messages' && isRailCollapsed}
                 onOpenMessages={() => setActiveRailItem('messages')}
                 onOpenContacts={() => setActiveRailItem('contacts')}
                 onOpenGroups={() => setActiveRailItem('groups')}
+                onOpenDebt={() => setActiveRailItem('debt')}
                 onOpenNotifications={() => setActiveRailItem('notifications')}
                 onOpenGlobalSearch={() => setActiveRailItem('search')}
                 onOpenSettings={() => {

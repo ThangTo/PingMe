@@ -9,6 +9,7 @@ import PingMeWordmark from '../ui/PingMeWordmark';
 
 const railItems = [
   { key: 'search', label: 'Tìm kiếm', icon: 'search' },
+  { key: 'debt', label: 'Nợ phản hồi', icon: 'mark_chat_unread' },
   { key: 'notifications', label: 'Thông báo', icon: 'notifications' },
   { key: 'messages', label: 'Tin nhắn', icon: 'chat_bubble' },
   { key: 'contacts', label: 'Kết nối', icon: 'person_add' },
@@ -24,6 +25,7 @@ const themeOptions = [
 const AppRail = ({
   activeItem = 'messages',
   notificationCount = 0,
+  debtCount = 0,
   connectionRequestCount = 0,
   onCollapseChange,
   onNavigate,
@@ -134,6 +136,11 @@ const AppRail = ({
                   name={item.icon}
                   className={`text-[20px] ${isActive ? 'text-secondary' : ''}`}
                 />
+                {item.key === 'debt' && debtCount > 0 && (
+                  <span className="absolute -right-2.5 -top-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
+                    {debtCount > 99 ? '99+' : debtCount}
+                  </span>
+                )}
                 {item.key === 'notifications' && notificationCount > 0 && (
                   <span className="absolute -right-2.5 -top-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-error px-1 text-[9px] font-semibold text-white ring-2 ring-surface">
                     {notificationCount > 99 ? '99+' : notificationCount}

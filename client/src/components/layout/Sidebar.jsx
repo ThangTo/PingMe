@@ -59,6 +59,8 @@ const Sidebar = ({
   onOpenGroups,
   onOpenNotifications,
   onOpenGlobalSearch,
+  onOpenDebt,
+  debtCount = 0,
   notificationCount = 0,
   onFriendRequestCountChange,
   showMessageBrand = false,
@@ -834,6 +836,20 @@ const Sidebar = ({
               aria-label="Tìm kiếm toàn bộ tin nhắn"
             >
               <AppIcon name="search" className="text-[21px]" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenDebt}
+              className="relative flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-low md:hidden"
+              aria-label="Mở nợ phản hồi"
+              title="Nợ phản hồi"
+            >
+              <AppIcon name="mark_chat_unread" className="text-[21px]" />
+              {debtCount > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-semibold text-white">
+                  {debtCount > 99 ? '99+' : debtCount}
+                </span>
+              )}
             </button>
             <button
               type="button"
