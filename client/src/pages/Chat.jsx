@@ -724,6 +724,7 @@ const formatConversationSummary = (conversation) => {
     pinnedMessageCount: conversation.pinnedMessageCount ?? pinnedMessages.length,
     latestPinnedMessage,
     pinnedMessage: latestPinnedMessage,
+    inviteLink: conversation.inviteLink || null,
   };
 };
 
@@ -2082,6 +2083,14 @@ const Chat = () => {
     }
 
     return response.data;
+  }, []);
+
+  const patchConversationInviteLink = useCallback((conversationId, inviteLink) => {
+    if (!conversationId) return;
+
+    setConversations((prev) =>
+      prev.map((conv) => (conv.id === conversationId ? { ...conv, inviteLink } : conv)),
+    );
   }, []);
 
   const patchConversationAppearance = useCallback((conversationId, appearance) => {
@@ -4877,6 +4886,7 @@ const Chat = () => {
                         onUpdateConversationNotifications={handleUpdateConversationNotifications}
                         onUpdateConversationAppearance={handleUpdateConversationAppearance}
                         onUploadConversationBackground={handleUploadConversationBackground}
+                        onUpdateInviteLink={patchConversationInviteLink}
                         reactionUsersById={reactionUsersById}
                         onPollVote={handlePollVote}
                         onEventRsvp={handleEventRsvp}

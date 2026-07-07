@@ -279,6 +279,21 @@ export const formatConversation = (
     latestPinnedMessage,
     pinnedMessages,
     pinnedMessageCount: pinnedMessages.length,
+    ...(conversation.type === 'group' && {
+      inviteLink:
+        conversation.inviteLink?.token &&
+        !conversation.inviteLink.revokedAt &&
+        (!conversation.inviteLink.expiresAt || conversation.inviteLink.expiresAt > new Date()) &&
+        (conversation.inviteLink.maxUses == null || conversation.inviteLink.usedCount < conversation.inviteLink.maxUses) &&
+        ['owner', 'admin'].includes(currentMember?.role)
+          ? {
+              token: conversation.inviteLink.token,
+              expiresAt: conversation.inviteLink.expiresAt || null,
+              maxUses: conversation.inviteLink.maxUses ?? null,
+              usedCount: conversation.inviteLink.usedCount || 0,
+            }
+          : null,
+    }),
   };
 };
 
@@ -334,7 +349,7 @@ export const populateConversationSummary = (conversationId) =>
     .populate('pinnedMessages.pinnedBy', 'username avatar')
     .lean();
 
-const buildMembersPayload = (conversation, action, actorId, extra = {}) => ({
+export const buildMembersPayload = (conversation, action, actorId, extra = {}) => ({
   conversationId: conversation._id.toString(),
   action,
   actorId,
@@ -357,7 +372,7 @@ const setUserConversationRoom = (io, userIds, conversationId, shouldJoin) => {
   });
 };
 
-const emitConversationMembersUpdated = ({ req, conversation, payload, addedMemberIds = [] }) => {
+export const emitConversationMembersUpdated = ({ req, conversation, payload, addedMemberIds = [] }) => {
   const io = req.app.get('io');
   if (!io) return;
 

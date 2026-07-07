@@ -9,6 +9,7 @@ import AppModal from '../ui/AppModal';
 import Avatar from '../ui/Avatar';
 import { useConfirmDialog } from '../ui/confirmDialogContext';
 import { useToast } from '../ui/toastContext';
+import { createBrandedQrDataUrl } from '../../utils/qr';
 
 const ConversationAppearanceModal = lazy(() => import('../chat/ConversationAppearanceModal'));
 
@@ -151,6 +152,7 @@ const ChatDetailsPanel = ({
   onUpdateConversationNotifications,
   onUpdateConversationAppearance,
   onUploadConversationBackground,
+  onUpdateInviteLink,
   reactionUsersById = {},
   onPollVote,
   onEventRsvp,
@@ -186,6 +188,14 @@ const ChatDetailsPanel = ({
   const [reportDetails, setReportDetails] = useState('');
   const [isReporting, setIsReporting] = useState(false);
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
+  const [inviteLink, setInviteLink] = useState(null);
+  const [inviteExpiresIn, setInviteExpiresIn] = useState(null);
+  const [inviteMaxUses, setInviteMaxUses] = useState(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [isRevokingLink, setIsRevokingLink] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [isLoadingQr, setIsLoadingQr] = useState(false);
   const memberMenuRef = useRef(null);
   const isGroup = Boolean(user?.isGroup);
   const isSaved = Boolean(user?.isSaved);
@@ -233,6 +243,58 @@ const ChatDetailsPanel = ({
       canViewPresence: member.canViewPresence,
     });
   };
+
+  const handleGenerateInviteLink = async () => {
+    setIsGeneratingLink(true);
+    try {
+      const res = await api.post(`/conversations/${user.id}/invite`, {
+        expiresIn: inviteExpiresIn,
+        maxUses: inviteMaxUses,
+      });
+      setInviteLink(res.data.inviteLink);
+      setQrDataUrl(null);
+      onUpdateInviteLink?.(user.id, res.data.inviteLink);
+    } catch {
+      showToast({ title: 'Không thể tạo link mời', tone: 'error' });
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const handleRevokeInviteLink = async () => {
+    setIsRevokingLink(true);
+    try {
+      await api.delete(`/conversations/${user.id}/invite`);
+      setInviteLink(null);
+      setQrDataUrl(null);
+      onUpdateInviteLink?.(user.id, null);
+    } catch {
+      showToast({ title: 'Không thể huỷ link mời', tone: 'error' });
+    } finally {
+      setIsRevokingLink(false);
+    }
+  };
+
+  const handleCopyInviteLink = () => {
+    if (!inviteLink?.token) return;
+    navigator.clipboard.writeText(`${window.location.origin}/invite/${inviteLink.token}`);
+    showToast({ title: 'Đã sao chép link mời' });
+  };
+
+  const handleOpenQr = async () => {
+    setShowQrModal(true);
+    if (qrDataUrl || !inviteLink?.token) return;
+    setIsLoadingQr(true);
+    try {
+      const dataUrl = await createBrandedQrDataUrl(`${window.location.origin}/invite/${inviteLink.token}`);
+      setQrDataUrl(dataUrl);
+    } catch {
+      showToast({ title: 'Không thể tạo mã QR', tone: 'error' });
+    } finally {
+      setIsLoadingQr(false);
+    }
+  };
+
   const quickActions = [
     {
       icon: 'call',
@@ -378,6 +440,12 @@ const ChatDetailsPanel = ({
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [activeMemberMenuId]);
+
+  useEffect(() => {
+    const il = user?.inviteLink;
+    setInviteLink(il?.token ? il : null);
+    setQrDataUrl(null);
+  }, [user?.id, user?.inviteLink?.token, user?.inviteLink?.expiresAt, user?.inviteLink?.maxUses, user?.inviteLink?.usedCount]);
 
   const localGallery = useMemo(() => buildLocalGallery(messages), [messages]);
 
@@ -621,6 +689,29 @@ const ChatDetailsPanel = ({
           />
         </Suspense>
       )}
+
+      <AppModal
+        open={showQrModal}
+        title={`Mã QR — ${user?.name}`}
+        onClose={() => setShowQrModal(false)}
+      >
+        <div className="flex flex-col items-center gap-4">
+          {isLoadingQr ? (
+            <div className="flex h-52 w-52 items-center justify-center">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : qrDataUrl ? (
+            <img src={qrDataUrl} alt="QR Code" className="h-52 w-52 rounded-xl" />
+          ) : (
+            <div className="flex h-52 w-52 items-center justify-center text-sm text-on-surface-variant">
+              Không thể tạo mã QR
+            </div>
+          )}
+          <p className="text-center text-[13px] text-on-surface-variant">
+            Quét để tham gia nhóm <strong className="text-on-surface">{user?.name}</strong>
+          </p>
+        </div>
+      </AppModal>
 
       <AppModal
         open={isReportModalOpen}
@@ -1024,6 +1115,99 @@ const ChatDetailsPanel = ({
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {isGroup && canManageMembers && (
+          <section className="border-b border-outline-variant px-6 py-5">
+            <div className="flex items-center justify-between">
+              <p className="text-[14px] font-medium text-on-surface">Liên kết mời</p>
+              {inviteLink?.maxUses !== null && inviteLink?.usedCount !== undefined && (
+                <span className="text-[12px] text-on-surface-variant">
+                  Đã dùng {inviteLink.usedCount}/{inviteLink.maxUses} lần
+                </span>
+              )}
+            </div>
+
+            {inviteLink?.token ? (
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <AppIcon name="link" className="shrink-0 text-[18px] text-on-surface-variant" />
+                  <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-on-surface-variant">
+                    {window.location.origin}/invite/{inviteLink.token}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyInviteLink}
+                    className="shrink-0 rounded-md p-1 transition-colors hover:bg-surface-container-low"
+                    title="Sao chép"
+                  >
+                    <AppIcon name="content_copy" className="text-[17px] text-on-surface-variant" />
+                  </button>
+                </div>
+
+                {inviteLink.expiresAt && (
+                  <p className="text-[12px] text-on-surface-variant">
+                    Hết hạn {new Date(inviteLink.expiresAt).toLocaleDateString('vi-VN')}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenQr}
+                    className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-xs font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+                  >
+                    <AppIcon name="qr_code" className="text-[16px]" />
+                    Mã QR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRevokeInviteLink}
+                    disabled={isRevokingLink}
+                    className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-error/30 bg-error-container text-xs font-medium text-error transition-colors hover:bg-error/15 disabled:opacity-50"
+                  >
+                    {isRevokingLink ? 'Đang huỷ...' : 'Huỷ link'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <div className="flex gap-2">
+                  <select
+                    value={inviteExpiresIn ?? ''}
+                    onChange={(e) => setInviteExpiresIn(e.target.value || null)}
+                    className="h-8 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-xs text-on-surface"
+                  >
+                    <option value="">Không hết hạn</option>
+                    <option value="1d">1 ngày</option>
+                    <option value="7d">7 ngày</option>
+                    <option value="30d">30 ngày</option>
+                  </select>
+                  <select
+                    value={inviteMaxUses ?? ''}
+                    onChange={(e) => setInviteMaxUses(e.target.value ? Number(e.target.value) : null)}
+                    className="h-8 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-xs text-on-surface"
+                  >
+                    <option value="">Không giới hạn</option>
+                    <option value="1">1 lần</option>
+                    <option value="5">5 lần</option>
+                    <option value="10">10 lần</option>
+                    <option value="25">25 lần</option>
+                    <option value="100">100 lần</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateInviteLink}
+                  disabled={isGeneratingLink}
+                  className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-xs font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-50"
+                >
+                  <AppIcon name="add_link" className="text-[16px]" />
+                  {isGeneratingLink ? 'Đang tạo...' : 'Tạo link mời'}
+                </button>
+              </div>
+            )}
           </section>
         )}
 

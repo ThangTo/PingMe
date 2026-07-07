@@ -126,6 +126,19 @@ const appearanceSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const inviteLinkSchema = new mongoose.Schema(
+  {
+    token: { type: String, default: null },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    createdAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null },
+    maxUses: { type: Number, default: null },
+    usedCount: { type: Number, default: 0 },
+    revokedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const conversationSchema = new mongoose.Schema(
   {
     type: {
@@ -176,6 +189,10 @@ const conversationSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    inviteLink: {
+      type: inviteLinkSchema,
+      default: null,
+    },
     savedOwner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -201,6 +218,10 @@ conversationSchema.index(
 );
 conversationSchema.index({ 'members.user': 1, updatedAt: -1 });
 conversationSchema.index({ 'pinnedMessages.message': 1 });
+conversationSchema.index(
+  { 'inviteLink.token': 1 },
+  { unique: true, sparse: true },
+);
 
 conversationSchema.methods.isMember = function (userId) {
   const userIdString = userId?.toString();

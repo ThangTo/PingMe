@@ -8,7 +8,8 @@ const api = axios.create({
 
 const isAuthPage = () => ['/login', '/register'].includes(window.location.pathname);
 const isPublicProfilePage = () => window.location.pathname.startsWith('/u/');
-const shouldRedirectToLogin = () => !isAuthPage() && !isPublicProfilePage();
+const isInvitePage = () => window.location.pathname.startsWith('/invite/');
+const shouldRedirectToLogin = () => !isAuthPage() && !isPublicProfilePage() && !isInvitePage();
 
 // Request interceptor (optional - để thêm token vào header nếu cần)
 api.interceptors.request.use(

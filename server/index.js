@@ -24,6 +24,7 @@ import searchRoutes from './routers/search.routes.js';
 import socialRoutes from './routers/social.routes.js';
 import stickerRoutes from './routers/sticker.routes.js';
 import syncRoutes from './routers/sync.routes.js';
+import inviteLinkRoutes from './routers/inviteLink.routes.js';
 import userRoutes from './routers/user.routes.js';
 import { startEmailQueueWorker } from './services/emailQueue.service.js';
 import { startEventReminderWorker } from './services/conversationEvent.service.js';
@@ -93,6 +94,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/stickers', stickerRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api', inviteLinkRoutes);
 app.use('/api/users', userRoutes);
 
 if (process.env.ENABLE_LEGACY_UPLOADS_STATIC === 'true') {
